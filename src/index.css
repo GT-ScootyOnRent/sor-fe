@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+/* 
+  Primary Color Theme - Change these values to update the entire site's color scheme
+  Current: Mid Blue Denim (#3A6F9B)
+  To change: Replace the hex values below with your desired color palette
+*/
+@theme {
+    --color-primary-50: #f0f5f9;
+    --color-primary-100: #dae6f0;
+    --color-primary-200: #b8cfe3;
+    --color-primary-300: #8bb3d1;
+    --color-primary-400: #5e94bc;
+    --color-primary-500: #4a80ab;
+    --color-primary-600: #3A6F9B;
+    --color-primary-700: #315d82;
+    --color-primary-800: #294d6b;
+    --color-primary-900: #243f57;
+}
