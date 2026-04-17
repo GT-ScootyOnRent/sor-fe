@@ -140,6 +140,8 @@ VITE_API_BASE_URL=https://app.scootyonrent.com/api
 | `npm run lint` | Run ESLint |
 | `npm run preview` | Preview production build |
 
+
+
 ## Tech Stack
 
 - **React 18** with TypeScript
