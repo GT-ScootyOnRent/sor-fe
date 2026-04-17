@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   User, Phone, Calendar, Car, FileText,
-  Hash, Shield, Loader2, CheckCircle, AlertCircle, Plus, Upload, Camera, X
+  Hash, Shield, Loader2, CheckCircle, AlertCircle, Upload, Camera, X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -20,24 +20,22 @@ const ID_TYPES = [
   { value: 'driving_license', label: 'Driving License' },
 ];
 
-const DOCUMENT_TYPES = [
-  { value: 'id_proof', label: 'ID Proof' },
-  { value: 'vehicle_before', label: 'Vehicle (Before)' },
-  { value: 'vehicle_after', label: 'Vehicle (After)' },
-  { value: 'other', label: 'Other' },
-];
-
 const DOCUMENT_TYPE_OPTIONS = {
-  id_proof: 'ID Proof',
+  id_proof: 'DL (Driving License)',
   vehicle_before: 'Vehicle (Before)',
   vehicle_after: 'Vehicle (After)',
   other: 'Other',
 } as const;
 
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB (aligned with existing admin/staff image limits)
+const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50MB (common Supabase gateway limit; adjust if your project differs)
+const MAX_OTHER_IMAGES = 2;
+
 interface FormState {
   guestPhone: string;
   guestName: string;
   guestAddress: string;
+  friendFamilyContactNumber: string;
   hotelName: string;
   hotelAddress: string;
   pickupLocationId: string;
@@ -64,6 +62,7 @@ const INITIAL_FORM: FormState = {
   guestPhone: '',
   guestName: '',
   guestAddress: '',
+  friendFamilyContactNumber: '',
   hotelName: '',
   hotelAddress: '',
   pickupLocationId: '',
@@ -148,6 +147,9 @@ const OfflineBookingForm: React.FC = () => {
   const [selectedDocumentType, setSelectedDocumentType] = useState('');
   const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(null);
   const [selectedDocumentLabel, setSelectedDocumentLabel] = useState('');
+  const [selectedDocumentPreviewUrl, setSelectedDocumentPreviewUrl] = useState<string | null>(null);
+  const [otherImages, setOtherImages] = useState<File[]>([]);
+  const [otherVideo, setOtherVideo] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [createOfflineBooking, { isLoading }] = useCreateOfflineBookingMutation();
@@ -288,33 +290,59 @@ const OfflineBookingForm: React.FC = () => {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+    setOtherImages([]);
+    setOtherVideo(null);
+    if (selectedDocumentPreviewUrl) {
+      URL.revokeObjectURL(selectedDocumentPreviewUrl);
+    }
+    setSelectedDocumentPreviewUrl(null);
   };
 
   const handleDocumentUpload = async () => {
-    if (!selectedDocumentFile || !selectedDocumentType) {
-      toast.error('Please select a document type and file.');
+    if (!selectedDocumentType) {
+      toast.error('Document type is missing. Please reopen the upload dialog.');
+      return;
+    }
+    const isOther = selectedDocumentType === 'other';
+    const isDl = selectedDocumentType === 'id_proof';
+
+    const filesToUpload: File[] = isOther
+      ? [...otherImages, ...(otherVideo ? [otherVideo] : [])]
+      : (selectedDocumentFile ? [selectedDocumentFile] : []);
+
+    if (filesToUpload.length === 0) {
+      toast.error(isOther ? 'Please add up to 2 images and/or 1 video.' : 'Please select an image to upload.');
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', selectedDocumentFile);
-    formData.append('documentType', selectedDocumentType);
+    if (isOther && !selectedDocumentLabel.trim()) {
+      toast.error('Label is required.');
+      return;
+    }
 
     try {
-      const uploaded = await uploadOfflineBookingDocument(formData).unwrap();
-      setForm((currentForm) => ({
-        ...currentForm,
-        documents: [
-          ...currentForm.documents,
-          {
-            documentType: selectedDocumentType,
-            fileUrl: uploaded.fileUrl,
-            fileType: uploaded.fileType,
-            label: selectedDocumentLabel || selectedDocumentFile.name,
-          },
-        ],
-      }));
-      toast.success('Document uploaded successfully.');
+      for (const file of filesToUpload) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('documentType', selectedDocumentType);
+
+        const uploaded = await uploadOfflineBookingDocument(formData).unwrap();
+        setForm((currentForm) => ({
+          ...currentForm,
+          documents: [
+            ...currentForm.documents,
+            {
+              documentType: selectedDocumentType,
+              fileUrl: uploaded.fileUrl,
+              fileType: uploaded.fileType,
+              // DL + Other: no label input; default to filename
+              // Vehicle before/after: preserve optional label if user typed it
+              label: isOther ? selectedDocumentLabel.trim() : (isDl ? file.name : (selectedDocumentLabel || file.name)),
+            },
+          ],
+        }));
+      }
+      toast.success('Uploaded successfully.');
       resetDocumentUploadState();
     } catch (err: any) {
       toast.error(err?.data?.error || 'Failed to upload document.');
@@ -334,10 +362,108 @@ const OfflineBookingForm: React.FC = () => {
     setSelectedDocumentType(documentType ?? '');
     setSelectedDocumentFile(null);
     setSelectedDocumentLabel('');
+    setSelectedDocumentPreviewUrl(null);
+    setOtherImages([]);
+    setOtherVideo(null);
     setShowDocumentUploadModal(true);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  useEffect(() => {
+    if (!selectedDocumentFile) {
+      if (selectedDocumentPreviewUrl) {
+        URL.revokeObjectURL(selectedDocumentPreviewUrl);
+      }
+      setSelectedDocumentPreviewUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(selectedDocumentFile);
+    setSelectedDocumentPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return url;
+    });
+  }, [selectedDocumentFile]);
+
+  const setSelectedImageFile = (file: File | null) => {
+    if (!file) {
+      setSelectedDocumentFile(null);
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      toast.error('Only image files are allowed for this upload.');
+      setSelectedDocumentFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      toast.error('Image must be under 5MB.');
+      setSelectedDocumentFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    setSelectedDocumentFile(file);
+  };
+
+  const addOtherFiles = (files: File[]) => {
+    let nextImages = [...otherImages];
+    let nextVideo = otherVideo;
+
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        if (file.size > MAX_IMAGE_SIZE_BYTES) {
+          toast.error('Each image must be under 5MB.');
+          continue;
+        }
+        if (nextImages.length >= MAX_OTHER_IMAGES) {
+          toast.error('You can upload maximum 2 images.');
+          continue;
+        }
+        nextImages.push(file);
+      } else if (file.type.startsWith('video/')) {
+        if (file.size > MAX_VIDEO_SIZE_BYTES) {
+          toast.error('Video is too large (max 50MB).');
+          continue;
+        }
+        if (nextVideo) {
+          toast.error('Only one video can be uploaded.');
+          continue;
+        }
+        nextVideo = file;
+      } else {
+        toast.error('Only image/video files are allowed.');
+      }
+    }
+
+    setOtherImages(nextImages);
+    setOtherVideo(nextVideo);
+  };
+
+  const removeOtherImage = (index: number) => {
+    setOtherImages((imgs) => imgs.filter((_, i) => i !== index));
+  };
+
+  const removeOtherVideo = () => {
+    setOtherVideo(null);
+  };
+
+  const handleDropFile: React.DragEventHandler<HTMLDivElement> = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer.files || []);
+    if (selectedDocumentType === 'other') {
+      addOtherFiles(files);
+      return;
+    }
+    const file = files[0] ?? null;
+    setSelectedImageFile(file);
+  };
+
+  const handleDragOver: React.DragEventHandler<HTMLDivElement> = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
   };
 
   const handleReset = () => {
@@ -368,6 +494,14 @@ const OfflineBookingForm: React.FC = () => {
 
     if (!form.guestPhone || form.guestPhone.replace(/\D/g, '').length < 10) {
       toast.error('Please enter a valid 10-digit phone number.');
+      return;
+    }
+    if (!form.friendFamilyContactNumber || form.friendFamilyContactNumber.replace(/\D/g, '').length < 10) {
+      toast.error('Please enter a valid 10-digit friend/family contact number.');
+      return;
+    }
+    if (!form.guestAddress || form.guestAddress.trim().length < 3) {
+      toast.error('Address is required.');
       return;
     }
     if (!form.primaryVehicleId) {
@@ -418,7 +552,8 @@ const OfflineBookingForm: React.FC = () => {
     const dto: CreateOfflineBookingDto = {
       guestPhone: form.guestPhone.replace(/\D/g, ''),
       guestName: form.guestName || undefined,
-      guestAddress: form.guestAddress || undefined,
+      guestAddress: form.guestAddress.trim(),
+      friendFamilyContactNumber: form.friendFamilyContactNumber.replace(/\D/g, ''),
       hotelName: form.hotelName || undefined,
       hotelAddress: form.hotelAddress || undefined,
       pickupLocationId: parseInt(form.pickupLocationId),
@@ -513,14 +648,35 @@ const OfflineBookingForm: React.FC = () => {
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
             />
           </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Friend/Family Contact Number <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="tel"
+                name="friendFamilyContactNumber"
+                value={form.friendFamilyContactNumber}
+                onChange={handleChange}
+                placeholder="Alternate contact number"
+                maxLength={10}
+                required
+                className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Address <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               name="guestAddress"
               value={form.guestAddress}
               onChange={handleChange}
               placeholder="Guest address"
+              required
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
             />
           </div>
@@ -849,11 +1005,11 @@ const OfflineBookingForm: React.FC = () => {
             <label className="text-sm font-medium text-gray-700">Attached Files / Photos</label>
             <button
               type="button"
-              onClick={() => openDocumentUploadModal()}
+              onClick={() => openDocumentUploadModal('other')}
               className="flex items-center text-sm bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition"
             >
               <Upload className="w-4 h-4 mr-1" />
-              Upload
+              Add Other
             </button>
           </div>
 
@@ -864,7 +1020,7 @@ const OfflineBookingForm: React.FC = () => {
               className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
             >
               <FileText className="w-5 h-5 text-primary-600 mr-3" />
-              <span>Upload ID Proof</span>
+              <span>Upload DL</span>
             </button>
             <button
               type="button"
@@ -881,14 +1037,6 @@ const OfflineBookingForm: React.FC = () => {
             >
               <Camera className="w-5 h-5 text-blue-600 mr-3" />
               <span>Vehicle After</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => openDocumentUploadModal('other')}
-              className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-            >
-              <Plus className="w-5 h-5 text-slate-600 mr-3" />
-              <span>Other Document</span>
             </button>
           </div>
 
@@ -943,7 +1091,9 @@ const OfflineBookingForm: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Upload Document</h3>
+              <h3 className="text-lg font-bold text-gray-900">
+                {selectedDocumentType === 'id_proof' ? 'Upload DL' : selectedDocumentType === 'other' ? 'Add Other' : 'Upload Document'}
+              </h3>
               <button
                 type="button"
                 onClick={resetDocumentUploadState}
@@ -955,45 +1105,129 @@ const OfflineBookingForm: React.FC = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                <select
-                  value={selectedDocumentType}
-                  onChange={(e) => setSelectedDocumentType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {selectedDocumentType === 'other' ? 'Files ( images / video)' : 'File (Images only)'}
+                </label>
+                <div
+                  onDrop={handleDropFile}
+                  onDragOver={handleDragOver}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`w-full border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition ${selectedDocumentType === 'id_proof' ? 'p-6 min-h-40 flex items-center justify-center' : 'p-4'
+                    }`}
                 >
-                  <option value="">Select type</option>
-                  {DOCUMENT_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple={selectedDocumentType === 'other'}
+                    accept={selectedDocumentType === 'other' ? 'image/*,video/*' : 'image/*'}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (selectedDocumentType === 'other') {
+                        addOtherFiles(files);
+                      } else {
+                        setSelectedImageFile(files[0] || null);
+                      }
+                    }}
+                    className="hidden"
+                  />
+
+                  {selectedDocumentType === 'other' ? (
+                    <div className="space-y-3">
+                      {(otherImages.length === 0 && !otherVideo) ? (
+                        <div className="text-center text-sm text-gray-600">
+                          <p className="font-medium">Drag & drop images/videos here</p>
+                          <p className="text-xs text-gray-500 mt-1">or click to choose from device</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {otherImages.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-gray-700 mb-1">Images ({otherImages.length}/{MAX_OTHER_IMAGES})</p>
+                              <div className="space-y-2">
+                                {otherImages.map((img, idx) => (
+                                  <div key={`${img.name}-${idx}`} className="flex items-center justify-between gap-2 text-xs text-gray-600">
+                                    <span className="truncate">{img.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); removeOtherImage(idx); }}
+                                      className="px-2 py-1 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {otherVideo && (
+                            <div>
+                              <p className="text-xs font-medium text-gray-700 mb-1">Video (1/1)</p>
+                              <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
+                                <span className="truncate">{otherVideo.name}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); removeOtherVideo(); }}
+                                  className="px-2 py-1 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          <p className="text-xs text-gray-500">Click or drop more files to add (limits apply).</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : selectedDocumentPreviewUrl ? (
+                    <div className="space-y-2">
+                      <img
+                        src={selectedDocumentPreviewUrl}
+                        alt="Selected upload preview"
+                        className="w-full max-h-56 object-contain rounded-md bg-white"
+                      />
+                      <p className="text-xs text-gray-500">
+                        Selected: {selectedDocumentFile?.name} ({selectedDocumentFile ? (selectedDocumentFile.size / 1024 / 1024).toFixed(2) : '0.00'} MB)
+                      </p>
+                      <p className="text-xs text-gray-500">Click or drop a new image to replace.</p>
+                    </div>
+                  ) : (
+                    <div className="text-center text-sm text-gray-600">
+                      <p className="font-medium">Drag & drop an image here</p>
+                      <p className="text-xs text-gray-500 mt-1">or click to choose from device</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*,video/*,.pdf"
-                  onChange={(e) => setSelectedDocumentFile(e.target.files?.[0] || null)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                />
-                {selectedDocumentFile && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Selected: {selectedDocumentFile.name} ({(selectedDocumentFile.size / 1024 / 1024).toFixed(2)} MB)
-                  </p>
-                )}
-              </div>
+              {/* Label required only for Add Other */}
+              {selectedDocumentType === 'other' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Label <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedDocumentLabel}
+                    onChange={(e) => setSelectedDocumentLabel(e.target.value)}
+                    placeholder="Enter label"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                  />
+                </div>
+              )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Label</label>
-                <input
-                  type="text"
-                  value={selectedDocumentLabel}
-                  onChange={(e) => setSelectedDocumentLabel(e.target.value)}
-                  placeholder="Optional label"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                />
-              </div>
+              {/* Label optional for vehicle before/after */}
+              {selectedDocumentType !== 'id_proof' && selectedDocumentType !== 'other' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                  <input
+                    type="text"
+                    value={selectedDocumentLabel}
+                    onChange={(e) => setSelectedDocumentLabel(e.target.value)}
+                    placeholder="Optional label"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                  />
+                </div>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <button
@@ -1006,7 +1240,14 @@ const OfflineBookingForm: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleDocumentUpload}
-                  disabled={!selectedDocumentFile || !selectedDocumentType || isUploadingDocument}
+                  disabled={
+                    !selectedDocumentType
+                    || isUploadingDocument
+                    || (selectedDocumentType === 'other'
+                      ? ((otherImages.length === 0 && !otherVideo) || !selectedDocumentLabel.trim())
+                      : !selectedDocumentFile
+                    )
+                  }
                   className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {isUploadingDocument && (

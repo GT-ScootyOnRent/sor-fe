@@ -1,6 +1,5 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
-import { Mutex } from 'async-mutex';
 import { API_CONFIG } from '../../config/api.config';
 import { staffLogout, setStaffCredentials, type StaffUser } from '../slices/staffAuthSlice';
 
@@ -71,7 +70,7 @@ export interface BookingMediaDto {
 
 // ── Mutex for token refresh ────────────────────────────────────────────────
 
-const mutex = new Mutex();
+// const mutex = new Mutex();
 
 const baseQuery = fetchBaseQuery({
     baseUrl: API_CONFIG.BASE_URL,
@@ -92,38 +91,48 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
     api,
     extraOptions
 ) => {
-    // Wait if another refresh is in progress
-    await mutex.waitForUnlock();
+    // // Wait if another refresh is in progress
+    // await mutex.waitForUnlock();
     let result = await baseQuery(args, api, extraOptions);
 
     if (result.error && result.error.status === 401) {
-        if (!mutex.isLocked()) {
-            const release = await mutex.acquire();
-            try {
-                // Try to refresh token
-                const refreshResult = await baseQuery(
-                    { url: '/staff/auth/refresh', method: 'POST' },
-                    api,
-                    extraOptions
-                );
+        // if (!mutex.isLocked()) {
+        //     const release = await mutex.acquire();
+        //     try {
+        //         // Try to refresh token
+        //         const refreshResult = await baseQuery(
+        //             { url: '/staff/auth/refresh', method: 'POST' },
+        //             api,
+        //             extraOptions
+        //         );
 
-                if (refreshResult.data) {
-                    const data = refreshResult.data as { staff: StaffUser };
-                    api.dispatch(setStaffCredentials({ staff: data.staff }));
-                    // Retry original request
-                    result = await baseQuery(args, api, extraOptions);
-                } else {
-                    api.dispatch(staffLogout());
-                    window.location.href = '/login';
-                }
-            } finally {
-                release();
-            }
-        } else {
-            // Wait for other refresh to complete
-            await mutex.waitForUnlock();
-            result = await baseQuery(args, api, extraOptions);
-        }
+        //         if (refreshResult.data) {
+        //             const data = refreshResult.data as { staff: StaffUser };
+        //             api.dispatch(setStaffCredentials({ staff: data.staff }));
+        //             // Retry original request
+        //             result = await baseQuery(args, api, extraOptions);
+        //         } else {
+        //             api.dispatch(staffLogout());
+        //             window.location.href = '/login';
+        //         }
+        //     } finally {
+        //         release();
+        //     }
+        // } else {
+        //     // Wait for other refresh to complete
+        //     await mutex.waitForUnlock();
+        //     result = await baseQuery(args, api, extraOptions);
+        // }
+             // Staff requirement: any 401 should force logout (no refresh/retry).
+             api.dispatch(staffLogout());
+             localStorage.removeItem('staff_token');
+             localStorage.removeItem('staff_refresh_token');
+             localStorage.removeItem('staff');
+             localStorage.removeItem('staffId');
+     
+             if (window.location.pathname !== '/login') {
+                 window.location.href = '/login';
+    }
     }
 
     return result;
