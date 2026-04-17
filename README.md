@@ -13,7 +13,8 @@ This project supports **two separate applications** from a single codebase:
 
 The apps are separated at **build time** using the `VITE_APP_TYPE` environment variable.
 
-## Prerequisites
+## Prerequisites 
+
 
 - Node.js 18+ 
 - npm or yarn
