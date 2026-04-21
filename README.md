@@ -13,7 +13,8 @@ This project supports **two separate applications** from a single codebase:
 
 The apps are separated at **build time** using the `VITE_APP_TYPE` environment variable.
 
-## Prerequisites
+## Prerequisites 
+
 
 - Node.js 18+ 
 - npm or yarn
@@ -139,6 +140,8 @@ VITE_API_BASE_URL=https://app.scootyonrent.com/api
 | `npm run build:admin` | Production build for admin app |
 | `npm run lint` | Run ESLint |
 | `npm run preview` | Preview production build |
+
+
 
 ## Tech Stack
 

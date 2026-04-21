@@ -1,5 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import { API_CONFIG } from '../../config/api.config';
+import { staffLogout } from '../slices/staffAuthSlice';
 
 const getOfflineBookingToken = () => (
   localStorage.getItem('staff_token')
@@ -24,6 +26,7 @@ export interface CreateOfflineBookingDto {
   guestPhone: string;
   guestName?: string;
   guestAddress?: string;
+  friendFamilyContactNumber: string;
   hotelName?: string;
   hotelAddress?: string;
   pickupLocationId: number;
@@ -56,17 +59,43 @@ export interface CreateOfflineBookingResponseDto {
   paymentId?: number;
 }
 
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: API_CONFIG.BASE_URL,
+  credentials: 'include',
+  prepareHeaders: (headers) => {
+    const token = getOfflineBookingToken();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    return headers;
+  },
+});
+
+const baseQueryWithStaff401Logout: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (
+  args,
+  api,
+  extraOptions
+) => {
+  const result = await rawBaseQuery(args, api, extraOptions);
+
+  // If this call is being made under a staff session and backend returns 401,
+  // force staff logout to match staff portal behavior.
+  if (result.error && result.error.status === 401 && localStorage.getItem('staff_token')) {
+    api.dispatch(staffLogout());
+    localStorage.removeItem('staff_token');
+    localStorage.removeItem('staff_refresh_token');
+    localStorage.removeItem('staff');
+    localStorage.removeItem('staffId');
+
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
+  }
+
+  return result;
+};
+
 export const offlineBookingApi = createApi({
   reducerPath: 'offlineBookingApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl: API_CONFIG.BASE_URL,
-    credentials: 'include',
-    prepareHeaders: (headers) => {
-      const token = getOfflineBookingToken();
-      if (token) headers.set('Authorization', `Bearer ${token}`);
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithStaff401Logout,
   endpoints: (builder) => ({
     uploadOfflineBookingDocument: builder.mutation<UploadOfflineBookingDocumentResponseDto, FormData>({
       query: (formData) => ({
