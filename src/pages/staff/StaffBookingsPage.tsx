@@ -49,6 +49,7 @@ const BookingsList: React.FC = () => {
             b.vehicleNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             b.userName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             b.userPhone?.includes(searchQuery) ||
+            b.friendFamilyContactNumber?.includes(searchQuery) ||
             b.id.toString().includes(searchQuery);
         const matchesStatus = statusFilter === 'all' || b.status === statusFilter;
         return matchesSearch && matchesStatus;
@@ -71,7 +72,7 @@ const BookingsList: React.FC = () => {
                     <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                         type="text"
-                        placeholder="Search by vehicle, customer, or booking ID..."
+                        placeholder="Search by vehicle, customer, phone, or booking ID..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
@@ -136,6 +137,12 @@ const BookingsList: React.FC = () => {
                                     <td className="px-5 py-4">
                                         <p className="text-gray-900">{booking.userName || 'Customer'}</p>
                                         <p className="text-xs text-gray-500">{booking.userPhone}</p>
+                                        {booking.friendFamilyContactNumber && (
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                <span className="font-medium text-gray-400">F&amp;F:</span>{' '}
+                                                {booking.friendFamilyContactNumber}
+                                            </p>
+                                        )}
                                     </td>
                                     <td className="px-5 py-4 text-gray-600">
                                         <p>{formatDate(booking.startDate)}</p>
@@ -300,6 +307,12 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                                 <p className="text-sm text-gray-500">Customer</p>
                                 <p className="font-medium">{booking.userName || 'N/A'}</p>
                                 <p className="text-sm text-gray-500">{booking.userPhone}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500">F&amp;F Contact</p>
+                                <p className="font-medium">
+                                    {booking.friendFamilyContactNumber || 'N/A'}
+                                </p>
                             </div>
                             <div>
                                 <p className="text-sm text-gray-500">Start Date</p>

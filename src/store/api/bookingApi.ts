@@ -14,6 +14,7 @@ export interface BookingDto {
   endTime: string;
   totalAmount: number;
   status: 0 | 1 | 2 | 3;
+  friendFamilyContactNumber?: string | null;
 }
 
 export interface CreateBookingRequest {
