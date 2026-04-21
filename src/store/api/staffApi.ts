@@ -1,7 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import { API_CONFIG } from '../../config/api.config';
-import { staffLogout, setStaffCredentials, type StaffUser } from '../slices/staffAuthSlice';
+import { staffLogout, type StaffUser } from '../slices/staffAuthSlice';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
