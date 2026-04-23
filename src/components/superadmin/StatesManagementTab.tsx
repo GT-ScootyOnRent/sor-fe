@@ -1,127 +1,99 @@
 import React, { useState } from 'react';
-import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, AlertCircle, Search, MapPin, Clock } from 'lucide-react';
+import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, AlertCircle, Search, Map } from 'lucide-react';
 import {
-    useGetCitiesQuery,
-    useCreateCityMutation,
-    useUpdateCityMutation,
-    useDeleteCityMutation,
-    type CityDto,
-} from '../../store/api/cityApi';
-import { useGetStatesQuery } from '../../store/api/stateApi';
+    useGetStatesQuery,
+    useCreateStateMutation,
+    useUpdateStateMutation,
+    useDeleteStateMutation,
+    type StateDto,
+} from '../../store/api/stateApi';
 import { toast } from 'sonner';
 
-interface CityForm {
+interface StateForm {
     name: string;
-    stateId: number;
     isActive: boolean;
-    isComingSoon: boolean;
 }
 
-const initialForm: CityForm = {
+const initialForm: StateForm = {
     name: '',
-    stateId: 0,
     isActive: true,
-    isComingSoon: false,
 };
 
-const CitiesManagementTab: React.FC = () => {
-    const { data: cities, isLoading, isError, refetch } = useGetCitiesQuery({ page: 1, size: 100 });
-    const { data: states } = useGetStatesQuery({ page: 1, size: 100 });
-    const [createCity, { isLoading: isCreating }] = useCreateCityMutation();
-    const [updateCity, { isLoading: isUpdating }] = useUpdateCityMutation();
-    const [deleteCity, { isLoading: isDeleting }] = useDeleteCityMutation();
+const StatesManagementTab: React.FC = () => {
+    const { data: states, isLoading, isError, refetch } = useGetStatesQuery({ page: 1, size: 100 });
+    const [createState, { isLoading: isCreating }] = useCreateStateMutation();
+    const [updateState, { isLoading: isUpdating }] = useUpdateStateMutation();
+    const [deleteState, { isLoading: isDeleting }] = useDeleteStateMutation();
 
     const [search, setSearch] = useState('');
     const [showModal, setShowModal] = useState(false);
-    const [editingCity, setEditingCity] = useState<CityDto | null>(null);
-    const [form, setForm] = useState<CityForm>(initialForm);
+    const [editingState, setEditingState] = useState<StateDto | null>(null);
+    const [form, setForm] = useState<StateForm>(initialForm);
     const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
-    const getStateName = (id: number) =>
-        states?.find((s) => s.id === id)?.name ?? `State ${id}`;
-
-    const filtered = (cities ?? []).filter((c) =>
-        c.name.toLowerCase().includes(search.toLowerCase())
+    const filtered = (states ?? []).filter((s) =>
+        s.name.toLowerCase().includes(search.toLowerCase())
     );
 
     const handleOpenAdd = () => {
-        setEditingCity(null);
+        setEditingState(null);
         setForm(initialForm);
         setShowModal(true);
     };
 
-    const handleOpenEdit = (city: CityDto) => {
-        setEditingCity(city);
+    const handleOpenEdit = (state: StateDto) => {
+        setEditingState(state);
         setForm({
-            name: city.name,
-            stateId: city.stateId,
-            isActive: city.isActive,
-            isComingSoon: city.isComingSoon,
+            name: state.name,
+            isActive: state.isActive,
         });
         setShowModal(true);
     };
 
     const handleSubmit = async () => {
         if (!form.name.trim()) {
-            toast.error('City name is required');
-            return;
-        }
-
-        if (!form.stateId || form.stateId === 0) {
-            toast.error('Please select a state');
+            toast.error('State name is required');
             return;
         }
 
         try {
-            if (editingCity) {
-                await updateCity({
-                    id: editingCity.id,
-                    city: { ...editingCity, ...form },
+            if (editingState) {
+                await updateState({
+                    id: editingState.id,
+                    state: { ...editingState, ...form },
                 }).unwrap();
-                toast.success('City updated successfully');
+                toast.success('State updated successfully');
             } else {
-                await createCity(form).unwrap();
-                toast.success('City created successfully');
+                await createState(form).unwrap();
+                toast.success('State created successfully');
             }
             setShowModal(false);
             setForm(initialForm);
-            setEditingCity(null);
+            setEditingState(null);
         } catch {
-            toast.error(editingCity ? 'Failed to update city' : 'Failed to create city');
+            toast.error(editingState ? 'Failed to update state' : 'Failed to create state');
         }
     };
 
-    const handleToggleActive = async (city: CityDto) => {
+    const handleToggleActive = async (state: StateDto) => {
         try {
-            await updateCity({
-                id: city.id,
-                city: { ...city, isActive: !city.isActive },
+            await updateState({
+                id: state.id,
+                state: { ...state, isActive: !state.isActive },
             }).unwrap();
-            toast.success(`City ${city.isActive ? 'deactivated' : 'activated'} successfully`);
+            toast.success(`State ${state.isActive ? 'deactivated' : 'activated'} successfully`);
         } catch {
-            toast.error('Failed to update city status');
-        }
-    };
-
-    const handleToggleComingSoon = async (city: CityDto) => {
-        try {
-            await updateCity({
-                id: city.id,
-                city: { ...city, isComingSoon: !city.isComingSoon },
-            }).unwrap();
-            toast.success(`Coming soon ${city.isComingSoon ? 'disabled' : 'enabled'} for ${city.name}`);
-        } catch {
-            toast.error('Failed to update city');
+            toast.error('Failed to update state status');
         }
     };
 
     const handleDelete = async (id: number) => {
         try {
-            await deleteCity(id).unwrap();
-            toast.success('City deleted successfully');
+            await deleteState(id).unwrap();
+            toast.success('State deleted successfully');
             setConfirmDeleteId(null);
         } catch {
-            toast.error('Failed to delete city');
+            toast.error('Failed to delete state');
         }
     };
 
@@ -130,9 +102,9 @@ const CitiesManagementTab: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-800">City Management</h2>
+                    <h2 className="text-lg font-semibold text-gray-800">State Management</h2>
                     <p className="text-sm text-gray-500 mt-0.5">
-                        {cities?.length ?? 0} {cities?.length === 1 ? 'city' : 'cities'} total
+                        {states?.length ?? 0} {states?.length === 1 ? 'state' : 'states'} total
                     </p>
                 </div>
                 <button
@@ -140,7 +112,7 @@ const CitiesManagementTab: React.FC = () => {
                     className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
                 >
                     <Plus className="w-4 h-4" />
-                    Add City
+                    Add State
                 </button>
             </div>
 
@@ -151,7 +123,7 @@ const CitiesManagementTab: React.FC = () => {
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search by city name..."
+                    placeholder="Search by state name..."
                     className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition"
                 />
             </div>
@@ -160,7 +132,7 @@ const CitiesManagementTab: React.FC = () => {
             {isLoading && (
                 <div className="flex items-center justify-center py-16">
                     <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
-                    <span className="ml-2 text-sm text-gray-500">Loading cities...</span>
+                    <span className="ml-2 text-sm text-gray-500">Loading states...</span>
                 </div>
             )}
 
@@ -168,7 +140,7 @@ const CitiesManagementTab: React.FC = () => {
             {isError && (
                 <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
                     <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                    <p className="text-sm text-red-700">Failed to load cities.</p>
+                    <p className="text-sm text-red-700">Failed to load states.</p>
                     <button onClick={refetch} className="ml-auto text-sm text-red-600 underline">Retry</button>
                 </div>
             )}
@@ -180,46 +152,43 @@ const CitiesManagementTab: React.FC = () => {
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
-                                    <th className="px-4 py-3 text-left font-semibold">City</th>
                                     <th className="px-4 py-3 text-left font-semibold">State</th>
                                     <th className="px-4 py-3 text-left font-semibold">Status</th>
-                                    <th className="px-4 py-3 text-left font-semibold">Coming Soon</th>
                                     <th className="px-4 py-3 text-right font-semibold">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {filtered.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="px-4 py-12 text-center text-gray-400 text-sm">
-                                            <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                        <td colSpan={3} className="px-4 py-12 text-center text-gray-400 text-sm">
+                                            <Map className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                                             <p className="text-gray-500 font-medium">
-                                                {search ? 'No cities matching your search' : 'No cities yet'}
+                                                {search ? 'No states matching your search' : 'No states yet'}
                                             </p>
                                             {!search && (
                                                 <p className="text-gray-400 text-sm mt-1">
-                                                    Click "Add City" to create your first city
+                                                    Click "Add State" to create your first state
                                                 </p>
                                             )}
                                         </td>
                                     </tr>
                                 ) : (
-                                    filtered.map((city) => (
-                                        <tr key={city.id} className="hover:bg-gray-50 transition">
+                                    filtered.map((state) => (
+                                        <tr key={state.id} className="hover:bg-gray-50 transition">
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
-                                                    <MapPin className="w-4 h-4 text-purple-400 flex-shrink-0" />
-                                                    <p className="font-medium text-gray-800">{city.name}</p>
+                                                    <Map className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                                                    <p className="font-medium text-gray-800">{state.name}</p>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 text-gray-600">{getStateName(city.stateId)}</td>
                                             <td className="px-4 py-3">
                                                 <button
-                                                    onClick={() => handleToggleActive(city)}
+                                                    onClick={() => handleToggleActive(state)}
                                                     disabled={isUpdating}
                                                     className="flex items-center gap-1.5 text-xs font-medium transition"
-                                                    aria-label={city.isActive ? 'Deactivate city' : 'Activate city'}
+                                                    aria-label={state.isActive ? 'Deactivate state' : 'Activate state'}
                                                 >
-                                                    {city.isActive ? (
+                                                    {state.isActive ? (
                                                         <>
                                                             <ToggleRight className="w-5 h-5 text-green-500" />
                                                             <span className="text-green-600">Active</span>
@@ -233,38 +202,18 @@ const CitiesManagementTab: React.FC = () => {
                                                 </button>
                                             </td>
                                             <td className="px-4 py-3">
-                                                <button
-                                                    onClick={() => handleToggleComingSoon(city)}
-                                                    disabled={isUpdating}
-                                                    className="flex items-center gap-1.5 text-xs font-medium transition"
-                                                    aria-label={city.isComingSoon ? 'Disable coming soon' : 'Enable coming soon'}
-                                                >
-                                                    {city.isComingSoon ? (
-                                                        <>
-                                                            <Clock className="w-4 h-4 text-amber-500" />
-                                                            <span className="text-amber-600">Coming Soon</span>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Clock className="w-4 h-4 text-gray-300" />
-                                                            <span className="text-gray-400">No</span>
-                                                        </>
-                                                    )}
-                                                </button>
-                                            </td>
-                                            <td className="px-4 py-3">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <button
-                                                        onClick={() => handleOpenEdit(city)}
+                                                        onClick={() => handleOpenEdit(state)}
                                                         className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                                                        aria-label="Edit city"
+                                                        aria-label="Edit state"
                                                     >
                                                         <Pencil className="w-4 h-4" />
                                                     </button>
-                                                    {confirmDeleteId === city.id ? (
+                                                    {confirmDeleteId === state.id ? (
                                                         <div className="flex items-center gap-1">
                                                             <button
-                                                                onClick={() => handleDelete(city.id)}
+                                                                onClick={() => handleDelete(state.id)}
                                                                 disabled={isDeleting}
                                                                 className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition"
                                                             >
@@ -279,9 +228,9 @@ const CitiesManagementTab: React.FC = () => {
                                                         </div>
                                                     ) : (
                                                         <button
-                                                            onClick={() => setConfirmDeleteId(city.id)}
+                                                            onClick={() => setConfirmDeleteId(state.id)}
                                                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                                                            aria-label="Delete city"
+                                                            aria-label="Delete state"
                                                         >
                                                             <Trash2 className="w-4 h-4" />
                                                         </button>
@@ -304,7 +253,7 @@ const CitiesManagementTab: React.FC = () => {
                         {/* Modal Header */}
                         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                             <h2 className="text-lg font-semibold text-gray-800">
-                                {editingCity ? 'Edit City' : 'Add City'}
+                                {editingState ? 'Edit State' : 'Add State'}
                             </h2>
                             <button
                                 onClick={() => setShowModal(false)}
@@ -316,40 +265,21 @@ const CitiesManagementTab: React.FC = () => {
 
                         {/* Modal Body */}
                         <div className="p-6 space-y-5">
-                            {/* City Name */}
+                            {/* State Name */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                                    City Name <span className="text-red-500">*</span>
+                                    State Name <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="text"
                                     value={form.name}
                                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                    placeholder="e.g. Surat"
+                                    placeholder="e.g. Gujarat"
                                     className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition"
                                 />
                             </div>
 
-                            {/* State */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                                    State <span className="text-red-500">*</span>
-                                </label>
-                                <select
-                                    value={form.stateId}
-                                    onChange={(e) => setForm({ ...form, stateId: Number(e.target.value) })}
-                                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 outline-none transition bg-white"
-                                >
-                                    <option value={0}>Select a state</option>
-                                    {states?.map((state) => (
-                                        <option key={state.id} value={state.id}>
-                                            {state.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Toggles */}
+                            {/* Active Toggle */}
                             <div className="flex flex-col gap-4">
                                 <label className="flex items-center gap-3 cursor-pointer">
                                     <input
@@ -360,20 +290,7 @@ const CitiesManagementTab: React.FC = () => {
                                     />
                                     <div>
                                         <span className="text-sm font-medium text-gray-700">Active</span>
-                                        <p className="text-xs text-gray-400">Show this city in the city selector</p>
-                                    </div>
-                                </label>
-
-                                <label className="flex items-center gap-3 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={form.isComingSoon}
-                                        onChange={(e) => setForm({ ...form, isComingSoon: e.target.checked })}
-                                        className="w-5 h-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
-                                    />
-                                    <div>
-                                        <span className="text-sm font-medium text-gray-700">Coming Soon</span>
-                                        <p className="text-xs text-gray-400">Show "Coming Soon" badge (city not selectable)</p>
+                                        <p className="text-xs text-gray-400">Show this state in the state selector</p>
                                     </div>
                                 </label>
                             </div>
@@ -392,7 +309,7 @@ const CitiesManagementTab: React.FC = () => {
                                 disabled={isCreating || isUpdating}
                                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50"
                             >
-                                {isCreating || isUpdating ? 'Saving...' : editingCity ? 'Update' : 'Create'}
+                                {isCreating || isUpdating ? 'Saving...' : editingState ? 'Update' : 'Create'}
                             </button>
                         </div>
                     </div>
@@ -402,4 +319,4 @@ const CitiesManagementTab: React.FC = () => {
     );
 };
 
-export default CitiesManagementTab;
+export default StatesManagementTab;

@@ -32,6 +32,7 @@ const navItems: NavItem[] = [
   { id: 'staff',         path: 'staff',         icon: UserCog,         label: 'Staff' },
   { id: 'promo-codes',   path: 'promo-codes',   icon: Tag,             label: 'Promo Codes' },
   { id: 'pickup-points', path: 'pickup-points', icon: MapPin,          label: 'Pickup Points' },
+  { id: 'states',        path: 'states',        icon: MapPin,          label: 'States',  roles: ['superadmin'] },
   { id: 'cities',        path: 'cities',        icon: MapPin,          label: 'Cities',  roles: ['superadmin'] },
   { id: 'superadmin',    path: 'superadmin',    icon: ShieldCheck,     label: 'Admins',  roles: ['superadmin'] },
 ]

@@ -19,6 +19,7 @@ import OfflineBookingPage from '../pages/admin/OfflineBookingPage';
 import SuperAdminPage from '../pages/admin/SuperAdminPage';
 import PromoCodesPage from '../pages/admin/PromoCodesPage';
 import CitiesPage from '../pages/admin/CitiesPage';
+import StatesPage from '../pages/admin/StatesPage';
 import AdminPickupPointsPage from '../components/admin/AdminPickupPoints'
 export const adminRoutes: RouteObject[] = [
   // Auth pages — no layout
@@ -64,6 +65,14 @@ export const adminRoutes: RouteObject[] = [
         element: (
           <ProtectedRoute allowedRoles={['superadmin']}>
             <CitiesPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'states',
+        element: (
+          <ProtectedRoute allowedRoles={['superadmin']}>
+            <StatesPage />
           </ProtectedRoute>
         ),
       },
