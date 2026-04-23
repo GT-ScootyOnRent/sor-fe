@@ -25,15 +25,16 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-  { id: 'dashboard',     path: 'dashboard',     icon: LayoutDashboard, label: 'Dashboard' },
-  { id: 'vehicles',      path: 'vehicles',      icon: Bike,            label: 'Vehicles' },
-  { id: 'bookings',      path: 'bookings',      icon: Calendar,        label: 'Bookings' },
-  { id: 'users',         path: 'users',         icon: Users,           label: 'Users' },
-  { id: 'staff',         path: 'staff',         icon: UserCog,         label: 'Staff' },
-  { id: 'promo-codes',   path: 'promo-codes',   icon: Tag,             label: 'Promo Codes' },
-  { id: 'pickup-points', path: 'pickup-points', icon: MapPin,          label: 'Pickup Points' },
-  { id: 'cities',        path: 'cities',        icon: MapPin,          label: 'Cities',  roles: ['superadmin'] },
-  { id: 'superadmin',    path: 'superadmin',    icon: ShieldCheck,     label: 'Admins',  roles: ['superadmin'] },
+  { id: 'dashboard', path: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { id: 'vehicles', path: 'vehicles', icon: Bike, label: 'Vehicles' },
+  { id: 'bookings', path: 'bookings', icon: Calendar, label: 'Bookings' },
+  { id: 'users', path: 'users', icon: Users, label: 'Users' },
+  { id: 'staff', path: 'staff', icon: UserCog, label: 'Staff' },
+  { id: 'promo-codes', path: 'promo-codes', icon: Tag, label: 'Promo Codes' },
+  { id: 'pickup-points', path: 'pickup-points', icon: MapPin, label: 'Pickup Points' },
+  { id: 'states', path: 'states', icon: MapPin, label: 'States', roles: ['superadmin'] },
+  { id: 'cities', path: 'cities', icon: MapPin, label: 'Cities', roles: ['superadmin'] },
+  { id: 'superadmin', path: 'superadmin', icon: ShieldCheck, label: 'Admins', roles: ['superadmin'] },
 ]
 
 // Admin site layout — admin.scootyonrent.com
@@ -97,11 +98,10 @@ const AdminLayout: React.FC = () => {
             <button
               key={id}
               onClick={() => navigate(path)}
-              className={`w-full flex items-center px-4 py-3 rounded-lg transition ${
-                isActive(path)
+              className={`w-full flex items-center px-4 py-3 rounded-lg transition ${isActive(path)
                   ? 'bg-primary-50 text-primary-600 font-semibold'
                   : 'text-gray-700 hover:bg-gray-50'
-              }`}
+                }`}
             >
               <Icon className="w-5 h-5 mr-3" />
               {label}
@@ -114,11 +114,10 @@ const AdminLayout: React.FC = () => {
           <div className="bg-gray-100 rounded-xl p-3">
             <button
               onClick={() => navigate('profile')}
-              className={`w-full flex items-center px-4 py-3 rounded-lg transition ${
-                isActive('profile')
+              className={`w-full flex items-center px-4 py-3 rounded-lg transition ${isActive('profile')
                   ? 'bg-white text-primary-600 font-semibold shadow-sm'
                   : 'text-gray-700 hover:bg-white hover:shadow-sm'
-              }`}
+                }`}
             >
               <User className="w-5 h-5 mr-3" />
               Profile
