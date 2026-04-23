@@ -71,13 +71,14 @@ const BookingsTab: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 {[
-                  { label: 'Booking ID',  col: 'id'               },
-                  { label: 'Vehicle ID',  col: 'vehicleId'        },
-                  { label: 'User ID',     col: 'userId'           },
-                  { label: 'Start Date',  col: 'bookingStartDate' },
-                  { label: 'Amount',      col: 'totalAmount'      },
-                  { label: 'Status',      col: null               },
-                  { label: 'Actions',     col: null               },
+                  { label: 'Booking ID',  col: 'id'                       },
+                  { label: 'Vehicle ID',  col: 'vehicleId'                },
+                  { label: 'User ID',     col: 'userId'                   },
+                  { label: 'F&F Contact', col: 'friendFamilyContactNumber'},
+                  { label: 'Start Date',  col: 'bookingStartDate'         },
+                  { label: 'Amount',      col: 'totalAmount'              },
+                  { label: 'Status',      col: null                       },
+                  { label: 'Actions',     col: null                       },
                 ].map(({ label, col }) => (
                   <th key={label} className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
                     {col ? (
@@ -95,6 +96,9 @@ const BookingsTab: React.FC = () => {
                   <td className="px-6 py-4 font-medium text-gray-900">#{booking.id}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">Vehicle #{booking.vehicleId}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">User #{booking.userId}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {booking.friendFamilyContactNumber || <span className="text-gray-400">—</span>}
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
                     {String(booking.bookingStartDate)} → {String(booking.bookingEndDate)}
                   </td>
@@ -122,7 +126,7 @@ const BookingsTab: React.FC = () => {
                 </tr>
               ))}
               {sortedBookings.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">No bookings found</td></tr>
+                <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500">No bookings found</td></tr>
               )}
             </tbody>
           </table>

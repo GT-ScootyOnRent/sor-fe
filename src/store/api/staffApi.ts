@@ -46,6 +46,7 @@ export interface BookingDto {
     createdAt: string;
     userName?: string;
     userPhone?: string;
+    friendFamilyContactNumber?: string | null;
     isOfflineBooking: boolean;
 }
 
