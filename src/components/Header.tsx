@@ -104,7 +104,7 @@ export default function Header() {
               onClick={handleVehiclesClick}
               className="font-medium text-black hover:text-primary-500 transition-colors cursor-pointer"
             >
-              Vehicles
+              Booking/Vehicles
             </a>
 
             <Link
@@ -175,7 +175,7 @@ export default function Header() {
               onClick={handleVehiclesClick}
               className="block font-medium text-left text-black w-full"
             >
-              Vehicles
+              Booking/Vehicles
             </button>
 
             <Link
