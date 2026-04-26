@@ -200,55 +200,86 @@ const AuthPage: React.FC = () => {
   };
 
   const completeLogin = (response: any) => {
-    dispatch(
-      setCredentials({
-        user: {
-          id: response.user.id,
-          name: response.user.name ?? response.user.userNumber,
-          phone: response.user.userNumber,
-          email: response.user.email ?? undefined,
-          userType: 'user',
-          cityId: response.user.cityId ?? undefined,
-        },
-        token: response.token,
-      })
-    );
-    localStorage.setItem('token', response.token);
-    localStorage.setItem('userId', response.user.id.toString());
-    localStorage.setItem('userPhone', response.user.userNumber);
-    localStorage.setItem('userName', response.user.name ?? response.user.userNumber);
-    if (response.user.email) localStorage.setItem('userEmail', response.user.email);
+  dispatch(
+    setCredentials({
+      user: {
+        id: response.user.id,
+        name: response.user.name ?? response.user.userNumber,
+        phone: response.user.userNumber,
+        email: response.user.email ?? undefined,
+        userType: 'user',
+        cityId: response.user.cityId ?? undefined,
+      },
+      token: response.token,
+    })
+  );
 
-    toast.success(response.isNewUser ? 'Welcome to ScootyOnRent!' : 'Welcome back!', {
+  localStorage.setItem('token', response.token);
+  localStorage.setItem('userId', response.user.id.toString());
+  localStorage.setItem('userPhone', response.user.userNumber);
+  localStorage.setItem(
+    'userName',
+    response.user.name ?? response.user.userNumber
+  );
+
+  if (response.user.email) {
+    localStorage.setItem('userEmail', response.user.email);
+  }
+
+  toast.success(
+    response.isNewUser
+      ? 'Welcome to ScootyOnRent!'
+      : 'Welcome back!',
+    {
       description: 'You are now logged in.',
-    });
+    }
+  );
 
-    const intentRaw = sessionStorage.getItem('bookingIntent');
-    if (intentRaw) {
-      try {
-        const intent = JSON.parse(intentRaw);
-        sessionStorage.removeItem('bookingIntent');
-        if (intent.vehicleId) {
-          const params = new URLSearchParams();
-          if (intent.startDate) params.set('startDate', intent.startDate);
-          if (intent.startTime) params.set('startTime', intent.startTime);
-          if (intent.endDate) params.set('endDate', intent.endDate);
-          if (intent.endTime) params.set('endTime', intent.endTime);
-          navigate(`/book/${intent.vehicleId}?${params.toString()}`, { replace: true });
-          return;
-        }
-      } catch {
-        sessionStorage.removeItem('bookingIntent');
+  // Priority 1: bookingIntent
+  const intentRaw = sessionStorage.getItem('bookingIntent');
+
+  if (intentRaw) {
+    try {
+      const intent = JSON.parse(intentRaw);
+      sessionStorage.removeItem('bookingIntent');
+
+      if (intent.vehicleId) {
+        const params = new URLSearchParams();
+
+        if (intent.startDate) params.set('startDate', intent.startDate);
+        if (intent.startTime) params.set('startTime', intent.startTime);
+        if (intent.endDate) params.set('endDate', intent.endDate);
+        if (intent.endTime) params.set('endTime', intent.endTime);
+
+        navigate(
+          `/book/${intent.vehicleId}?${params.toString()}`,
+          { replace: true }
+        );
+        return;
       }
+    } catch {
+      sessionStorage.removeItem('bookingIntent');
     }
+  }
 
-    const from = (location.state as any)?.from?.pathname;
-    if (from && from !== '/auth' && from !== '/login') {
-      navigate(from, { replace: true });
-      return;
-    }
-    navigate('/profile', { replace: true });
-  };
+  // Priority 2: ProtectedRoute redirect
+  const from = (location.state as any)?.from;
+
+  if (
+    from?.pathname &&
+    from.pathname !== '/auth' &&
+    from.pathname !== '/login'
+  ) {
+    navigate(
+      `${from.pathname}${from.search || ''}${from.hash || ''}`,
+      { replace: true }
+    );
+    return;
+  }
+
+  // Default
+  navigate('/profile', { replace: true });
+};
 
   const handleResendOtp = async () => {
     setOtp('');
