@@ -1,0 +1,3 @@
+export const AUTH_CONFIG = {
+  OTP_RESEND_COUNTDOWN_SECONDS: 15,
+};

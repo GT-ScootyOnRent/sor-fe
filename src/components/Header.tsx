@@ -45,12 +45,6 @@ export default function Header() {
     setMobileMenuOpen(false);
   };
 
-  const handleVehiclesClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    navigate('/vehicles');
-    setMobileMenuOpen(false);
-  };
-
   const handleLogout = () => {
     dispatch(logout());
     navigate('/');
@@ -59,7 +53,7 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white shadow-sm">
-      <div className="container mx-auto px-4 py-3">
+      <div className="container mx-auto px-4 py-2">
         {/* Top Row */}
         <div className="flex items-center justify-between gap-3">
           {/* Left Side */}
@@ -67,9 +61,9 @@ export default function Header() {
             <a
               href="/"
               onClick={handleLogoClick}
-              className="cursor-pointer shrink-0"
+              className="cursor-pointer shrink-0 flex items-center self-stretch"
             >
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-black whitespace-nowrap">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-black whitespace-nowrap leading-none">
                 Scooty<span className="text-primary-500">onrent</span>
               </h1>
             </a>
@@ -90,7 +84,7 @@ export default function Header() {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-6 lg:gap-8">
             <Link
               to="/"
               onClick={handleHomeClick}
@@ -99,19 +93,25 @@ export default function Header() {
               Home
             </Link>
 
-            <a
-              href="/vehicles"
-              onClick={handleVehiclesClick}
-              className="font-medium text-black hover:text-primary-500 transition-colors cursor-pointer"
+            <Link
+              to="/vehicles"
+              className="font-medium text-black hover:text-primary-500 transition-colors"
             >
-              Booking/Vehicles
-            </a>
+              Booking
+            </Link>
 
             <Link
               to="/contact"
               className="font-medium text-black hover:text-primary-500 transition-colors"
             >
               Contact Us
+            </Link>
+
+            <Link
+              to="/work-with-us"
+              className="font-medium text-black hover:text-primary-500 transition-colors"
+            >
+              Work With Us
             </Link>
           </nav>
 
@@ -171,12 +171,13 @@ export default function Header() {
               Home
             </Link>
 
-            <button
-              onClick={handleVehiclesClick}
-              className="block font-medium text-left text-black w-full"
+            <Link
+              to="/vehicles"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block font-medium text-black"
             >
-              Booking/Vehicles
-            </button>
+              Booking
+            </Link>
 
             <Link
               to="/contact"
@@ -184,6 +185,14 @@ export default function Header() {
               className="block font-medium text-black"
             >
               Contact Us
+            </Link>
+
+            <Link
+              to="/work-with-us"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block font-medium text-black"
+            >
+              Work With Us
             </Link>
 
             <div className="pt-2">
