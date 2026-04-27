@@ -99,7 +99,12 @@ export default function VehicleCarousel() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 py-16">
       <div className="max-w-7xl mx-auto px-4">
-        <h2 className="text-4xl font-bold text-gray-800 mb-16 text-center">Featured Vehicles</h2>
+       <div className="text-center mb-16">
+          <h2 className="text-3xl font-bold text-gray-800 relative inline-block">
+            Our Rental <span className="text-primary-500">Services</span>
+            <span className="absolute left-1/2 -translate-x-1/2 -bottom-3 w-20 h-1 bg-primary-500 rounded-full" />
+          </h2>
+        </div>
 
         {/* 3D Carousel Container with closer buttons */}
         <div className="relative h-[550px] mb-8 flex items-center justify-center">
