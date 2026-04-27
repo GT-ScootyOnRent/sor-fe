@@ -18,3 +18,7 @@ export const PAYMENT_STATUS = {
   PAID: 'paid',
   FAILED: 'failed',
 } as const;
+
+export const AUTH = {
+  OTP_RESEND_COUNTDOWN_SECONDS: 15,
+} as const;

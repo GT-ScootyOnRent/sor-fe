@@ -100,30 +100,30 @@ export default function VehicleCarousel() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 py-16">
       <div className="max-w-7xl mx-auto px-4">
        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-gray-800 relative inline-block">
+          <h2 className="text-4xl md:text-5xl font-bold text-gray-800 relative inline-block">
             Our Rental <span className="text-primary-500">Services</span>
-            <span className="absolute left-1/2 -translate-x-1/2 -bottom-3 w-20 h-1 bg-primary-500 rounded-full" />
+            <span className="absolute left-1/2 -translate-x-1/2 -bottom-3 w-24 h-1.5 bg-primary-500 rounded-full" />
           </h2>
         </div>
 
         {/* 3D Carousel Container with closer buttons */}
-        <div className="relative h-[550px] mb-8 flex items-center justify-center">
+        <div className="relative h-[640px] md:h-[700px] mb-8 flex items-center justify-center overflow-hidden">
           {/* Left Arrow - Positioned closer */}
           <button
             onClick={goToPrevious}
-            className="absolute left-4 md:left-12 top-1/2 -translate-y-1/2 z-20 w-14 h-14 rounded-full bg-white border-2 border-gray-300 hover:bg-primary-500 hover:text-white hover:border-primary-500 flex items-center justify-center transition-all shadow-lg hover:scale-110"
+            className="absolute left-4 md:left-12 top-1/2 -translate-y-1/2 z-20 w-16 h-16 rounded-full bg-white border-2 border-gray-300 hover:bg-primary-500 hover:text-white hover:border-primary-500 flex items-center justify-center transition-all shadow-lg hover:scale-110"
             aria-label="Previous vehicle"
           >
-            <ChevronLeft className="w-7 h-7" />
+            <ChevronLeft className="w-8 h-8" />
           </button>
 
           {/* Right Arrow - Positioned closer */}
           <button
             onClick={goToNext}
-            className="absolute right-4 md:right-12 top-1/2 -translate-y-1/2 z-20 w-14 h-14 rounded-full bg-white border-2 border-gray-300 hover:bg-primary-500 hover:text-white hover:border-primary-500 flex items-center justify-center transition-all shadow-lg hover:scale-110"
+            className="absolute right-4 md:right-12 top-1/2 -translate-y-1/2 z-20 w-16 h-16 rounded-full bg-white border-2 border-gray-300 hover:bg-primary-500 hover:text-white hover:border-primary-500 flex items-center justify-center transition-all shadow-lg hover:scale-110"
             aria-label="Next vehicle"
           >
-            <ChevronRight className="w-7 h-7" />
+            <ChevronRight className="w-8 h-8" />
           </button>
 
           {/* Carousel Items - Cards spread wider to reach buttons */}
@@ -142,16 +142,16 @@ export default function VehicleCarousel() {
                     slide.position === 'center'
                       ? 'translateX(0) translateZ(0px) rotateY(0deg) scale(1)'
                       : slide.position === 'left'
-                        ? 'translateX(-380px) translateZ(-150px) rotateY(25deg) scale(0.85)'
+                        ? 'translateX(-440px) translateZ(-150px) rotateY(25deg) scale(0.85)'
                         : slide.position === 'right'
-                          ? 'translateX(380px) translateZ(-150px) rotateY(-25deg) scale(0.85)'
+                          ? 'translateX(440px) translateZ(-150px) rotateY(-25deg) scale(0.85)'
                           : slide.position === 'far-left'
-                            ? 'translateX(-680px) translateZ(-300px) rotateY(40deg) scale(0.7)'
-                            : 'translateX(680px) translateZ(-300px) rotateY(-40deg) scale(0.7)',
+                            ? 'translateX(-780px) translateZ(-300px) rotateY(40deg) scale(0.7)'
+                            : 'translateX(780px) translateZ(-300px) rotateY(-40deg) scale(0.7)',
                 }}
                 onClick={() => slide.position !== 'center' && goToSlide(slide.index)}
               >
-                <div className="w-[350px]">
+                <div className="w-[300px] sm:w-[360px] lg:w-[420px]">
                   <VehicleCard vehicle={slide.vehicle} />
                 </div>
               </div>
