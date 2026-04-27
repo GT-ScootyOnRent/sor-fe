@@ -11,6 +11,7 @@ import { useSendOtpMutation, useVerifyOtpMutation } from '../store/api/authApi';
 import { useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
 import { toast } from 'sonner';
+import { AUTH_CONFIG } from '../config/auth.config';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -44,7 +45,7 @@ export default function Login() {
       const response = await sendOtp({ phoneNumber: cleanPhone }).unwrap();
       if (response.success) {
         setStep('otp');
-        setCountdown(60);
+        setCountdown(AUTH_CONFIG.OTP_RESEND_COUNTDOWN_SECONDS);
         toast.success('OTP sent successfully!', {
           description: response.otp ? `OTP: ${response.otp}` : 'Check your phone',
           duration: 10000,
@@ -134,11 +135,15 @@ export default function Login() {
         }
 
         // Priority 3: react-router location.state.from (standard protected route redirect)
-        const from = (location.state as any)?.from?.pathname;
-        if (from && from !== '/login' && from !== '/auth') {
-          setTimeout(() => navigate(from, { replace: true }), 300);
-          return;
-        }
+        const from = (location.state as any)?.from;
+
+if (from?.pathname && from.pathname !== '/login' && from.pathname !== '/auth') {
+  navigate(
+    `${from.pathname}${from.search || ''}${from.hash || ''}`,
+    { replace: true }
+  );
+  return;
+}
 
         // Default: go to dashboard
         setTimeout(() => navigate('/profile', { replace: true }), 300);

@@ -17,3 +17,11 @@
     --color-primary-800: #294d6b;
     --color-primary-900: #243f57;
 }
+
+@keyframes orbit-spin {
+    to { transform: rotate(360deg); }
+}
+
+.animate-orbit {
+    animation: orbit-spin 4s linear infinite;
+}
