@@ -27,6 +27,7 @@ export interface LoginResponse {
 
 export interface SendOtpRequest {
   phoneNumber: string;
+  captchaToken?: string;
 }
 
 export interface SendOtpResponse {
