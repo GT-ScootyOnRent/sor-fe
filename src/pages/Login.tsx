@@ -135,11 +135,15 @@ export default function Login() {
         }
 
         // Priority 3: react-router location.state.from (standard protected route redirect)
-        const from = (location.state as any)?.from?.pathname;
-        if (from && from !== '/login' && from !== '/auth') {
-          setTimeout(() => navigate(from, { replace: true }), 300);
-          return;
-        }
+        const from = (location.state as any)?.from;
+
+if (from?.pathname && from.pathname !== '/login' && from.pathname !== '/auth') {
+  navigate(
+    `${from.pathname}${from.search || ''}${from.hash || ''}`,
+    { replace: true }
+  );
+  return;
+}
 
         // Default: go to dashboard
         setTimeout(() => navigate('/profile', { replace: true }), 300);
