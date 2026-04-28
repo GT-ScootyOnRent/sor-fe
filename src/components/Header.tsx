@@ -59,17 +59,17 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white shadow-sm">
-      <div className="container mx-auto px-4 py-3">
+      <div className="container mx-auto px-4 py-1">
         {/* Top Row */}
         <div className="flex items-center justify-between gap-3">
           {/* Left Side */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 self-stretch">
             <a
               href="/"
               onClick={handleLogoClick}
-              className="cursor-pointer shrink-0"
+              className="cursor-pointer shrink-0 flex items-center self-stretch"
             >
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-black whitespace-nowrap">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-black whitespace-nowrap leading-none">
                 Scooty<span className="text-primary-500">onrent</span>
               </h1>
             </a>

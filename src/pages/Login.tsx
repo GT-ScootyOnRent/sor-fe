@@ -12,6 +12,7 @@ import { useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
 import { toast } from 'sonner';
 import { executeRecaptcha } from '../utils/recaptcha';
+import { AUTH } from '../utils/constants';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -54,7 +55,7 @@ export default function Login() {
       const response = await sendOtp({ phoneNumber: cleanPhone, captchaToken }).unwrap();
       if (response.success) {
         setStep('otp');
-        setCountdown(60);
+        setCountdown(AUTH.OTP_RESEND_COUNTDOWN_SECONDS);
         toast.success('OTP sent successfully!', {
           description: response.otp ? `OTP: ${response.otp}` : 'Check your phone',
           duration: 10000,
