@@ -25,7 +25,7 @@ type Tab =
 const TAB_CONFIG: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'admins', label: 'Admins', icon: UserCog },
-  { id: 'users', label: 'Users', icon: Users },
+  { id: 'users', label: 'Customers', icon: Users },
   { id: 'bookings', label: 'Bookings', icon: LayoutDashboard },
   { id: 'vehicles', label: 'Vehicles', icon: LayoutDashboard },
   { id: 'pickup-points', label: 'Pickup Points', icon: MapPin },
@@ -171,7 +171,7 @@ const SuperAdminOverview: React.FC = () => (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       {[
         { label: 'Total Admins', value: '—', color: 'bg-purple-50 text-purple-700' },
-        { label: 'Total Users', value: '—', color: 'bg-blue-50 text-blue-700' },
+        { label: 'Total Customers', value: '—', color: 'bg-blue-50 text-blue-700' },
         { label: 'Total Bookings', value: '—', color: 'bg-green-50 text-green-700' },
         { label: 'Active Promos', value: '—', color: 'bg-orange-50 text-orange-700' },
       ].map(({ label, value, color }) => (
