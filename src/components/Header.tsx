@@ -98,13 +98,12 @@ export default function Header() {
             >
               Home
             </Link>
-
             <a
-              href="/vehicles"
-              onClick={handleVehiclesClick}
-              className="font-medium text-black hover:text-primary-500 transition-colors cursor-pointer"
-            >
-              Booking/Vehicles
+                href="/vehicles"
+                onClick={handleVehiclesClick}
+                className="cursor-pointer rounded-full border border-teal-400 bg-white px-6 py-2 text-sm font-semibold text-teal-500 shadow-sm transition-all duration-200 hover:border-teal-500 hover:bg-teal-50 hover:text-teal-600"
+              >
+                Booking
             </a>
 
             <Link
@@ -171,12 +170,12 @@ export default function Header() {
               Home
             </Link>
 
-            <button
-              onClick={handleVehiclesClick}
-              className="block font-medium text-left text-black w-full"
-            >
-              Booking/Vehicles
-            </button>
+          <button
+          onClick={handleVehiclesClick}
+          className="block w-full text-left font-medium text-black hover:text-teal-500 transition-colors"
+          >
+              Booking
+          </button>
 
             <Link
               to="/contact"
