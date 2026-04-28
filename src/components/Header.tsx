@@ -27,6 +27,14 @@ export default function Header() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleVehiclesClick = (
+    e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>
+  ) => {
+    e.preventDefault();
+    navigate('/vehicles');
+    setMobileMenuOpen(false);
+  };
+
   const handleHomeClick = (e: React.MouseEvent) => {
     if (location.pathname === '/') {
       e.preventDefault();
@@ -42,12 +50,6 @@ export default function Header() {
     } else {
       navigate('/');
     }
-    setMobileMenuOpen(false);
-  };
-
-  const handleVehiclesClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    navigate('/vehicles');
     setMobileMenuOpen(false);
   };
 
@@ -90,7 +92,7 @@ export default function Header() {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-6 lg:gap-8">
             <Link
               to="/"
               onClick={handleHomeClick}
@@ -111,6 +113,13 @@ export default function Header() {
               className="font-medium text-black hover:text-primary-500 transition-colors"
             >
               Contact Us
+            </Link>
+
+            <Link
+              to="/work-with-us"
+              className="font-medium text-black hover:text-primary-500 transition-colors"
+            >
+              Work With Us
             </Link>
           </nav>
 
@@ -183,6 +192,14 @@ export default function Header() {
               className="block font-medium text-black"
             >
               Contact Us
+            </Link>
+
+            <Link
+              to="/work-with-us"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block font-medium text-black"
+            >
+              Work With Us
             </Link>
 
             <div className="pt-2">
