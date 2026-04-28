@@ -1,7 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const WhatsAppButton: React.FC = () => {
   const [showTooltip, setShowTooltip] = useState(false);
+  const [autoShow, setAutoShow] = useState(false);
+
+  useEffect(() => {
+    let hideTimeout: ReturnType<typeof setTimeout>;
+
+    const trigger = () => {
+      setAutoShow(true);
+      hideTimeout = setTimeout(() => setAutoShow(false), 3000);
+    };
+
+    const initialTimeout = setTimeout(trigger, 4000);
+    const interval = setInterval(trigger, 12000);
+
+    return () => {
+      clearTimeout(initialTimeout);
+      clearTimeout(hideTimeout);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const tooltipVisible = showTooltip || autoShow;
 
   const whatsappNumber =
     import.meta.env.VITE_WHATSAPP_NUMBER || '918233662031';
@@ -23,17 +44,19 @@ const WhatsAppButton: React.FC = () => {
         {/* Tooltip - Desktop Only */}
         <div
           className={`hidden md:block transform transition-all duration-300 ease-out ${
-            showTooltip
+            tooltipVisible
               ? 'translate-x-0 opacity-100'
               : 'translate-x-3 opacity-0'
           }`}
         >
-          <div className="relative bg-white px-4 py-2 rounded-xl shadow-xl border border-gray-200 whitespace-nowrap">
-            <p className="text-sm font-medium text-gray-800">
-              Need help? Chat with us!
-            </p>
+          <div className={autoShow ? 'animate-tooltip-jump' : ''}>
+            <div className="relative bg-white px-4 py-2 rounded-xl shadow-xl border border-gray-200 whitespace-nowrap">
+              <p className="text-sm font-medium text-gray-800">
+                Need help? Chat with us!
+              </p>
 
-            <div className="absolute top-1/2 -right-1 w-2 h-2 bg-white border-r border-b border-gray-200 rotate-45 -translate-y-1/2" />
+              <div className="absolute top-1/2 -right-1 w-2 h-2 bg-white border-r border-b border-gray-200 rotate-45 -translate-y-1/2" />
+            </div>
           </div>
         </div>
 
@@ -97,6 +120,16 @@ const WhatsAppButton: React.FC = () => {
 
         .animate-pulse {
           animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes tooltip-jump {
+          0%   { transform: translateY(0); }
+          50%  { transform: translateY(-20px); }
+          100% { transform: translateY(0); }
+        }
+
+        .animate-tooltip-jump {
+          animation: tooltip-jump 0.6s ease-in-out 0.2s backwards;
         }
       `}</style>
     </>
