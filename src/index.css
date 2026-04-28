@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Hide the floating reCAPTCHA v3 badge. Footer carries the required
+   "protected by reCAPTCHA" disclosure as required by Google's terms. */
+.grecaptcha-badge {
+    visibility: hidden !important;
+}
+
 /* 
   Primary Color Theme - Change these values to update the entire site's color scheme
   Current: Mid Blue Denim (#3A6F9B)

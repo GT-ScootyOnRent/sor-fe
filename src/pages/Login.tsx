@@ -11,7 +11,8 @@ import { useSendOtpMutation, useVerifyOtpMutation } from '../store/api/authApi';
 import { useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
 import { toast } from 'sonner';
-import { AUTH_CONFIG } from '../config/auth.config';
+import { executeRecaptcha } from '../utils/recaptcha';
+import { AUTH } from '../utils/constants';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -42,10 +43,19 @@ export default function Login() {
     }
 
     try {
-      const response = await sendOtp({ phoneNumber: cleanPhone }).unwrap();
+      let captchaToken: string;
+      try {
+        captchaToken = await executeRecaptcha('send_otp');
+      } catch (captchaErr) {
+        console.error('reCAPTCHA error:', captchaErr);
+        toast.error('Captcha failed, please try again');
+        return;
+      }
+
+      const response = await sendOtp({ phoneNumber: cleanPhone, captchaToken }).unwrap();
       if (response.success) {
         setStep('otp');
-        setCountdown(AUTH_CONFIG.OTP_RESEND_COUNTDOWN_SECONDS);
+        setCountdown(AUTH.OTP_RESEND_COUNTDOWN_SECONDS);
         toast.success('OTP sent successfully!', {
           description: response.otp ? `OTP: ${response.otp}` : 'Check your phone',
           duration: 10000,
@@ -55,6 +65,12 @@ export default function Login() {
       }
     } catch (error: any) {
       console.error('Send OTP error:', error);
+      if (error?.status === 400) {
+        toast.error('Captcha failed, please try again', {
+          description: error?.data?.message,
+        });
+        return;
+      }
       toast.error('Failed to send OTP', {
         description: error?.data?.message || 'Please try again',
       });
@@ -225,6 +241,28 @@ if (from?.pathname && from.pathname !== '/login' && from.pathname !== '/auth') {
                     'Send OTP'
                   )}
                 </Button>
+
+                <p className="text-xs text-gray-500 text-center leading-relaxed">
+                  This site is protected by reCAPTCHA and the Google{' '}
+                  <a
+                    href="https://policies.google.com/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-gray-700"
+                  >
+                    Privacy Policy
+                  </a>{' '}
+                  and{' '}
+                  <a
+                    href="https://policies.google.com/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-gray-700"
+                  >
+                    Terms of Service
+                  </a>{' '}
+                  apply.
+                </p>
               </div>
             )}
 

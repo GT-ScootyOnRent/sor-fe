@@ -27,6 +27,14 @@ export default function Header() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleVehiclesClick = (
+    e: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>
+  ) => {
+    e.preventDefault();
+    navigate('/vehicles');
+    setMobileMenuOpen(false);
+  };
+
   const handleHomeClick = (e: React.MouseEvent) => {
     if (location.pathname === '/') {
       e.preventDefault();
@@ -53,17 +61,17 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white shadow-sm">
-      <div className="container mx-auto px-4 py-2">
+      <div className="container mx-auto px-4 py-1">
         {/* Top Row */}
         <div className="flex items-center justify-between gap-3">
           {/* Left Side */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-3 min-w-0 self-stretch">
             <a
               href="/"
               onClick={handleLogoClick}
               className="cursor-pointer shrink-0 flex items-center self-stretch"
             >
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-black whitespace-nowrap leading-none">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-black whitespace-nowrap leading-none">
                 Scooty<span className="text-primary-500">onrent</span>
               </h1>
             </a>
@@ -92,13 +100,13 @@ export default function Header() {
             >
               Home
             </Link>
-
-            <Link
-              to="/vehicles"
-              className="font-medium text-black hover:text-primary-500 transition-colors"
-            >
-              Booking
-            </Link>
+            <a
+                href="/vehicles"
+                onClick={handleVehiclesClick}
+                className="cursor-pointer rounded-full border border-teal-400 bg-white px-6 py-2 text-sm font-semibold text-teal-500 shadow-sm transition-all duration-200 hover:border-teal-500 hover:bg-teal-50 hover:text-teal-600"
+              >
+                Booking
+            </a>
 
             <Link
               to="/contact"
@@ -171,13 +179,12 @@ export default function Header() {
               Home
             </Link>
 
-            <Link
-              to="/vehicles"
-              onClick={() => setMobileMenuOpen(false)}
-              className="block font-medium text-black"
-            >
+          <button
+          onClick={handleVehiclesClick}
+          className="block w-full text-left font-medium text-black hover:text-teal-500 transition-colors"
+          >
               Booking
-            </Link>
+          </button>
 
             <Link
               to="/contact"

@@ -43,10 +43,10 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
   const isAvailable = vehicle.isAvailable !== false;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]">
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]">
 
       {/* Image */}
-      <div className="relative h-48 bg-gray-100">
+      <div className="relative h-56 md:h-64 bg-gray-100">
         <img
           src={imageUrl}
           alt={vehicle.name}
@@ -71,35 +71,35 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
       </div>
 
       {/* Details */}
-      <div className="p-4">
-        <h3 className="text-lg font-bold text-gray-900 mb-1">
+      <div className="p-5 md:p-6">
+        <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">
           {vehicle.name}
         </h3>
 
-        <p className="text-sm text-gray-600 mb-3">
+        <p className="text-base text-gray-600 mb-4">
           {vehicle.make} {vehicle.model}
         </p>
 
         {/* Specs */}
-        <div className="flex items-center gap-4 mb-4 text-sm text-gray-600">
-          <div className="flex items-center gap-1">
-            <Gauge className="w-4 h-4" />
+        <div className="flex items-center gap-5 mb-5 text-base text-gray-600">
+          <div className="flex items-center gap-1.5">
+            <Gauge className="w-5 h-5" />
             <span>{vehicle.kmTravelled?.toLocaleString() || '0'} km</span>
           </div>
 
-          <div className="flex items-center gap-1">
-            <Fuel className="w-4 h-4" />
+          <div className="flex items-center gap-1.5">
+            <Fuel className="w-5 h-5" />
             <span>{vehicle.fuelType || 'Petrol'}</span>
           </div>
         </div>
 
         {/* Pricing */}
-        <div className="flex items-baseline justify-between mb-4">
+        <div className="flex items-baseline justify-between mb-5">
           <div>
-            <span className="text-2xl font-bold text-primary-600">
+            <span className="text-3xl font-bold text-primary-600">
               ₹{vehicle.pricePerHour || 0}
             </span>
-            <span className="text-sm text-gray-600">/hour</span>
+            <span className="text-base text-gray-600">/hour</span>
           </div>
         </div>
 

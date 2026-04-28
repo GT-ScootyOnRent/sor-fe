@@ -84,8 +84,29 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-gray-800 mt-10 pt-8 text-center text-gray-400 text-base md:text-lg">
+        <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400 space-y-2">
           <p>&copy; {currentYear} scootyonrent. All rights reserved.</p>
+          <p className="text-xs text-gray-500">
+            This site is protected by reCAPTCHA and the Google{' '}
+            <a
+              href="https://policies.google.com/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-primary-500 transition-colors"
+            >
+              Privacy Policy
+            </a>{' '}
+            and{' '}
+            <a
+              href="https://policies.google.com/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-primary-500 transition-colors"
+            >
+              Terms of Service
+            </a>{' '}
+            apply.
+          </p>
         </div>
       </div>
     </footer>
