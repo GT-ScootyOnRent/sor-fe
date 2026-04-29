@@ -175,23 +175,66 @@ const TermsAndConditions: React.FC = () => {
               </div>
             </section>
 
-            {/* 7. Geographical Restrictions */}
-            <section>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
-                <MapPin className="w-6 h-6 mr-2 text-primary-600" />
-                7. Geographical Restrictions
-              </h2>
-              <div className="space-y-3 text-gray-700">
-                <p className="leading-relaxed">
-                  Vehicles are restricted to use within the booking city only. Cross-city or interstate travel is strictly prohibited.
-                </p>
-                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded space-y-2">
-                  <p><strong>Crossing City Boundary:</strong> ₹2,000 penalty</p>
-                  <p><strong>Crossing State Boundary:</strong> ₹10,000 penalty</p>
-                  <p className="text-sm text-red-700">GPS tracking is enabled on all vehicles. Violations will be automatically detected.</p>
+            {/* 7. Geographic Restrictions */}
+              <section>
+                <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+                  <MapPin className="w-6 h-6 mr-2 text-primary-600" />
+                  7. Geographic Restrictions
+                </h2>
+
+                <div className="space-y-4 text-gray-700">
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+                    <p>
+                      <strong>1. City Limits Only:</strong> All rented vehicles must remain
+                      within the city limits of the pickup location throughout the rental
+                      period.
+                    </p>
+                  </div>
+
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
+                    <p>
+                      <strong>2. No Intercity Travel:</strong> Taking the vehicle outside the
+                      designated city boundaries is strictly prohibited without prior written
+                      approval from Scootyonrent.
+                    </p>
+                  </div>
+
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+                    <p className="mb-3">
+                      <strong>3. Violation Consequences:</strong>
+                    </p>
+
+                    <ul className="list-disc list-inside space-y-2 ml-4">
+                      <li>Immediate termination of the rental agreement</li>
+                      <li>
+                        Full liability for any damages, accidents, or incidents occurring
+                        outside city limits
+                      </li>
+                      <li>Additional penalty charges as determined by Scootyonrent</li>
+                      <li>Forfeiture of security deposit</li>
+                      <li>Legal action may be taken if necessary</li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+                    <p>
+                      <strong>4. Tracking:</strong> Vehicles may be equipped with GPS
+                      tracking devices to monitor location. Any detected violation of
+                      geographic restrictions will result in immediate action.
+                    </p>
+                  </div>
+
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-5">
+                    <p>
+                      <strong>5. Emergency Exception:</strong> In case of a genuine emergency
+                      requiring travel outside city limits, the renter must immediately
+                      contact Scootyonrent support for approval before proceeding.
+                    </p>
+                  </div>
+
                 </div>
-              </div>
-            </section>
+              </section>
 
             {/* 8. Prohibited Uses */}
             <section>
