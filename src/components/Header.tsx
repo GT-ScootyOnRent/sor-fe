@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { logout } from '../store/slices/authSlice';
 import { openCityModal } from '../store/slices/citySlice';
+import ContactButton from './ContactButton';
 
 export default function Header() {
   const navigate = useNavigate();
@@ -71,7 +72,7 @@ export default function Header() {
               onClick={handleLogoClick}
               className="cursor-pointer shrink-0 flex items-center"
             >
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-black whitespace-nowrap leading-none">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-black whitespace-nowrap leading-tight">
                 Scooty<span className="text-primary-500">onrent</span>
               </h1>
             </a>
@@ -196,6 +197,7 @@ export default function Header() {
 
           {/* Desktop Right Side */}
           <div className="hidden md:flex items-center gap-3">
+            <ContactButton />
             {isAuthenticated ? (
               <>
                 <Button
@@ -272,6 +274,9 @@ export default function Header() {
             >
               Work With Us
             </Link>
+
+            <ContactButton className="!w-fit" />
+
 
             <div className="pt-2">
               {isAuthenticated ? (

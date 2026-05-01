@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, AlertCircle, Search } from 'lucide-react';
+import { Calendar, Clock, AlertCircle, Search, MapPin } from 'lucide-react';
 import { Button } from './ui/button';
 import { useNavigate } from 'react-router-dom';
+import { useAppSelector, useAppDispatch } from '../store/hooks';
+import { openCityModal } from '../store/slices/citySlice';
 
 export default function DateTimePicker() {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const selectedCity = useAppSelector((state) => state.city.selectedCity);
   const [pickupDate, setPickupDate] = useState('');
   const [pickupTime, setPickupTime] = useState('10:00'); // Auto-filled
   const [returnDate, setReturnDate] = useState('');
@@ -108,147 +112,134 @@ export default function DateTimePicker() {
 
   const hasErrors = Object.keys(errors).length > 0;
 
-  return (
-    <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl p-8 border border-gray-200">
-      <div className="flex items-center gap-3 mb-6">
-        {/* <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-xl flex items-center justify-center">
-          <Search className="w-6 h-6 text-white" />
-        </div> */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Book Your Ride</h2>
-          {/* <p className="text-sm text-gray-600">Choose your dates and find available vehicles</p> */}
-        </div>
-      </div>
+  const firstError = Object.values(errors).find(Boolean);
+  const showErrorBar = !!firstError && Object.values(touched).some(Boolean);
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Pickup Date & Time */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              <Calendar className="inline w-4 h-4 mr-1.5 text-primary-600" />
+  const fieldClass = (hasError: boolean) =>
+    `flex-1 px-5 py-3 transition-colors ${
+      hasError ? 'bg-red-50' : 'hover:bg-gray-50'
+    }`;
+
+  const labelClass =
+    'flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1';
+
+  const inputClass =
+    'w-full text-sm font-semibold text-gray-900 bg-transparent focus:outline-none cursor-pointer';
+
+  return (
+    <div>
+      {/* Single error bar above the form when any field has an error */}
+      {showErrorBar && (
+        <div className="mb-3 flex items-start gap-2 px-4 py-2 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>{firstError}</span>
+        </div>
+      )}
+
+      {/* Horizontal search bar */}
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl md:rounded-full shadow-2xl border border-gray-200 overflow-hidden">
+        <div className="flex flex-col md:flex-row md:items-stretch divide-y md:divide-y-0 md:divide-x divide-gray-200">
+          {/* Location */}
+          <button
+            type="button"
+            onClick={() => dispatch(openCityModal())}
+            className="flex-1 text-left px-5 py-3 hover:bg-gray-50 transition-colors"
+          >
+            <div className={labelClass}>
+              <MapPin className="w-3.5 h-3.5 text-primary-600" />
+              Location
+            </div>
+            <div className="text-sm font-semibold text-gray-900 truncate">
+              {selectedCity?.name || 'Select city'}
+            </div>
+          </button>
+
+          {/* Pickup Date */}
+          <div className={fieldClass(!!(errors.pickupDate && touched.pickupDate))}>
+            <label htmlFor="pickup-date" className={`${labelClass} cursor-pointer`}>
+              <Calendar className="w-3.5 h-3.5 text-primary-600" />
               Pickup Date
             </label>
             <input
+              id="pickup-date"
               type="date"
               value={pickupDate}
               onChange={(e) => handlePickupDateChange(e.target.value)}
               onBlur={() => handleBlur('pickupDate')}
               min={new Date().toISOString().split('T')[0]}
-              className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all ${
-                errors.pickupDate && touched.pickupDate
-                  ? 'border-red-300 bg-red-50'
-                  : 'border-gray-300 hover:border-primary-300'
-              }`}
+              className={inputClass}
             />
-            {errors.pickupDate && touched.pickupDate && (
-              <p className="text-xs text-red-600 mt-1 flex items-center">
-                <AlertCircle className="w-3 h-3 mr-1" />
-                {errors.pickupDate}
-              </p>
-            )}
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              <Clock className="inline w-4 h-4 mr-1.5 text-primary-600" />
+          {/* Pickup Time */}
+          <div className={fieldClass(!!(errors.pickupTime && touched.pickupTime))}>
+            <label htmlFor="pickup-time" className={`${labelClass} cursor-pointer`}>
+              <Clock className="w-3.5 h-3.5 text-primary-600" />
               Pickup Time
             </label>
             <input
+              id="pickup-time"
               type="time"
               value={pickupTime}
               onChange={(e) => {
                 setPickupTime(e.target.value);
-                setTouched(prev => ({ ...prev, pickupTime: true }));
+                setTouched((prev) => ({ ...prev, pickupTime: true }));
               }}
               onBlur={() => handleBlur('pickupTime')}
-              className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all ${
-                errors.pickupTime && touched.pickupTime
-                  ? 'border-red-300 bg-red-50'
-                  : 'border-gray-300 hover:border-primary-300'
-              }`}
+              className={inputClass}
             />
-            {errors.pickupTime && touched.pickupTime && (
-              <p className="text-xs text-red-600 mt-1 flex items-center">
-                <AlertCircle className="w-3 h-3 mr-1" />
-                {errors.pickupTime}
-              </p>
-            )}
-            {!errors.pickupTime && pickupDate && (
-              <p className="text-xs text-gray-500 mt-1">Default: 10:00 AM</p>
-            )}
           </div>
-        </div>
 
-        {/* Return Date & Time */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              <Calendar className="inline w-4 h-4 mr-1.5 text-indigo-600" />
+          {/* Return Date */}
+          <div className={fieldClass(!!(errors.returnDate && touched.returnDate))}>
+            <label htmlFor="return-date" className={`${labelClass} cursor-pointer`}>
+              <Calendar className="w-3.5 h-3.5 text-indigo-600" />
               Return Date
             </label>
             <input
+              id="return-date"
               type="date"
               value={returnDate}
               onChange={(e) => {
                 setReturnDate(e.target.value);
-                setTouched(prev => ({ ...prev, returnDate: true }));
+                setTouched((prev) => ({ ...prev, returnDate: true }));
               }}
               onBlur={() => handleBlur('returnDate')}
               min={pickupDate || new Date().toISOString().split('T')[0]}
-              className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all ${
-                errors.returnDate && touched.returnDate
-                  ? 'border-red-300 bg-red-50'
-                  : 'border-gray-300 hover:border-indigo-300'
-              }`}
+              className={inputClass}
             />
-            {errors.returnDate && touched.returnDate && (
-              <p className="text-xs text-red-600 mt-1 flex items-center">
-                <AlertCircle className="w-3 h-3 mr-1" />
-                {errors.returnDate}
-              </p>
-            )}
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              <Clock className="inline w-4 h-4 mr-1.5 text-indigo-600" />
+          {/* Return Time */}
+          <div className={fieldClass(!!(errors.returnTime && touched.returnTime))}>
+            <label htmlFor="return-time" className={`${labelClass} cursor-pointer`}>
+              <Clock className="w-3.5 h-3.5 text-indigo-600" />
               Return Time
             </label>
             <input
+              id="return-time"
               type="time"
               value={returnTime}
               onChange={(e) => {
                 setReturnTime(e.target.value);
-                setTouched(prev => ({ ...prev, returnTime: true }));
+                setTouched((prev) => ({ ...prev, returnTime: true }));
               }}
               onBlur={() => handleBlur('returnTime')}
-              className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all ${
-                errors.returnTime && touched.returnTime
-                  ? 'border-red-300 bg-red-50'
-                  : 'border-gray-300 hover:border-indigo-300'
-              }`}
+              className={inputClass}
             />
-            {errors.returnTime && touched.returnTime && (
-              <p className="text-xs text-red-600 mt-1 flex items-center">
-                <AlertCircle className="w-3 h-3 mr-1" />
-                {errors.returnTime}
-              </p>
-            )}
-            {!errors.returnTime && returnDate && (
-              <p className="text-xs text-gray-500 mt-1">Default: 8:00 PM</p>
-            )}
           </div>
+
+          {/* CTA Button — fills the right semicircle edge-to-edge on desktop */}
+          <Button
+            onClick={handleSearch}
+            disabled={hasErrors || !pickupDate || !pickupTime || !returnDate || !returnTime}
+            className="w-full md:w-auto md:self-stretch md:!border-l-0 px-6 py-4 md:px-10 md:py-0 md:h-auto rounded-xl md:rounded-l-none md:rounded-r-full bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center"
+          >
+            <Search className="w-5 h-5 mr-2" />
+            Ride Now
+          </Button>
         </div>
       </div>
-
-      <Button
-        onClick={handleSearch}
-        disabled={hasErrors || !pickupDate || !pickupTime || !returnDate || !returnTime}
-        className="w-full mt-6 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white py-4 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
-      >
-        <Search className="w-5 h-5 mr-2 inline" />
-        Search Available Vehicles
-      </Button>
     </div>
   );
 }
