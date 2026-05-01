@@ -21,6 +21,9 @@ import PromoCodesPage from '../pages/admin/PromoCodesPage';
 import CitiesPage from '../pages/admin/CitiesPage';
 import StatesPage from '../pages/admin/StatesPage';
 import AdminPickupPointsPage from '../components/admin/AdminPickupPoints'
+import PartnerInquiriesPage from '../pages/admin/PartnerInquiriesPage';
+import ContactsPage from '../pages/admin/ContactsPage';
+import HeroBannersPage from '../pages/admin/HeroBannersPage';
 export const adminRoutes: RouteObject[] = [
   // Auth pages — no layout
   { path: '', element: <AdminLogin /> },
@@ -52,6 +55,9 @@ export const adminRoutes: RouteObject[] = [
       { path: 'offline-booking', element: <OfflineBookingPage /> },
       { path: 'promo-codes', element: <PromoCodesPage /> },
       { path: 'pickup-points', element: <AdminPickupPointsPage /> },
+      { path: 'partner-inquiries', element: <PartnerInquiriesPage /> },
+      { path: 'contacts', element: <ContactsPage /> },
+      { path: 'hero-banners', element: <HeroBannersPage /> },
       {
         path: 'superadmin',
         element: (

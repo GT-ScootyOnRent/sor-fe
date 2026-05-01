@@ -21,6 +21,9 @@ import { promoCodeApi } from './api/promoCodeApi'; // ← NEW
 import { offlineBookingApi } from './api/offlineBookingApi';
 import { staffApi } from './api/staffApi';
 import { stateApi } from './api/stateApi';
+import { partnerInquiryApi } from './api/partnerInquiryApi';
+import { contactApi } from './api/contactApi';
+import { heroBannerApi } from './api/heroBannerApi';
 
 export const store = configureStore({
   reducer: {
@@ -44,6 +47,9 @@ export const store = configureStore({
     [offlineBookingApi.reducerPath]: offlineBookingApi.reducer, // reducerPath = 'offlineBookingApi'
     [staffApi.reducerPath]: staffApi.reducer,
     [stateApi.reducerPath]: stateApi.reducer,
+    [partnerInquiryApi.reducerPath]: partnerInquiryApi.reducer,
+    [contactApi.reducerPath]: contactApi.reducer,
+    [heroBannerApi.reducerPath]: heroBannerApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -61,7 +67,10 @@ export const store = configureStore({
       promoCodeApi.middleware,
       offlineBookingApi.middleware,
       staffApi.middleware,
-      stateApi.middleware
+      stateApi.middleware,
+      partnerInquiryApi.middleware,
+      contactApi.middleware,
+      heroBannerApi.middleware
     ),
 });
 

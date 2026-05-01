@@ -17,6 +17,7 @@ import PaymentSuccessPage from '../pages/PaymentSuccessPage';
 import PaymentFailurePage from '../pages/PaymentFailurePage';
 import Profile from '../pages/ProfilePage';
 import NotFoundPage from '../pages/NotFoundPage';
+import WorkWithUs from '../pages/WorkWithUs';
 
 export const mainRoutes: RouteObject[] = [
     {
@@ -29,6 +30,7 @@ export const mainRoutes: RouteObject[] = [
             { path: '/vehicles', element: <VehicleListingPage /> },
             { path: '/terms', element: <TermsAndConditions /> },
             { path: '/privacy-policy', element: <PrivacyPolicy /> },
+            { path: '/work-with-us', element: <WorkWithUs /> },
             {
                 path: '/book/:id',
                 element: (

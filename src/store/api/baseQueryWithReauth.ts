@@ -17,7 +17,8 @@ const baseQuery = fetchBaseQuery({
             headers.set('Authorization', `Bearer ${token}`);
         }
         // Don't set Content-Type for file uploads - browser will set it with boundary
-        if (!headers.has('Content-Type') && endpoint !== 'uploadProfilePic') {
+        const multipartEndpoints = new Set(['uploadProfilePic', 'createHeroBanner', 'updateHeroBanner']);
+        if (!headers.has('Content-Type') && !multipartEndpoints.has(endpoint)) {
             headers.set('Content-Type', 'application/json');
         }
         return headers;

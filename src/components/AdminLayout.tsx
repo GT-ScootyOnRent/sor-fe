@@ -11,6 +11,9 @@ import {
   ShieldCheck,
   Tag,
   MapPin,
+  Briefcase,
+  Phone,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { logout } from '../store/slices/authSlice'
@@ -32,6 +35,9 @@ const navItems: NavItem[] = [
   { id: 'staff', path: 'staff', icon: UserCog, label: 'Staff' },
   { id: 'promo-codes', path: 'promo-codes', icon: Tag, label: 'Promo Codes' },
   { id: 'pickup-points', path: 'pickup-points', icon: MapPin, label: 'Pickup Points' },
+  { id: 'partner-inquiries', path: 'partner-inquiries', icon: Briefcase, label: 'Partner Inquiries' },
+  { id: 'contacts', path: 'contacts', icon: Phone, label: 'Contacts' },
+  { id: 'hero-banners', path: 'hero-banners', icon: ImageIcon, label: 'Hero Banners' },
   { id: 'states', path: 'states', icon: MapPin, label: 'States', roles: ['superadmin'] },
   { id: 'cities', path: 'cities', icon: MapPin, label: 'Cities', roles: ['superadmin'] },
   { id: 'superadmin', path: 'superadmin', icon: ShieldCheck, label: 'Admins', roles: ['superadmin'] },
