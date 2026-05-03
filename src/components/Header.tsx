@@ -177,7 +177,7 @@ export default function Header() {
   <span className="absolute inset-[2px] bg-white rounded-full"></span>
 
   {/* Text */}
-  <span className="relative z-10">Booking</span>
+  <span className="relative z-10">Booking/Vehicles</span>
 </a>
 
             <Link
