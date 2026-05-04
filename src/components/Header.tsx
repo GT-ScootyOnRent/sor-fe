@@ -60,6 +60,20 @@ export default function Header() {
     setMobileMenuOpen(false);
   };
 
+  const isActive = (path: string) => location.pathname === path;
+  const navLinkClass = (path: string) =>
+    `relative font-medium pb-1 transition-colors ${
+      isActive(path)
+        ? 'text-primary-600 after:absolute after:left-0 after:right-0 after:bottom-0 after:h-[3px] after:rounded-full after:bg-primary-500'
+        : 'text-black hover:text-primary-500'
+    }`;
+  const mobileNavLinkClass = (path: string) =>
+    `block font-medium pl-3 border-l-4 transition-colors ${
+      isActive(path)
+        ? 'text-primary-600 border-primary-500'
+        : 'text-black border-transparent'
+    }`;
+
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white shadow-sm">
       <div className="container mx-auto px-4 py-2">
@@ -97,7 +111,7 @@ export default function Header() {
             <Link
               to="/"
               onClick={handleHomeClick}
-              className="font-medium text-black hover:text-primary-500 transition-colors"
+              className={navLinkClass('/')}
             >
               Home
             </Link>
@@ -180,17 +194,11 @@ export default function Header() {
   <span className="relative z-10">Booking/Vehicles</span>
 </a>
 
-            <Link
-              to="/contact"
-              className="font-medium text-black hover:text-primary-500 transition-colors"
-            >
+            <Link to="/contact" className={navLinkClass('/contact')}>
               Contact Us
             </Link>
 
-            <Link
-              to="/work-with-us"
-              className="font-medium text-black hover:text-primary-500 transition-colors"
-            >
+            <Link to="/work-with-us" className={navLinkClass('/work-with-us')}>
               Work With Us
             </Link>
           </nav>
@@ -247,22 +255,22 @@ export default function Header() {
             <Link
               to="/"
               onClick={handleHomeClick}
-              className="block font-medium text-black"
+              className={mobileNavLinkClass('/')}
             >
               Home
             </Link>
 
-          <button
-          onClick={handleVehiclesClick}
-          className="block w-full text-left font-medium text-black hover:text-teal-500 transition-colors"
-          >
+            <button
+              onClick={handleVehiclesClick}
+              className={`${mobileNavLinkClass('/vehicles')} w-full text-left`}
+            >
               Booking
-          </button>
+            </button>
 
             <Link
               to="/contact"
               onClick={() => setMobileMenuOpen(false)}
-              className="block font-medium text-black"
+              className={mobileNavLinkClass('/contact')}
             >
               Contact Us
             </Link>
@@ -270,7 +278,7 @@ export default function Header() {
             <Link
               to="/work-with-us"
               onClick={() => setMobileMenuOpen(false)}
-              className="block font-medium text-black"
+              className={mobileNavLinkClass('/work-with-us')}
             >
               Work With Us
             </Link>

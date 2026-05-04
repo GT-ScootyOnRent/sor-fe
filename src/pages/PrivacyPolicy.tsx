@@ -2,7 +2,6 @@ import React from 'react';
 import { ArrowLeft, Shield, Lock, Eye, Database, Globe, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import Footer from '../components/Footer';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
 
 const PrivacyPolicy: React.FC = () => {
@@ -478,8 +477,6 @@ const PrivacyPolicy: React.FC = () => {
             </div>
           </div>
         </div>
-
-        <Footer />
       </div>
     </div>
   );

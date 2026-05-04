@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import WhatsAppButton from './WhatsAppButton';
 import CitySelectorModal from './CitySelectorModal';
+import Footer from './Footer';
 
 /**
  * Main site layout (scootyonrent.com)
@@ -12,6 +13,7 @@ const MainLayout: React.FC = () => {
         <>
             <CitySelectorModal />
             <Outlet />
+            <Footer />
             <WhatsAppButton />
         </>
     );

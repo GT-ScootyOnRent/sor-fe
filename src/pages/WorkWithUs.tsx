@@ -3,7 +3,6 @@ import { Loader2, CheckCircle2, ChevronsUpDown, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { City, State } from 'country-state-city';
 import Header from '../components/Header';
-import Footer from '../components/Footer';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -416,8 +415,6 @@ export default function WorkWithUs() {
           )}
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

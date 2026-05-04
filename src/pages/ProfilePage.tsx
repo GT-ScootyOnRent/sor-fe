@@ -12,7 +12,6 @@ import { useGetBookingsByUserIdQuery } from '../store/api/bookingApi';
 import { useUpdateUserMutation } from '../store/api/userApi';
 import { toast } from 'sonner';
 import Header from '../components/Header';
-import Footer from '../components/Footer';
 
 const BOOKINGS_PER_PAGE = 4;
 
@@ -402,7 +401,6 @@ export default function ProfilePage() {
 
         </div>
       </div>
-      <Footer />
     </div>
   );
 }
