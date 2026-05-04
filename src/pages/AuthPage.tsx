@@ -7,6 +7,7 @@ import { setCredentials } from '../store/slices/authSlice';
 import { toast } from 'sonner';
 import Header from '../components/Header';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
+import { executeRecaptcha } from '../utils/recaptcha';
 
 type Step = 'phone' | 'otp' | 'details' | 'emailOtp';
 
@@ -50,7 +51,16 @@ const AuthPage: React.FC = () => {
     if (phoneNumber.length !== 10) return;
     setIsSendingOtp(true);
     try {
-      const response = await sendOtp({ phoneNumber }).unwrap();
+      let captchaToken: string;
+      try {
+        captchaToken = await executeRecaptcha('send_otp');
+      } catch (captchaErr) {
+        console.error('reCAPTCHA error:', captchaErr);
+        toast.error('Captcha failed, please try again');
+        return;
+      }
+
+      const response = await sendOtp({ phoneNumber, captchaToken }).unwrap();
       if (response.success) {
         setStep('otp');
         toast.success('OTP sent to your mobile number');
@@ -58,6 +68,12 @@ const AuthPage: React.FC = () => {
         toast.error('Failed to send OTP', { description: response.message });
       }
     } catch (err: any) {
+      if (err?.status === 400) {
+        toast.error('Captcha failed, please try again', {
+          description: err?.data?.message,
+        });
+        return;
+      }
       toast.error('Failed to send OTP', { description: err?.data?.message ?? 'Please try again' });
     } finally {
       setIsSendingOtp(false);
@@ -347,6 +363,28 @@ const AuthPage: React.FC = () => {
                     {isSendingOtp ? 'Sending OTP...' : 'Send OTP'}
                     {!isSendingOtp && <ArrowRight className="w-5 h-5 ml-2" />}
                   </button>
+
+                  <p className="text-xs text-gray-500 text-center leading-relaxed">
+                    This site is protected by reCAPTCHA and the Google{' '}
+                    <a
+                      href="https://policies.google.com/privacy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-gray-700"
+                    >
+                      Privacy Policy
+                    </a>{' '}
+                    and{' '}
+                    <a
+                      href="https://policies.google.com/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-gray-700"
+                    >
+                      Terms of Service
+                    </a>{' '}
+                    apply.
+                  </p>
                 </form>
               )}
 

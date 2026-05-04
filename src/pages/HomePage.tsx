@@ -44,7 +44,6 @@
 // export default HomePage;
 import VehicleCarousel from '../components/VehicleCarousel';
 import Header from '../components/Header';
-import Footer from '../components/Footer';
 import DateTimePicker from '../components/DateTimePicker';
 import FAQSection from '../components/FAQSection';
 import RatingsSection from '../components/RatingsSection';
@@ -90,8 +89,6 @@ const HomePage: React.FC = () => {
 
         {/* FAQ */}
         <FAQSection />
-
-        <Footer />
       </div>
     </>
   );

@@ -3,7 +3,6 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Calendar, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import Header from '../components/Header';
-import Footer from '../components/Footer';
 import MapWithLocations from '../components/MapWithLocations';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
 import PaymentModal from '../components/PaymentModal';
@@ -352,8 +351,6 @@ export default function BookNow() {
             </div>
           </div>
         </div>
-
-        <Footer />
       </div>
 
       {/* Payment Modal */}

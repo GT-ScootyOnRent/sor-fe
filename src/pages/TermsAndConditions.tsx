@@ -2,7 +2,6 @@ import React from 'react';
 import { ArrowLeft, Shield, AlertTriangle, FileText, Clock, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import Footer from '../components/Footer';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
 
 const TermsAndConditions: React.FC = () => {
@@ -426,8 +425,6 @@ const TermsAndConditions: React.FC = () => {
             </div>
           </div>
         </div>
-
-        <Footer />
       </div>
     </div>
   );

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Header from '../components/Header';
-import Footer from '../components/Footer';
 import VehicleCard from '../components/VehicleCard';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorMessage } from '../components/ErrorMessage';
@@ -467,8 +466,6 @@ const VehicleListingPage: React.FC = () => {
 
           </div>
         </div>
-
-        <Footer />
       </div>
     </div>
   );

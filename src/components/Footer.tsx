@@ -1,11 +1,16 @@
 import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Twitter, MapPin } from 'lucide-react';
+import { useAppSelector } from '../store/hooks';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+
+  // Footer is hidden until the user logs in
+  if (!isAuthenticated) return null;
 
   return (
-    <footer className="bg-black text-white mt-6">
+    <footer className="bg-black text-white w-full">
       <div className="container mx-auto px-4 py-5">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Company Info */}
