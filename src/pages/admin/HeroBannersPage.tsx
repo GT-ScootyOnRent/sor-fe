@@ -13,6 +13,10 @@ import {
   CheckCircle2,
   XCircle,
   Eye,
+  Maximize2,
+  ZoomIn,
+  ZoomOut,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -55,44 +59,286 @@ interface SlidePreviewProps {
   subtitle: string;
 }
 
+type LightboxMode = 'crop' | 'full';
+
 const SlidePreview: React.FC<SlidePreviewProps> = ({ imageUrl, title, subtitle }) => {
   const hasText = !!(title || subtitle);
+  const [lightbox, setLightbox] = useState<LightboxMode | null>(null);
+
   return (
-    <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-gray-200 border border-gray-300 shadow-sm">
-      {imageUrl ? (
-        <img src={imageUrl} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
-      ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-          <ImageIcon className="w-12 h-12 mb-2" />
-          <p className="text-sm">Upload an image to preview</p>
+    <div className="space-y-4">
+      {/* ── User-side preview — matches the homepage hero aspect ratio (~3:1) */}
+      <div>
+        <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5 font-semibold">
+          What users see (desktop hero crop)
+        </p>
+        <button
+          type="button"
+          onClick={() => imageUrl && setLightbox('crop')}
+          disabled={!imageUrl}
+          className="group relative aspect-[3/1] w-full rounded-xl overflow-hidden bg-gray-200 border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:cursor-not-allowed enabled:cursor-zoom-in"
+          aria-label="Open hero crop preview at full size"
+        >
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt="Hero crop"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+              <ImageIcon className="w-12 h-12 mb-2" />
+              <p className="text-sm">Upload an image to preview</p>
+            </div>
+          )}
+
+          {hasText && imageUrl && (
+            <>
+              <div className="absolute inset-0 bg-black/35" />
+              <div className="absolute inset-0 flex items-center justify-center px-4 text-center">
+                <div className="max-w-xl">
+                  {title && (
+                    <h2 className="text-xl md:text-3xl font-bold text-white mb-1.5 leading-tight drop-shadow-lg">
+                      {title}
+                    </h2>
+                  )}
+                  {subtitle && (
+                    <p className="text-xs md:text-base text-white/95 drop-shadow-md">{subtitle}</p>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Hover hint with expand icon (top-right) */}
+          {imageUrl && (
+            <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">
+              <Maximize2 className="w-3 h-3" />
+              Open
+            </span>
+          )}
+
+          {/* Fake search bar overlap to show how user side will look */}
+          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-[80%] h-6 rounded-full bg-white/95 shadow-md border border-gray-200 flex items-center justify-center text-[10px] text-gray-400 pointer-events-none">
+            ⤷ Search bar overlaps here
+          </div>
+        </button>
+      </div>
+
+      {/* ── Full-image preview — native aspect ratio, no crop */}
+      {imageUrl && (
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5 font-semibold">
+            Your uploaded image (full, uncropped)
+          </p>
+          <button
+            type="button"
+            onClick={() => setLightbox('full')}
+            className="group relative w-full max-h-72 rounded-xl overflow-hidden border border-gray-200 bg-[linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%),linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%)] bg-[length:16px_16px] bg-[position:0_0,8px_8px] flex items-center justify-center cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-primary-500"
+            aria-label="Open full image preview"
+          >
+            <img
+              src={imageUrl}
+              alt="Uploaded original"
+              className="block max-w-full max-h-72 object-contain"
+            />
+            <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">
+              <Maximize2 className="w-3 h-3" />
+              Open
+            </span>
+          </button>
         </div>
       )}
 
-      {hasText && imageUrl && (
-        <>
-          <div className="absolute inset-0 bg-black/35" />
-          <div className="absolute inset-0 flex items-center justify-center px-4 text-center">
-            <div className="max-w-xl">
-              {title && (
-                <h2 className="text-xl md:text-3xl font-bold text-white mb-1.5 leading-tight drop-shadow-lg">
-                  {title}
-                </h2>
-              )}
-              {subtitle && (
-                <p className="text-xs md:text-base text-white/95 drop-shadow-md">{subtitle}</p>
+      {/* ── Lightbox */}
+      {lightbox && imageUrl && (
+        <ImageLightbox
+          imageUrl={imageUrl}
+          mode={lightbox}
+          title={title}
+          subtitle={subtitle}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+// ── Lightbox ────────────────────────────────────────────────────────────────
+
+interface ImageLightboxProps {
+  imageUrl: string;
+  mode: LightboxMode;
+  title: string;
+  subtitle: string;
+  onClose: () => void;
+}
+
+const ZOOM_STEPS = [1, 1.5, 2, 3] as const;
+
+const ImageLightbox: React.FC<ImageLightboxProps> = ({
+  imageUrl,
+  mode,
+  title,
+  subtitle,
+  onClose,
+}) => {
+  const [zoomIdx, setZoomIdx] = useState(0);
+  const scale = ZOOM_STEPS[zoomIdx];
+  const hasText = !!(title || subtitle);
+
+  // ESC closes; lock body scroll while open
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === '+' || e.key === '=') setZoomIdx((i) => Math.min(i + 1, ZOOM_STEPS.length - 1));
+      if (e.key === '-') setZoomIdx((i) => Math.max(i - 1, 0));
+      if (e.key === '0') setZoomIdx(0);
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  const cycleZoom = () => setZoomIdx((i) => (i + 1) % ZOOM_STEPS.length);
+  const zoomIn = () => setZoomIdx((i) => Math.min(i + 1, ZOOM_STEPS.length - 1));
+  const zoomOut = () => setZoomIdx((i) => Math.max(i - 1, 0));
+  const resetZoom = () => setZoomIdx(0);
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/85 flex flex-col"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Image preview"
+    >
+      {/* Top bar */}
+      <div
+        className="flex items-center justify-between gap-3 px-4 py-3 text-white border-b border-white/10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="text-sm font-medium uppercase tracking-wide opacity-90">
+          {mode === 'crop' ? 'Hero crop preview' : 'Original image'} · {Math.round(scale * 100)}%
+        </span>
+        <div className="flex items-center gap-1">
+          <IconButton onClick={zoomOut} disabled={zoomIdx === 0} title="Zoom out (−)">
+            <ZoomOut className="w-4 h-4" />
+          </IconButton>
+          <IconButton
+            onClick={zoomIn}
+            disabled={zoomIdx === ZOOM_STEPS.length - 1}
+            title="Zoom in (+)"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </IconButton>
+          <IconButton onClick={resetZoom} disabled={zoomIdx === 0} title="Reset (0)">
+            <RefreshCw className="w-4 h-4" />
+          </IconButton>
+          <IconButton onClick={onClose} title="Close (Esc)">
+            <X className="w-5 h-5" />
+          </IconButton>
+        </div>
+      </div>
+
+      {/* Image stage — overflow-auto handles panning natively when zoomed */}
+      <div
+        className="flex-1 overflow-auto p-6"
+        onClick={onClose}
+      >
+        <div
+          className="mx-auto"
+          style={{
+            width: 'fit-content',
+            transform: `scale(${scale})`,
+            transformOrigin: 'top center',
+            transition: 'transform 200ms ease-out',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            cycleZoom();
+          }}
+        >
+          {mode === 'crop' ? (
+            <div
+              className="relative bg-black"
+              style={{
+                width: 'min(90vw, 1280px)',
+                aspectRatio: '3 / 1',
+                cursor: scale === ZOOM_STEPS[ZOOM_STEPS.length - 1] ? 'zoom-out' : 'zoom-in',
+              }}
+            >
+              <img
+                src={imageUrl}
+                alt="Hero crop"
+                className="absolute inset-0 w-full h-full object-cover select-none"
+                draggable={false}
+              />
+              {hasText && (
+                <>
+                  <div className="absolute inset-0 bg-black/35" />
+                  <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+                    <div className="max-w-3xl">
+                      {title && (
+                        <h2 className="text-3xl md:text-5xl font-bold text-white mb-3 leading-tight drop-shadow-lg">
+                          {title}
+                        </h2>
+                      )}
+                      {subtitle && (
+                        <p className="text-base md:text-xl text-white/95 drop-shadow-md">
+                          {subtitle}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
-          </div>
-        </>
-      )}
+          ) : (
+            <img
+              src={imageUrl}
+              alt="Uploaded original"
+              className="max-w-[90vw] max-h-[80vh] object-contain block select-none"
+              draggable={false}
+              style={{
+                cursor: scale === ZOOM_STEPS[ZOOM_STEPS.length - 1] ? 'zoom-out' : 'zoom-in',
+              }}
+            />
+          )}
+        </div>
+      </div>
 
-      {/* Fake search bar overlap to show how user side will look */}
-      <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-[80%] h-6 rounded-full bg-white/95 shadow-md border border-gray-200 flex items-center justify-center text-[10px] text-gray-400">
-        ⤷ Search bar overlaps here
+      {/* Footer hint */}
+      <div
+        className="px-4 py-2 text-center text-xs text-white/60 border-t border-white/10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        Click image to cycle zoom · Esc / click outside to close · + / − / 0 keys also work
       </div>
     </div>
   );
 };
+
+const IconButton: React.FC<{
+  onClick: () => void;
+  disabled?: boolean;
+  title: string;
+  children: React.ReactNode;
+}> = ({ onClick, disabled, title, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    title={title}
+    className="p-2 rounded-lg text-white/90 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+  >
+    {children}
+  </button>
+);
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
