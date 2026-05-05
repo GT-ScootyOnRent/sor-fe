@@ -348,10 +348,14 @@ const InquiryDetailModal: React.FC<InquiryDetailModalProps> = ({ id, onClose }) 
   const handleSave = async () => {
     if (!status || !inquiry) return;
     try {
+      // Spec: null = keep existing, "" = clear, string = set.
+      // The textarea pre-fills with the existing notes, and dirty check below
+      // blocks saves when nothing changed — so we always send the user's
+      // current intent verbatim ("" meaning "clear" if they emptied it).
       await updateStatus({
         id: inquiry.id,
         status,
-        notes: notes.length > 0 ? notes : null,
+        notes,
       }).unwrap();
       toast.success('Inquiry updated');
       onClose();
