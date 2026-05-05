@@ -1,19 +1,24 @@
 import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Twitter, MapPin } from 'lucide-react';
+import { useAppSelector } from '../store/hooks';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
+  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+
+  // Footer is hidden until the user logs in
+  if (!isAuthenticated) return null;
 
   return (
-    <footer className="bg-black text-white mt-20">
-      <div className="container mx-auto px-4 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+    <footer className="bg-black text-white w-full">
+      <div className="container mx-auto px-4 py-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Company Info */}
           <div>
-            <h3 className="text-2xl md:text-3xl mb-5">
+            <h3 className="text-xl md:text-2xl mb-1">
               Scooty<span className="text-primary-500">onrent</span>
             </h3>
-            <p className="text-gray-400 text-base md:text-lg leading-relaxed">
+            <p className="text-gray-400 text-sm md:text-base leading-snug">
               Your trusted partner for two-wheeler rentals across India.
             </p>
             {/* <p className="text-gray-400 mt-3 text-sm">
@@ -23,8 +28,8 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="text-lg md:text-xl font-semibold mb-5">Quick Links</h4>
-            <ul className="space-y-3 text-gray-400 text-base md:text-lg">
+            <h4 className="text-base md:text-lg font-semibold mb-1">Quick Links</h4>
+            <ul className="space-y-1 text-gray-400 text-sm md:text-base">
               <li>
                 <Link to="/privacy-policy" className="hover:text-primary-500 transition-colors">
                   Privacy Policy
@@ -45,46 +50,46 @@ export default function Footer() {
 
           {/* Cities & Social Media */}
           <div>
-            <h4 className="text-lg md:text-xl font-semibold mb-5">Our Locations</h4>
-            <ul className="space-y-3 text-gray-400 text-base md:text-lg mb-7">
+            <h4 className="text-base md:text-lg font-semibold mb-1">Our Locations</h4>
+            <ul className="space-y-1 text-gray-400 text-sm md:text-base mb-2">
               <li className="flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-primary-500" />
+                <MapPin className="w-4 h-4 text-primary-500" />
                 Udaipur
               </li>
               <li className="flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-primary-500" />
+                <MapPin className="w-4 h-4 text-primary-500" />
                 Jaipur (Launching Soon)
               </li>
               <li className="flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-primary-500" />
+                <MapPin className="w-4 h-4 text-primary-500" />
                 Jodhpur (Launching Soon)
               </li>
             </ul>
 
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               <a
                 href="#"
-                className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-500 transition-colors"
+                className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-500 transition-colors"
               >
-                <Facebook className="w-6 h-6" />
+                <Facebook className="w-5 h-5" />
               </a>
               <a
                 href="#"
-                className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-500 transition-colors"
+                className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-500 transition-colors"
               >
-                <Instagram className="w-6 h-6" />
+                <Instagram className="w-5 h-5" />
               </a>
               <a
                 href="#"
-                className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-500 transition-colors"
+                className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-primary-500 transition-colors"
               >
-                <Twitter className="w-6 h-6" />
+                <Twitter className="w-5 h-5" />
               </a>
             </div>
           </div>
         </div>
 
-        <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400 space-y-2">
+        <div className="border-t border-gray-800 mt-3 pt-3 text-center text-gray-400 space-y-1">
           <p>&copy; {currentYear} scootyonrent. All rights reserved.</p>
           <p className="text-xs text-gray-500">
             This site is protected by reCAPTCHA and the Google{' '}

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Phone, Loader2 } from 'lucide-react';
 import Header from '../components/Header';
-import Footer from '../components/Footer';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -335,8 +334,6 @@ if (from?.pathname && from.pathname !== '/login' && from.pathname !== '/auth') {
           </div>
         </div>
       </div>
-
-      <Footer />
     </div>
   );
 }

@@ -2,7 +2,6 @@ import React from 'react';
 import { ArrowLeft, Shield, Lock, Eye, Database, Globe, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import Footer from '../components/Footer';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
 
 const PrivacyPolicy: React.FC = () => {
@@ -145,6 +144,54 @@ const PrivacyPolicy: React.FC = () => {
                 </div>
               </div>
             </section>
+
+            {/* Location Data */}
+<section>
+  <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+    <Globe className="w-6 h-6 mr-2 text-green-600" />
+    Location Data
+  </h2>
+
+  <div className="space-y-4 text-gray-700">
+
+    <div className="bg-green-50 border border-green-200 rounded-xl p-5">
+      <p>
+        <strong>1. GPS Tracking:</strong> Our vehicles may be equipped with GPS
+        tracking devices for security, theft prevention, and ensuring
+        compliance with rental terms.
+      </p>
+    </div>
+
+    <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
+      <p>
+        <strong>2. Location Monitoring:</strong> We may monitor vehicle
+        location to ensure the vehicle remains within permitted city limits as
+        per our Terms & Conditions.
+      </p>
+    </div>
+
+    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
+      <p className="mb-3">
+        <strong>3. Data Usage:</strong> Location data is used solely for:
+      </p>
+
+      <ul className="list-disc list-inside space-y-2 ml-4">
+        <li>Vehicle security and theft prevention</li>
+        <li>Ensuring compliance with geographic restrictions</li>
+        <li>Emergency assistance and recovery</li>
+        <li>Service improvement</li>
+      </ul>
+    </div>
+
+    <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+      <p>
+        <strong>4. Data Retention:</strong> Location data is retained for 30
+        days after the rental period ends and is then automatically deleted.
+      </p>
+    </div>
+
+  </div>
+</section>
 
             {/* Tracking Technologies */}
             <section>
@@ -430,8 +477,6 @@ const PrivacyPolicy: React.FC = () => {
             </div>
           </div>
         </div>
-
-        <Footer />
       </div>
     </div>
   );

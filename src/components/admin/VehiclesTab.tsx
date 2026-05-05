@@ -26,7 +26,7 @@ import { FormField } from './FormField';
 
 // ── Vehicle Form Initial State ─────────────────────────────────────────────
 const EMPTY_VEHICLE: Omit<VehicleDto, 'id'> = {
-  name: '', make: '', model: '', cityId: 1,
+  name: '', make: '', model: '', cityId: 0,
   isAvailable: true, featured: false,
   pricePerHour: 0, pricePerDay: 0, minBookingHours: 4,
   kmLimit: 100, excessKmCharge: 5, lateReturnCharge: 80,
@@ -96,6 +96,10 @@ const VehiclesTab: React.FC = () => {
   const handleSaveVehicle = async () => {
     if (!vehicleForm.name || !vehicleForm.make || !vehicleForm.model) {
       toast.error('Please fill all required fields');
+      return;
+    }
+    if (!vehicleForm.cityId) {
+      toast.error('Please select a city');
       return;
     }
     try {
@@ -329,6 +333,7 @@ const VehiclesTab: React.FC = () => {
                       </FormField>
                       <FormField label="City">
                         <select value={vehicleForm.cityId} onChange={(e) => setVehicleForm({ ...vehicleForm, cityId: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none text-sm">
+                          <option value={0}>Select city</option>
                           {cities.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                         </select>
                       </FormField>

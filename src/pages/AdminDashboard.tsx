@@ -53,7 +53,7 @@ const AdminDashboard: React.FC = () => {
         {[
           { label: 'Total Vehicles', value: stats.totalVehicles, sub: `${stats.availableVehicles} available`, icon: Bike, color: 'text-primary-600' },
           { label: 'Active Bookings', value: stats.activeBookings, sub: `${stats.pendingBookings} pending`, icon: Calendar, color: 'text-green-600' },
-          { label: 'Total Users', value: stats.totalUsers, sub: 'registered', icon: Users, color: 'text-purple-600' },
+          { label: 'Total Customers', value: stats.totalUsers, sub: 'registered', icon: Users, color: 'text-purple-600' },
           { label: 'Revenue (Confirmed)', value: `₹${stats.monthlyRevenue.toLocaleString()}`, sub: 'total', icon: TrendingUp, color: 'text-orange-600' },
         ].map(({ label, value, sub, icon: Icon, color }) => (
           <div key={label} className="bg-white rounded-xl shadow-md p-6">
@@ -80,7 +80,7 @@ const AdminDashboard: React.FC = () => {
                   <div key={booking.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium text-gray-900">Booking #{booking.id}</p>
-                      <p className="text-sm text-gray-600">User #{booking.userId}</p>
+                      <p className="text-sm text-gray-600">Customer #{booking.userId}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-primary-600">₹{booking.totalAmount}</p>

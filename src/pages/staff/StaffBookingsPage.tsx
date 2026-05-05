@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Search,
@@ -12,6 +12,8 @@ import {
     Loader2,
     ArrowLeft,
     Download,
+    Info,
+    ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -36,10 +38,31 @@ const StaffBookingsPage: React.FC = () => {
 
 // ── Bookings List ──────────────────────────────────────────────────────────
 
+// Format a Date as 'YYYY-MM-DD' in the user's local timezone — what HTML5
+// <input type="date"> emits and consumes.
+const toYmd = (d: Date): string => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const BookingsList: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const navigate = useNavigate();
+
+    // Staff is restricted to bookings starting within the last 7 days (incl. today).
+    // Compute the window once per render — cheap and stays correct across midnight.
+    const { todayYmd, minYmd } = useMemo(() => {
+        const today = new Date();
+        const min = new Date();
+        min.setDate(today.getDate() - 6); // 6 days ago + today = 7 days
+        return { todayYmd: toYmd(today), minYmd: toYmd(min) };
+    }, []);
+
+    const [startDate, setStartDate] = useState(minYmd);
+    const [endDate, setEndDate] = useState(todayYmd);
 
     const { data: bookings = [], isLoading } = useGetStaffBookingsQuery({});
 
@@ -52,7 +75,13 @@ const BookingsList: React.FC = () => {
             b.friendFamilyContactNumber?.includes(searchQuery) ||
             b.id.toString().includes(searchQuery);
         const matchesStatus = statusFilter === 'all' || b.status === statusFilter;
-        return matchesSearch && matchesStatus;
+        // Date filter on b.startDate (booking start). YYYY-MM-DD strings sort
+        // lexicographically, so direct string comparison is safe.
+        const bookingYmd = b.startDate ? b.startDate.slice(0, 10) : '';
+        const matchesDate =
+            (!startDate || bookingYmd >= startDate) &&
+            (!endDate || bookingYmd <= endDate);
+        return matchesSearch && matchesStatus && matchesDate;
     });
 
     const formatDate = (iso: string) =>
@@ -64,11 +93,20 @@ const BookingsList: React.FC = () => {
 
     return (
         <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-6">Bookings</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-3">Bookings</h1>
+
+            {/* 7-day restriction banner */}
+            <div className="flex items-start gap-2 mb-5 px-4 py-3 rounded-lg bg-primary-50 border border-primary-100 text-sm text-primary-700">
+                <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>
+                    Showing bookings from the last 7 days only. Contact an administrator
+                    if you need access to older bookings.
+                </span>
+            </div>
 
             {/* Filters */}
-            <div className="flex gap-4 mb-6">
-                <div className="flex-1 relative max-w-md">
+            <div className="flex flex-wrap gap-3 mb-6 items-end">
+                <div className="flex-1 min-w-[260px] relative max-w-md">
                     <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                         type="text"
@@ -90,6 +128,32 @@ const BookingsList: React.FC = () => {
                     <option value="completed">Completed</option>
                     <option value="cancelled">Cancelled</option>
                 </select>
+                <div className="flex flex-col">
+                    <label className="text-xs text-gray-500 mb-1">From</label>
+                    <input
+                        type="date"
+                        value={startDate}
+                        min={minYmd}
+                        max={endDate || todayYmd}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                    />
+                </div>
+                <div className="flex flex-col">
+                    <label className="text-xs text-gray-500 mb-1">To</label>
+                    <input
+                        type="date"
+                        value={endDate}
+                        min={startDate || minYmd}
+                        max={todayYmd}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                    />
+                </div>
+                <p className="w-full text-xs text-gray-500 mt-1">
+                    Date range is restricted to the last 7 days
+                    ({minYmd} → {todayYmd}).
+                </p>
             </div>
 
             {/* Bookings Table */}
@@ -192,7 +256,8 @@ interface BookingDetailProps {
 }
 
 const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
-    const { data: booking, isLoading: bookingLoading } = useGetStaffBookingByIdQuery(bookingId);
+    const { data: booking, isLoading: bookingLoading, error: bookingError } =
+        useGetStaffBookingByIdQuery(bookingId);
     const { data: documents = [], refetch: refetchDocs } = useGetBookingDocumentsQuery(bookingId);
     const { data: media = [], refetch: refetchMedia } = useGetBookingMediaQuery(bookingId);
     const [uploadDocument, { isLoading: uploadingDoc }] = useUploadBookingDocumentMutation();
@@ -245,6 +310,31 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
         return (
             <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+            </div>
+        );
+    }
+
+    // Backend returns 403 when the booking is older than the staff 7-day window.
+    // RTK Query's FetchBaseQueryError carries `status` as a number (or a string
+    // for transport errors), so a numeric === 403 is the right discriminator.
+    if (bookingError && 'status' in bookingError && bookingError.status === 403) {
+        return (
+            <div className="max-w-lg mx-auto bg-white rounded-xl shadow-md p-8 text-center mt-10">
+                <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+                    <ShieldAlert className="w-7 h-7 text-amber-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+                <p className="text-gray-600 mb-6">
+                    This booking is older than 7 days and cannot be accessed.
+                    Please contact an administrator if you need this information.
+                </p>
+                <button
+                    onClick={onBack}
+                    className="inline-flex items-center bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition"
+                >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to Bookings
+                </button>
             </div>
         );
     }

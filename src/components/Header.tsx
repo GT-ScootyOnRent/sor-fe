@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { logout } from '../store/slices/authSlice';
 import { openCityModal } from '../store/slices/citySlice';
+import ContactButton from './ContactButton';
 
 export default function Header() {
   const navigate = useNavigate();
@@ -59,19 +60,33 @@ export default function Header() {
     setMobileMenuOpen(false);
   };
 
+  const isActive = (path: string) => location.pathname === path;
+  const navLinkClass = (path: string) =>
+    `relative font-medium pb-1 transition-colors ${
+      isActive(path)
+        ? 'text-primary-600 after:absolute after:left-0 after:right-0 after:bottom-0 after:h-[3px] after:rounded-full after:bg-primary-500'
+        : 'text-black hover:text-primary-500'
+    }`;
+  const mobileNavLinkClass = (path: string) =>
+    `block font-medium pl-3 border-l-4 transition-colors ${
+      isActive(path)
+        ? 'text-primary-600 border-primary-500'
+        : 'text-black border-transparent'
+    }`;
+
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white shadow-sm">
-      <div className="container mx-auto px-4 py-1">
+      <div className="container mx-auto px-4 py-2">
         {/* Top Row */}
         <div className="flex items-center justify-between gap-3">
           {/* Left Side */}
-          <div className="flex items-center gap-3 min-w-0 self-stretch">
+          <div className="flex items-center gap-4 min-w-0 py-2">
             <a
               href="/"
               onClick={handleLogoClick}
-              className="cursor-pointer shrink-0 flex items-center self-stretch"
+              className="cursor-pointer shrink-0 flex items-center"
             >
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-black whitespace-nowrap leading-none">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-black whitespace-nowrap leading-tight">
                 Scooty<span className="text-primary-500">onrent</span>
               </h1>
             </a>
@@ -96,35 +111,101 @@ export default function Header() {
             <Link
               to="/"
               onClick={handleHomeClick}
-              className="font-medium text-black hover:text-primary-500 transition-colors"
+              className={navLinkClass('/')}
             >
               Home
             </Link>
-            <a
-                href="/vehicles"
-                onClick={handleVehiclesClick}
-                className="cursor-pointer rounded-full border border-teal-400 bg-white px-6 py-2 text-sm font-semibold text-teal-500 shadow-sm transition-all duration-200 hover:border-teal-500 hover:bg-teal-50 hover:text-teal-600"
-              >
-                Booking
-            </a>
+           <a
+  href="/vehicles"
+  onClick={handleVehiclesClick}
+  className="
+  relative inline-flex items-center justify-center
+  px-6 py-2 text-sm font-semibold text-teal-600
+  rounded-full bg-white overflow-hidden
 
-            <Link
-              to="/contact"
-              className="font-medium text-black hover:text-primary-500 transition-colors"
-            >
+  transition-all duration-200 ease-out
+
+  hover:scale-105
+  hover:text-teal-700
+  hover:shadow-[0_0_0_2px_rgba(20,184,166,0.15)]
+
+  active:scale-95
+  active:shadow-[0_0_0_3px_rgba(20,184,166,0.25)_inset]
+"
+>
+  {/* SVG border animation */}
+  <svg
+    className="absolute inset-0 w-full h-full"
+    viewBox="0 0 200 60"
+    preserveAspectRatio="none"
+  >
+    {/* Path around pill */}
+    <rect
+      x="1"
+      y="1"
+      width="198"
+      height="58"
+      rx="30"
+      ry="30"
+      fill="none"
+      stroke="#14b8a6"
+      strokeWidth="2"
+      strokeDasharray="40 220"   // length of line + gap
+      strokeLinecap="round"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        from="0"
+        to="-260"
+        dur="3s"
+        repeatCount="indefinite"
+      />
+    </rect>
+
+    {/* Second opposite line */}
+    <rect
+      x="1"
+      y="1"
+      width="198"
+      height="58"
+      rx="30"
+      ry="30"
+      fill="none"
+      stroke="#14b8a6"
+      strokeWidth="2"
+      strokeDasharray="40 220"
+      strokeDashoffset="130"   // EXACT opposite
+      strokeLinecap="round"
+    >
+      <animate
+        attributeName="stroke-dashoffset"
+        from="130"
+        to="-130"
+        dur="3s"
+        repeatCount="indefinite"
+      />
+    </rect>
+  </svg>
+
+  {/* Inner mask */}
+  <span className="absolute inset-[2px] bg-white rounded-full"></span>
+
+  {/* Text */}
+  <span className="relative z-10">Booking/Vehicles</span>
+</a>
+
+            <Link to="/contact" className={navLinkClass('/contact')}>
               Contact Us
             </Link>
 
-            <Link
-              to="/work-with-us"
-              className="font-medium text-black hover:text-primary-500 transition-colors"
-            >
+            <Link to="/work-with-us" className={navLinkClass('/work-with-us')}>
               Work With Us
             </Link>
           </nav>
 
           {/* Desktop Right Side */}
           <div className="hidden md:flex items-center gap-3">
+            <ContactButton />
             {isAuthenticated ? (
               <>
                 <Button
@@ -174,22 +255,22 @@ export default function Header() {
             <Link
               to="/"
               onClick={handleHomeClick}
-              className="block font-medium text-black"
+              className={mobileNavLinkClass('/')}
             >
               Home
             </Link>
 
-          <button
-          onClick={handleVehiclesClick}
-          className="block w-full text-left font-medium text-black hover:text-teal-500 transition-colors"
-          >
+            <button
+              onClick={handleVehiclesClick}
+              className={`${mobileNavLinkClass('/vehicles')} w-full text-left`}
+            >
               Booking
-          </button>
+            </button>
 
             <Link
               to="/contact"
               onClick={() => setMobileMenuOpen(false)}
-              className="block font-medium text-black"
+              className={mobileNavLinkClass('/contact')}
             >
               Contact Us
             </Link>
@@ -197,10 +278,13 @@ export default function Header() {
             <Link
               to="/work-with-us"
               onClick={() => setMobileMenuOpen(false)}
-              className="block font-medium text-black"
+              className={mobileNavLinkClass('/work-with-us')}
             >
               Work With Us
             </Link>
+
+            <ContactButton className="!w-fit" />
+
 
             <div className="pt-2">
               {isAuthenticated ? (

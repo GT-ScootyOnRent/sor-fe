@@ -17,12 +17,12 @@ const UsersTab: React.FC = () => {
 
   // ── Handlers ──────────────────────────────────────────────────────────
   const handleDeleteUser = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+    if (!confirm('Are you sure you want to delete this customer?')) return;
     try {
       await deleteUser(id).unwrap();
-      toast.success('User deleted');
+      toast.success('Customer deleted');
       refetchUsers();
-    } catch { toast.error('Failed to delete user'); }
+    } catch { toast.error('Failed to delete customer'); }
   };
 
   // ── Filtered Data ──────────────────────────────────────────────────────
@@ -32,7 +32,7 @@ const UsersTab: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">User Management</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">Customer Management</h1>
       <div className="flex gap-4 mb-6">
         <div className="flex-1 relative">
           <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -50,7 +50,7 @@ const UsersTab: React.FC = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                {['User ID', 'Phone Number', 'City ID', 'Actions'].map((h) => (
+                {['Customer ID', 'Phone Number', 'City ID', 'Actions'].map((h) => (
                   <th key={h} className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
                 ))}
               </tr>
@@ -76,7 +76,7 @@ const UsersTab: React.FC = () => {
                 </tr>
               ))}
               {filteredUsers.length === 0 && (
-                <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-500">No users found</td></tr>
+                <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-500">No customers found</td></tr>
               )}
             </tbody>
           </table>

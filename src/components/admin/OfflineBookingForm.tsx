@@ -599,7 +599,7 @@ const OfflineBookingForm: React.FC = () => {
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Booking Recorded!</h2>
         <p className="text-gray-600 mb-1">Booking ID: <span className="font-semibold text-primary-600">#{successData.bookingId}</span></p>
-        <p className="text-gray-600 mb-6">User ID: <span className="font-semibold">{successData.userId}</span></p>
+        <p className="text-gray-600 mb-6">Customer ID: <span className="font-semibold">{successData.userId}</span></p>
         <button
           onClick={handleReset}
           className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-lg font-semibold transition"
