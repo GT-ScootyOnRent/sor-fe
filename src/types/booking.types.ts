@@ -10,5 +10,6 @@ export interface BookingDto {
   startTime: string;
   endTime: string;
   totalAmount: number;
+  includeSecondHelmet?: boolean;
   status: 0 | 1 | 2 | 3; // 0=Pending, 1=Confirmed, 2=Completed, 3=Cancelled
 }

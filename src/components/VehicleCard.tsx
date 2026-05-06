@@ -9,6 +9,25 @@ interface VehicleCardProps {
   vehicle: VehicleWithImagesDto;
 }
 
+function formatNextAvailableFrom(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+
+  const date = d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+  const time = d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  return `${date} (${time})`;
+}
+
 export default function VehicleCard({ vehicle }: VehicleCardProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -57,6 +76,13 @@ const hasPackages = packageList.length > 0;
     'https://via.placeholder.com/400x300?text=No+Image';
 
   const isAvailable = vehicle.isAvailable !== false;
+  const showAvailabilityBadge = !isAvailable && !!vehicle.nextAvailableFrom;
+  const availableFromLabel = showAvailabilityBadge
+    ? `Available from ${formatNextAvailableFrom(vehicle.nextAvailableFrom!)}`
+    : null;
+  const unavailableTitle = !isAvailable
+    ? availableFromLabel ?? 'Vehicle is currently unavailable'
+    : undefined;
 
   return (
     <div className="perspective-[1200px] w-full">
@@ -85,11 +111,15 @@ const hasPackages = packageList.length > 0;
               }}
             />
 
-            {!isAvailable && (
-              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                <span className="bg-red-500 text-white px-4 py-2 rounded-lg font-semibold">
-                  Not Available
-                </span>
+            {showAvailabilityBadge && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-white/85 text-gray-900 text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate">
+                {availableFromLabel}
+              </div>
+            )}
+
+            {!isAvailable && !showAvailabilityBadge && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-black/60 text-white text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate">
+                Unavailable
               </div>
             )}
           </div>
@@ -145,13 +175,15 @@ const hasPackages = packageList.length > 0;
             </div>
 
             {/* BOOK */}
-            <Button
-              onClick={handleBookNow}
-              disabled={!isAvailable}
-              className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white disabled:bg-gray-300"
-            >
-              {isAvailable ? 'Book Now' : 'Unavailable'}
-            </Button>
+            <span className="block" title={unavailableTitle}>
+              <Button
+                onClick={handleBookNow}
+                disabled={!isAvailable}
+                className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white disabled:bg-gray-300"
+              >
+                {isAvailable ? 'Book Now' : 'Unavailable'}
+              </Button>
+            </span>
           </div>
         </div>
 
@@ -204,13 +236,15 @@ const hasPackages = packageList.length > 0;
             </button>
 
             {/* BOOK NOW */}
-            <Button
-              onClick={handleBookNow}
-              disabled={!isAvailable}
-              className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white disabled:bg-gray-300"
-            >
-              {isAvailable ? 'Book Now' : 'Unavailable'}
-            </Button>
+            <span className="block" title={unavailableTitle}>
+              <Button
+                onClick={handleBookNow}
+                disabled={!isAvailable}
+                className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white disabled:bg-gray-300"
+              >
+                {isAvailable ? 'Book Now' : 'Unavailable'}
+              </Button>
+            </span>
           </div>
         </div>
       </div>

@@ -7,6 +7,7 @@ export interface VehicleDto {
   hourlyRate: number;
   minBookingHours: number;
   isAvailable: boolean;
+  nextAvailableFrom?: string;
   lastServiceTime?: string;
   nextServiceTime?: string;
   insuranceExpiryDate?: string;

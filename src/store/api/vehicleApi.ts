@@ -25,6 +25,7 @@ export interface VehicleDto {
   model: string;
   cityId: number;
   isAvailable: boolean;
+  nextAvailableFrom?: string;
   featured: boolean;
   pricePerHour: number;
   pricePerDay: number;
