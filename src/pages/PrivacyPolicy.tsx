@@ -50,6 +50,37 @@ const PrivacyPolicy: React.FC = () => {
               </p>
             </section>
 
+            {/* reCAPTCHA */}
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+                <Shield className="w-6 h-6 mr-2 text-green-600" />
+                reCAPTCHA
+              </h2>
+              <p className="text-gray-700 leading-relaxed">
+                We use Google reCAPTCHA to help detect abuse and protect our services. reCAPTCHA may collect hardware and
+                software information (such as device and application data) and send it to Google for analysis. Your use
+                of reCAPTCHA is subject to Google's{' '}
+                <a
+                  href="https://policies.google.com/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-gray-900"
+                >
+                  Privacy Policy
+                </a>{' '}
+                and{' '}
+                <a
+                  href="https://policies.google.com/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-gray-900"
+                >
+                  Terms of Service
+                </a>
+                .
+              </p>
+            </section>
+
             {/* Definitions */}
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Interpretation and Definitions</h2>
