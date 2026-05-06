@@ -50,6 +50,38 @@ const TermsAndConditions: React.FC = () => {
               </p>
             </section>
 
+            {/* reCAPTCHA */}
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+                <Shield className="w-6 h-6 mr-2 text-primary-600" />
+                reCAPTCHA
+              </h2>
+              <div className="space-y-3 text-gray-700 leading-relaxed">
+                <p>
+                  We use Google reCAPTCHA to help protect our website from fraud and abuse. Your use of reCAPTCHA is
+                  subject to Google's{' '}
+                  <a
+                    href="https://policies.google.com/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-gray-900"
+                  >
+                    Privacy Policy
+                  </a>{' '}
+                  and{' '}
+                  <a
+                    href="https://policies.google.com/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-gray-900"
+                  >
+                    Terms of Service
+                  </a>
+                  .
+                </p>
+              </div>
+            </section>
+
             {/* 2. Booking Process */}
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">

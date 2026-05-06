@@ -549,7 +549,25 @@ const AuthPage: React.FC = () => {
               )}
 
               <p className="text-center text-sm text-gray-600 mt-6">
-                By continuing, you agree to our Terms of Service and Privacy Policy
+                By continuing, you agree to our{' '}
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-gray-800"
+                >
+                  Terms &amp; Conditions
+                </a>{' '}
+                and{' '}
+                <a
+                  href="/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-gray-800"
+                >
+                  Privacy Policy
+                </a>
+                .
               </p>
             </div>
           </div>

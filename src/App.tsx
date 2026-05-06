@@ -14,6 +14,14 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const alreadySeen = sessionStorage.getItem(SESSION_KEY);
+    const pathname = window.location.pathname;
+    const skipSplashPaths = new Set(["/terms", "/privacy-policy"]);
+
+    if (skipSplashPaths.has(pathname)) {
+      // Don't show splash on legal pages (often opened in a new tab).
+      sessionStorage.setItem(SESSION_KEY, "true");
+      return;
+    }
 
     if (!alreadySeen) {
       setShowSplash(true);

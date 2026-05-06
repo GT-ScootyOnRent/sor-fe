@@ -242,25 +242,25 @@ if (from?.pathname && from.pathname !== '/login' && from.pathname !== '/auth') {
                 </Button>
 
                 <p className="text-xs text-gray-500 text-center leading-relaxed">
-                  This site is protected by reCAPTCHA and the Google{' '}
+                  By continuing, you agree to our{' '}
                   <a
-                    href="https://policies.google.com/privacy"
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-gray-700"
+                  >
+                    Terms &amp; Conditions
+                  </a>{' '}
+                  and{' '}
+                  <a
+                    href="/privacy-policy"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline hover:text-gray-700"
                   >
                     Privacy Policy
-                  </a>{' '}
-                  and{' '}
-                  <a
-                    href="https://policies.google.com/terms"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-gray-700"
-                  >
-                    Terms of Service
-                  </a>{' '}
-                  apply.
+                  </a>
+                  .
                 </p>
               </div>
             )}
