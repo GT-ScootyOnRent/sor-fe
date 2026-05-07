@@ -159,262 +159,468 @@ export default function WorkWithUs() {
     <div className="min-h-screen bg-gray-50">
       <Header />
 
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-10">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-              Work With Us
-            </h1>
-            <p className="text-gray-600 text-base md:text-lg">
-              Partner with Scootyonrent. Tell us about yourself and we'll get back to you.
+     <main className="relative px-4 pt-14 sm:pt-16 lg:pt-20 pb-16 sm:pb-20 bg-[#f5fbfb] overflow-hidden">
+
+  {/* Hero */}
+  <div className="max-w-4xl mx-auto text-center mb-10 sm:mb-14">
+    <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-4 leading-tight">
+      Work With Us
+    </h1>
+
+    <p className="text-sm sm:text-base lg:text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto px-2">
+      Partner with Scootyonrent and grow your business with India’s trusted
+      scooter rental platform.
+    </p>
+  </div>
+
+  <div className="max-w-7xl mx-auto">
+    <div className="grid grid-cols-1 lg:grid-cols-5 rounded-[28px] overflow-hidden shadow-2xl bg-white">
+
+      {/* LEFT SIDE */}
+      <div className="lg:col-span-2 bg-primary-500 relative overflow-hidden">
+
+        {/* Decorative Circle */}
+        <div className="absolute -bottom-20 -right-20 w-56 sm:w-72 h-56 sm:h-72 rounded-full bg-white/20"></div>
+
+        <div className="relative z-10 p-6 sm:p-8 lg:p-10 h-full flex flex-col justify-between">
+
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+              Become a Partner
+            </h2>
+
+            <p className="text-white/80 text-sm sm:text-base leading-relaxed mb-10">
+              Join Scootyonrent and unlock new business opportunities with
+              flexible investment models and scalable growth.
             </p>
+
+            <div className="space-y-7">
+
+              {/* Benefits */}
+              <div className="flex items-start gap-4">
+                <div className="min-w-[48px] h-12 rounded-full bg-white/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-white" />
+                </div>
+
+                <div>
+                  <h3 className="text-white font-semibold text-lg mb-1">
+                    Trusted Brand
+                  </h3>
+
+                  <p className="text-white/80 text-sm leading-relaxed">
+                    Build your rental business with a trusted and growing
+                    scooter rental platform.
+                  </p>
+                </div>
+              </div>
+
+              {/* Investment */}
+              <div className="flex items-start gap-4">
+                <div className="min-w-[48px] h-12 rounded-full bg-white/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-white" />
+                </div>
+
+                <div>
+                  <h3 className="text-white font-semibold text-lg mb-1">
+                    Low Investment
+                  </h3>
+
+                  <p className="text-white/80 text-sm leading-relaxed">
+                    Start with flexible investment plans tailored for your
+                    business goals.
+                  </p>
+                </div>
+              </div>
+
+              {/* Support */}
+              <div className="flex items-start gap-4">
+                <div className="min-w-[48px] h-12 rounded-full bg-white/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-white" />
+                </div>
+
+                <div>
+                  <h3 className="text-white font-semibold text-lg mb-1">
+                    Full Support
+                  </h3>
+
+                  <p className="text-white/80 text-sm leading-relaxed">
+                    Get onboarding, operations, and marketing support from our
+                    expert team.
+                  </p>
+                </div>
+              </div>
+
+              {/* Growth */}
+              <div className="flex items-start gap-4">
+                <div className="min-w-[48px] h-12 rounded-full bg-white/20 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-white" />
+                </div>
+
+                <div>
+                  <h3 className="text-white font-semibold text-lg mb-1">
+                    Fast Growth
+                  </h3>
+
+                  <p className="text-white/80 text-sm leading-relaxed">
+                    Expand your fleet and increase earnings with high customer
+                    demand.
+                  </p>
+                </div>
+              </div>
+
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* RIGHT SIDE FORM */}
+      <div className="lg:col-span-3 bg-white">
+        <div className="p-6 sm:p-8 md:p-10 lg:p-14">
 
           {submitted ? (
-            <div className="bg-white rounded-xl shadow-md p-10 text-center">
-              <CheckCircle2 className="w-14 h-14 text-emerald-500 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Thanks for reaching out!</h2>
-              <p className="text-gray-600 mb-6">
-                We've received your inquiry. Our team will contact you shortly.
+            <div className="flex flex-col items-center justify-center text-center py-16">
+
+              <div className="w-20 h-20 rounded-full bg-primary-100 flex items-center justify-center mb-6">
+                <CheckCircle2 className="w-10 h-10 text-primary-500" />
+              </div>
+
+              <h2 className="text-3xl font-bold text-gray-900 mb-3">
+                Inquiry Submitted
+              </h2>
+
+              <p className="text-gray-600 max-w-md leading-relaxed mb-8">
+                Thank you for your interest in partnering with Scootyonrent.
+                Our team will contact you shortly.
               </p>
+
               <Button
                 onClick={() => setSubmitted(false)}
-                className="bg-primary-500 hover:bg-primary-600 text-white"
+                className="bg-primary-500 hover:bg-primary-600 text-white px-8 py-6 rounded-xl"
               >
-                Submit another inquiry
+                Submit Another Inquiry
               </Button>
             </div>
           ) : (
-            <form
-              onSubmit={handleSubmit}
-              noValidate
-              className="bg-white rounded-xl shadow-md p-6 md:p-8 space-y-5"
-            >
-              {/* Name */}
-              <div>
-                <Label htmlFor="name" className="mb-1.5 block">
-                  Name <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="name"
-                  value={form.name}
-                  onChange={(e) => setField('name', e.target.value)}
-                  maxLength={120}
-                  className={errors.name ? errorInput : okInput}
-                  disabled={isLoading}
-                />
-                {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
-              </div>
+            <>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-8 sm:mb-10">
+                Partner Application
+              </h2>
 
-              {/* Phone + Email */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <form
+                onSubmit={handleSubmit}
+                noValidate
+                className="space-y-7"
+              >
+
+                {/* Name */}
                 <div>
-                  <Label htmlFor="phoneNumber" className="mb-1.5 block">
-                    Phone Number <span className="text-red-500">*</span>
+                  <Label
+                    htmlFor="name"
+                    className="text-gray-500 text-sm"
+                  >
+                    Full Name *
                   </Label>
-                  <PhoneInput
-                    id="phoneNumber"
-                    value={form.phoneNumber}
-                    onChange={(v) => setField('phoneNumber', v)}
+
+                  <Input
+                    id="name"
+                    value={form.name}
+                    onChange={(e) => setField('name', e.target.value)}
+                    maxLength={120}
                     disabled={isLoading}
-                    hasError={Boolean(errors.phoneNumber)}
+                    className={`mt-3 border-0 border-b rounded-none px-0 py-3 shadow-none focus-visible:ring-0 bg-transparent text-base sm:text-lg ${
+                      errors.name
+                        ? 'border-red-400'
+                        : 'border-gray-300 focus:border-primary-500'
+                    }`}
                   />
-                  {errors.phoneNumber && (
-                    <p className="text-xs text-red-600 mt-1">{errors.phoneNumber}</p>
+
+                  {errors.name && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {errors.name}
+                    </p>
                   )}
                 </div>
 
-                <div>
-                  <Label htmlFor="email" className="mb-1.5 block">
-                    Email <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setField('email', e.target.value)}
-                    className={errors.email ? errorInput : okInput}
-                    disabled={isLoading}
-                  />
-                  {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
-                </div>
-              </div>
+                {/* Phone + Email */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
 
-              {/* State + City (state first; city unlocks once state is picked) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <Label htmlFor="state" className="mb-1.5 block">
-                    State <span className="text-red-500">*</span>
-                  </Label>
-                  <StateSelect
-                    value={form.state}
-                    onChange={(stateName, stateCode) => {
-                      setForm((prev) => ({
-                        ...prev,
-                        state: stateName,
-                        stateCode,
-                        // Picking a different state invalidates the previously chosen city
-                        city: prev.stateCode === stateCode ? prev.city : '',
-                      }));
-                      if (errors.state) setErrors((prev) => ({ ...prev, state: undefined }));
-                    }}
-                    disabled={isLoading}
-                    hasError={Boolean(errors.state)}
-                  />
-                  {errors.state && <p className="text-xs text-red-600 mt-1">{errors.state}</p>}
-                </div>
-
-                <div>
-                  <Label htmlFor="city" className="mb-1.5 block">
-                    City <span className="text-red-500">*</span>
-                  </Label>
-                  <CitySelect
-                    value={form.city}
-                    stateCode={form.stateCode}
-                    onChange={(cityName) => {
-                      setField('city', cityName);
-                    }}
-                    disabled={!form.stateCode || isLoading}
-                    hasError={Boolean(errors.city)}
-                  />
-                  {errors.city && <p className="text-xs text-red-600 mt-1">{errors.city}</p>}
-                </div>
-              </div>
-
-              {/* Investment Amount */}
-              <div>
-                <Label htmlFor="investmentAmount" className="mb-1.5 block">
-                  Investment Amount <span className="text-red-500">*</span>
-                </Label>
-                <select
-                  id="investmentAmount"
-                  value={form.investmentAmount}
-                  onChange={(e) => setField('investmentAmount', e.target.value as InvestmentAmount | '')}
-                  className={`${baseInput} ${errors.investmentAmount ? errorInput : okInput}`}
-                  disabled={isLoading}
-                >
-                  <option value="">Select an option</option>
-                  <option value="below_5_lakh">Below 5 Lakh</option>
-                  <option value="above_5_lakh">Above 5 Lakh</option>
-                </select>
-                {errors.investmentAmount && (
-                  <p className="text-xs text-red-600 mt-1">{errors.investmentAmount}</p>
-                )}
-              </div>
-
-              {/* Owns Vehicles */}
-              <div>
-                <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={form.ownsVehicles}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setForm((prev) => ({
-                        ...prev,
-                        ownsVehicles: checked,
-                        vehicleCount: checked ? prev.vehicleCount : '',
-                      }));
-                      if (!checked && errors.vehicleCount) {
-                        setErrors((prev) => ({ ...prev, vehicleCount: undefined }));
-                      }
-                    }}
-                    disabled={isLoading}
-                    className="w-4 h-4 accent-primary-500"
-                  />
-                  <span className="text-sm text-gray-800">Do you own vehicles?</span>
-                </label>
-
-                {form.ownsVehicles && (
-                  <div className="mt-3">
-                    <Label htmlFor="vehicleCount" className="mb-1.5 block">
-                      How many vehicles? <span className="text-red-500">*</span>
+                  <div>
+                    <Label
+                      htmlFor="phoneNumber"
+                      className="text-gray-500 text-sm"
+                    >
+                      Phone Number *
                     </Label>
-                    <Input
-                      id="vehicleCount"
-                      type="number"
-                      min={1}
-                      value={form.vehicleCount}
-                      onChange={(e) => setField('vehicleCount', e.target.value)}
-                      className={errors.vehicleCount ? errorInput : okInput}
-                      disabled={isLoading}
-                    />
-                    {errors.vehicleCount && (
-                      <p className="text-xs text-red-600 mt-1">{errors.vehicleCount}</p>
+
+                    <div className="mt-3">
+                      <PhoneInput
+                        id="phoneNumber"
+                        value={form.phoneNumber}
+                        onChange={(v) => setField('phoneNumber', v)}
+                        disabled={isLoading}
+                        hasError={Boolean(errors.phoneNumber)}
+                      />
+                    </div>
+
+                    {errors.phoneNumber && (
+                      <p className="text-xs text-red-600 mt-1">
+                        {errors.phoneNumber}
+                      </p>
                     )}
                   </div>
-                )}
-              </div>
 
-              {/* Agreements */}
-              <div className="space-y-2 pt-2 border-t border-gray-100">
-                <label className="flex items-start gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={form.agreePrivacy}
-                    onChange={(e) => setField('agreePrivacy', e.target.checked)}
-                    disabled={isLoading}
-                    className="mt-1 w-4 h-4 accent-primary-500"
-                  />
-                  <span className="text-sm text-gray-700">
-                    I agree to the{' '}
-                    <a
-                      href="/privacy-policy"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary-600 underline hover:text-primary-700"
+                  <div>
+                    <Label
+                      htmlFor="email"
+                      className="text-gray-500 text-sm"
                     >
-                      Privacy Policy
-                    </a>
-                  </span>
-                </label>
-                {errors.agreePrivacy && (
-                  <p className="text-xs text-red-600 ml-6">{errors.agreePrivacy}</p>
-                )}
+                      Email Address *
+                    </Label>
 
-                <label className="flex items-start gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={form.agreeTerms}
-                    onChange={(e) => setField('agreeTerms', e.target.checked)}
+                    <Input
+                      id="email"
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setField('email', e.target.value)}
+                      disabled={isLoading}
+                      className={`mt-3 border-0 border-b rounded-none px-0 py-3 shadow-none focus-visible:ring-0 bg-transparent text-base sm:text-lg ${
+                        errors.email
+                          ? 'border-red-400'
+                          : 'border-gray-300 focus:border-primary-500'
+                      }`}
+                    />
+
+                    {errors.email && (
+                      <p className="text-xs text-red-600 mt-1">
+                        {errors.email}
+                      </p>
+                    )}
+                  </div>
+
+                </div>
+
+                {/* State + City */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-7">
+
+                  <div>
+                    <Label className="text-gray-500 text-sm">
+                      State *
+                    </Label>
+
+                    <div className="mt-3">
+                      <StateSelect
+                        value={form.state}
+                        onChange={(stateName, stateCode) => {
+                          setForm((prev) => ({
+                            ...prev,
+                            state: stateName,
+                            stateCode,
+                            city:
+                              prev.stateCode === stateCode
+                                ? prev.city
+                                : '',
+                          }));
+                        }}
+                        disabled={isLoading}
+                        hasError={Boolean(errors.state)}
+                      />
+                    </div>
+
+                    {errors.state && (
+                      <p className="text-xs text-red-600 mt-1">
+                        {errors.state}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label className="text-gray-500 text-sm">
+                      City *
+                    </Label>
+
+                    <div className="mt-3">
+                      <CitySelect
+                        value={form.city}
+                        stateCode={form.stateCode}
+                        onChange={(cityName) =>
+                          setField('city', cityName)
+                        }
+                        disabled={!form.stateCode || isLoading}
+                        hasError={Boolean(errors.city)}
+                      />
+                    </div>
+
+                    {errors.city && (
+                      <p className="text-xs text-red-600 mt-1">
+                        {errors.city}
+                      </p>
+                    )}
+                  </div>
+
+                </div>
+
+                {/* Investment */}
+                <div>
+                  <Label className="text-gray-500 text-sm">
+                    Investment Amount *
+                  </Label>
+
+                  <select
+                    value={form.investmentAmount}
+                    onChange={(e) =>
+                      setField(
+                        'investmentAmount',
+                        e.target.value as InvestmentAmount | ''
+                      )
+                    }
                     disabled={isLoading}
-                    className="mt-1 w-4 h-4 accent-primary-500"
-                  />
-                  <span className="text-sm text-gray-700">
-                    I agree to the{' '}
-                    <a
-                      href="/terms"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary-600 underline hover:text-primary-700"
-                    >
-                      Terms &amp; Conditions
-                    </a>
-                  </span>
-                </label>
-                {errors.agreeTerms && (
-                  <p className="text-xs text-red-600 ml-6">{errors.agreeTerms}</p>
-                )}
-              </div>
+                    className={`mt-3 w-full border-0 border-b bg-transparent px-0 py-3 outline-none text-base sm:text-lg ${
+                      errors.investmentAmount
+                        ? 'border-red-400'
+                        : 'border-gray-300 focus:border-primary-500'
+                    }`}
+                  >
+                    <option value="">Select an option</option>
+                    <option value="below_5_lakh">
+                      Below 5 Lakh
+                    </option>
+                    <option value="above_5_lakh">
+                      Above 5 Lakh
+                    </option>
+                  </select>
 
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-primary-500 hover:bg-primary-600 text-white py-6"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  'Submit Inquiry'
-                )}
-              </Button>
-            </form>
+                  {errors.investmentAmount && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {errors.investmentAmount}
+                    </p>
+                  )}
+                </div>
+
+                {/* Vehicle Ownership */}
+                <div className="pt-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.ownsVehicles}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+
+                        setForm((prev) => ({
+                          ...prev,
+                          ownsVehicles: checked,
+                          vehicleCount: checked
+                            ? prev.vehicleCount
+                            : '',
+                        }));
+                      }}
+                      className="w-4 h-4 accent-primary-500"
+                    />
+
+                    <span className="text-gray-700">
+                      Do you own vehicles?
+                    </span>
+                  </label>
+
+                  {form.ownsVehicles && (
+                    <div className="mt-5">
+                      <Label className="text-gray-500 text-sm">
+                        Number of Vehicles *
+                      </Label>
+
+                      <Input
+                        type="number"
+                        min={1}
+                        value={form.vehicleCount}
+                        onChange={(e) =>
+                          setField(
+                            'vehicleCount',
+                            e.target.value
+                          )
+                        }
+                        className={`mt-3 border-0 border-b rounded-none px-0 py-3 shadow-none focus-visible:ring-0 bg-transparent text-base sm:text-lg ${
+                          errors.vehicleCount
+                            ? 'border-red-400'
+                            : 'border-gray-300 focus:border-primary-500'
+                        }`}
+                      />
+
+                      {errors.vehicleCount && (
+                        <p className="text-xs text-red-600 mt-1">
+                          {errors.vehicleCount}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Agreements */}
+                <div className="space-y-4 pt-4 border-t border-gray-100">
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.agreePrivacy}
+                      onChange={(e) =>
+                        setField(
+                          'agreePrivacy',
+                          e.target.checked
+                        )
+                      }
+                      className="mt-1 w-4 h-4 accent-primary-500"
+                    />
+
+                    <span className="text-sm text-gray-700 leading-relaxed">
+                      I agree to the Privacy Policy
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.agreeTerms}
+                      onChange={(e) =>
+                        setField(
+                          'agreeTerms',
+                          e.target.checked
+                        )
+                      }
+                      className="mt-1 w-4 h-4 accent-primary-500"
+                    />
+
+                    <span className="text-sm text-gray-700 leading-relaxed">
+                      I agree to the Terms & Conditions
+                    </span>
+                  </label>
+
+                </div>
+
+                {/* Submit */}
+                <div className="pt-4">
+                  <Button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full sm:w-auto bg-primary-500 hover:bg-primary-600 text-white h-12 sm:h-14 px-8 sm:px-10 rounded-xl text-sm sm:text-base font-semibold shadow-lg hover:scale-[1.02] transition-all duration-300"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      'Submit Inquiry'
+                    )}
+                  </Button>
+                </div>
+
+              </form>
+            </>
           )}
         </div>
-      </main>
+      </div>
+
+    </div>
+  </div>
+</main>
     </div>
   );
 }
