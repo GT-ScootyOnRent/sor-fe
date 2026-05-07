@@ -41,3 +41,156 @@
 .animate-hero-text {
     animation: hero-text-in 600ms ease-out;
 }
+
+/* Nav: Booking/Vehicles — animated “snake” border (theme: primary blues) */
+.btn-snake {
+    --btn-snake-glow: #8bb3d1;
+    --btn-snake-core: #4a80ab;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: #3a6f9b;
+    padding: 0.5rem 1.25rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.25;
+    cursor: pointer;
+    overflow: hidden;
+    transition:
+        color 0.3s ease,
+        background 0.3s ease,
+        box-shadow 0.3s ease;
+    text-decoration: none;
+}
+
+.btn-snake .btn-snake-sides {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+.btn-snake::before,
+.btn-snake::after {
+    content: "";
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        var(--btn-snake-glow),
+        var(--btn-snake-core),
+        var(--btn-snake-glow),
+        transparent
+    );
+    pointer-events: none;
+}
+
+.btn-snake::before {
+    top: 0;
+    left: -100%;
+    animation: btn-snake-top 2s linear infinite;
+}
+
+.btn-snake::after {
+    bottom: 0;
+    right: -100%;
+    animation: btn-snake-bottom 2s linear infinite;
+}
+
+.btn-snake .btn-snake-sides::before,
+.btn-snake .btn-snake-sides::after {
+    content: "";
+    position: absolute;
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(
+        180deg,
+        transparent,
+        var(--btn-snake-glow),
+        var(--btn-snake-core),
+        var(--btn-snake-glow),
+        transparent
+    );
+}
+
+.btn-snake .btn-snake-sides::before {
+    left: 0;
+    bottom: -100%;
+    animation: btn-snake-left 2s linear infinite;
+}
+
+.btn-snake .btn-snake-sides::after {
+    right: 0;
+    top: -100%;
+    animation: btn-snake-right 2s linear infinite;
+}
+
+.btn-snake .btn-snake-label {
+    position: relative;
+    z-index: 1;
+}
+
+.btn-snake:hover {
+    color: #315d82;
+    background: rgba(74, 128, 171, 0.1);
+    box-shadow: 0 0 20px rgba(74, 128, 171, 0.35);
+}
+
+.btn-snake-active {
+    --btn-snake-glow: #9ec0db;
+}
+
+@keyframes btn-snake-top {
+    to {
+        left: 100%;
+    }
+}
+
+@keyframes btn-snake-bottom {
+    to {
+        right: 100%;
+    }
+}
+
+@keyframes btn-snake-left {
+    to {
+        bottom: 100%;
+    }
+}
+
+@keyframes btn-snake-right {
+    to {
+        top: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .btn-snake::before,
+    .btn-snake::after,
+    .btn-snake .btn-snake-sides::before,
+    .btn-snake .btn-snake-sides::after {
+        animation: none;
+    }
+
+    .btn-snake::before {
+        left: 0;
+    }
+
+    .btn-snake::after {
+        right: 0;
+    }
+
+    .btn-snake .btn-snake-sides::before {
+        bottom: 0;
+    }
+
+    .btn-snake .btn-snake-sides::after {
+        top: 0;
+    }
+}

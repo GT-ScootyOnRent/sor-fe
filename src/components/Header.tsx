@@ -115,84 +115,14 @@ export default function Header() {
             >
               Home
             </Link>
-           <a
-  href="/vehicles"
-  onClick={handleVehiclesClick}
-  className="
-  relative inline-flex items-center justify-center
-  px-6 py-2 text-sm font-semibold text-teal-600
-  rounded-full bg-white overflow-hidden
-
-  transition-all duration-200 ease-out
-
-  hover:scale-105
-  hover:text-teal-700
-  hover:shadow-[0_0_0_2px_rgba(20,184,166,0.15)]
-
-  active:scale-95
-  active:shadow-[0_0_0_3px_rgba(20,184,166,0.25)_inset]
-"
->
-  {/* SVG border animation */}
-  <svg
-    className="absolute inset-0 w-full h-full"
-    viewBox="0 0 200 60"
-    preserveAspectRatio="none"
-  >
-    {/* Path around pill */}
-    <rect
-      x="1"
-      y="1"
-      width="198"
-      height="58"
-      rx="30"
-      ry="30"
-      fill="none"
-      stroke="#14b8a6"
-      strokeWidth="2"
-      strokeDasharray="40 220"   // length of line + gap
-      strokeLinecap="round"
-    >
-      <animate
-        attributeName="stroke-dashoffset"
-        from="0"
-        to="-260"
-        dur="3s"
-        repeatCount="indefinite"
-      />
-    </rect>
-
-    {/* Second opposite line */}
-    <rect
-      x="1"
-      y="1"
-      width="198"
-      height="58"
-      rx="30"
-      ry="30"
-      fill="none"
-      stroke="#14b8a6"
-      strokeWidth="2"
-      strokeDasharray="40 220"
-      strokeDashoffset="130"   // EXACT opposite
-      strokeLinecap="round"
-    >
-      <animate
-        attributeName="stroke-dashoffset"
-        from="130"
-        to="-130"
-        dur="3s"
-        repeatCount="indefinite"
-      />
-    </rect>
-  </svg>
-
-  {/* Inner mask */}
-  <span className="absolute inset-[2px] bg-white rounded-full"></span>
-
-  {/* Text */}
-  <span className="relative z-10">Booking/Vehicles</span>
-</a>
+            <a
+              href="/vehicles"
+              onClick={handleVehiclesClick}
+              className={`btn-snake shrink-0 ${isActive('/vehicles') ? 'btn-snake-active' : ''}`}
+            >
+              <span className="btn-snake-sides" aria-hidden />
+              <span className="btn-snake-label">Booking/Vehicles</span>
+            </a>
 
             <Link to="/contact" className={navLinkClass('/contact')}>
               Contact Us
@@ -261,10 +191,12 @@ export default function Header() {
             </Link>
 
             <button
+              type="button"
               onClick={handleVehiclesClick}
-              className={`${mobileNavLinkClass('/vehicles')} w-full text-left`}
+              className={`btn-snake w-full justify-start ${isActive('/vehicles') ? 'btn-snake-active' : ''}`}
             >
-              Booking
+              <span className="btn-snake-sides" aria-hidden />
+              <span className="btn-snake-label pl-0.5">Booking/Vehicles</span>
             </button>
 
             <Link
