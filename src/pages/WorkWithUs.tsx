@@ -150,11 +150,6 @@ export default function WorkWithUs() {
     }
   };
 
-  const baseInput =
-    'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition';
-  const errorInput = 'border-red-400';
-  const okInput = 'border-gray-300';
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
