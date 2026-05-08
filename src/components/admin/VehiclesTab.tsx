@@ -26,7 +26,7 @@ import { FormField } from './FormField';
 
 // ── Vehicle Form Initial State ─────────────────────────────────────────────
 const EMPTY_VEHICLE: Omit<VehicleDto, 'id'> = {
-  name: '', make: '', model: '', cityId: 0,
+  name: '', make: '', model: '', registrationNumber: '', cityId: 0,
   isAvailable: true, featured: false,
   pricePerHour: 0, pricePerDay: 0, minBookingHours: 4,
   kmLimit: 100, excessKmCharge: 5, lateReturnCharge: 80,
@@ -78,6 +78,7 @@ const VehiclesTab: React.FC = () => {
     setEditingVehicle(vehicle);
     setVehicleForm({
       name: vehicle.name, make: vehicle.make, model: vehicle.model,
+      registrationNumber: vehicle.registrationNumber ?? '',
       cityId: vehicle.cityId, isAvailable: vehicle.isAvailable,
       featured: vehicle.featured, pricePerHour: vehicle.pricePerHour,
       pricePerDay: vehicle.pricePerDay, minBookingHours: vehicle.minBookingHours,
@@ -176,17 +177,17 @@ const VehiclesTab: React.FC = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Vehicle Management</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 lg:mb-6">
+        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Vehicle Management</h1>
         <button
           onClick={handleOpenAddVehicle}
-          className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 transition flex items-center"
+          className="bg-primary-600 text-white px-4 lg:px-6 py-2 rounded-lg hover:bg-primary-700 transition flex items-center justify-center text-sm lg:text-base"
         >
-          <Plus className="w-5 h-5 mr-2" />Add Vehicle
+          <Plus className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />Add Vehicle
         </button>
       </div>
 
-      <div className="flex gap-4 mb-6">
+      <div className="flex gap-4 mb-4 lg:mb-6">
         <div className="flex-1 relative">
           <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -194,89 +195,94 @@ const VehiclesTab: React.FC = () => {
             placeholder="Search vehicles..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm lg:text-base"
           />
         </div>
       </div>
 
       {vehiclesLoading ? <LoadingSpinner /> : (
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                {['Vehicle', 'Make', 'Type', 'Rate/Hr', 'Status', 'Km Travelled', 'Actions'].map((h) => (
-                  <th key={h} className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {filteredVehicles.map((vehicle) => (
-                <tr key={vehicle.id} className="hover:bg-gray-50 transition">
-                  <td className="px-6 py-4">
-                    <p className="font-medium text-gray-900">{vehicle.name}</p>
-                    <p className="text-xs text-gray-500">{vehicle.model}</p>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{vehicle.make}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{vehicle.vehicleType}</td>
-                  <td className="px-6 py-4 text-sm font-semibold text-primary-600">₹{vehicle.pricePerHour}</td>
-                  <td className="px-6 py-4">
-                    {vehicle.isAvailable
-                      ? <span className="flex items-center text-green-600 text-sm"><CheckCircle className="w-4 h-4 mr-1" />Available</span>
-                      : <span className="flex items-center text-red-500 text-sm"><XCircle className="w-4 h-4 mr-1" />Inactive</span>}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{vehicle.kmTravelled.toLocaleString()} km</td>
-                  <td className="px-6 py-4">
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleOpenEditVehicle(vehicle)}
-                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
-                        title="Edit vehicle"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => { handleOpenEditVehicle(vehicle); setVehicleModalTab('images'); }}
-                        className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
-                        title="Manage images"
-                      >
-                        <Image className="w-4 h-4" />
-                      </button>
-                      {vehicle.gpsDeviceId && (
-                        <button
-                          onClick={() => setTrackingVehicle(vehicle)}
-                          className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition"
-                          title="Track vehicle"
-                        >
-                          <MapPin className="w-4 h-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteVehicle(vehicle.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                        title="Delete vehicle"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px]">
+              <thead className="bg-gray-50">
+                <tr>
+                  {['Vehicle', 'Reg No', 'Make', 'Type', 'Rate/Hr', 'Status', 'Km Travelled', 'Actions'].map((h) => (
+                    <th key={h} className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
+                  ))}
                 </tr>
-              ))}
-              {filteredVehicles.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">No vehicles found</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredVehicles.map((vehicle) => (
+                  <tr key={vehicle.id} className="hover:bg-gray-50 transition">
+                    <td className="px-4 lg:px-6 py-3 lg:py-4">
+                      <p className="font-medium text-gray-900 text-sm lg:text-base">{vehicle.name}</p>
+                      <p className="text-xs text-gray-500">{vehicle.model}</p>
+                    </td>
+                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm text-gray-600 font-mono">
+                      {vehicle.registrationNumber || <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm text-gray-600">{vehicle.make}</td>
+                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm text-gray-600">{vehicle.vehicleType}</td>
+                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm font-semibold text-primary-600">₹{vehicle.pricePerHour}</td>
+                    <td className="px-4 lg:px-6 py-3 lg:py-4">
+                      {vehicle.isAvailable
+                        ? <span className="flex items-center text-green-600 text-xs lg:text-sm"><CheckCircle className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />Available</span>
+                        : <span className="flex items-center text-red-500 text-xs lg:text-sm"><XCircle className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />Inactive</span>}
+                    </td>
+                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm text-gray-600">{vehicle.kmTravelled.toLocaleString()} km</td>
+                    <td className="px-4 lg:px-6 py-3 lg:py-4">
+                      <div className="flex space-x-1 lg:space-x-2">
+                        <button
+                          onClick={() => handleOpenEditVehicle(vehicle)}
+                          className="p-1.5 lg:p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                          title="Edit vehicle"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => { handleOpenEditVehicle(vehicle); setVehicleModalTab('images'); }}
+                          className="p-1.5 lg:p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
+                          title="Manage images"
+                        >
+                          <Image className="w-4 h-4" />
+                        </button>
+                        {vehicle.gpsDeviceId && (
+                          <button
+                            onClick={() => setTrackingVehicle(vehicle)}
+                            className="p-1.5 lg:p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition"
+                            title="Track vehicle"
+                          >
+                            <MapPin className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteVehicle(vehicle.id)}
+                          className="p-1.5 lg:p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                          title="Delete vehicle"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredVehicles.length === 0 && (
+                  <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500">No vehicles found</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* ════ VEHICLE MODAL ════ */}
       {showVehicleModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-3xl max-h-[90vh] overflow-y-auto">
 
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-bold text-gray-900">
+            <div className="flex items-center justify-between p-4 lg:p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
+              <h2 className="text-lg lg:text-xl font-bold text-gray-900">
                 {editingVehicle ? 'Edit Vehicle' : 'Add New Vehicle'}
               </h2>
               <button onClick={() => setShowVehicleModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -286,14 +292,14 @@ const VehiclesTab: React.FC = () => {
 
             {/* Tabs — Images only when editing */}
             {editingVehicle && (
-              <div className="flex border-b border-gray-200 px-6 bg-white sticky top-[73px] z-10">
+              <div className="flex border-b border-gray-200 px-4 lg:px-6 bg-white sticky top-[57px] lg:top-[73px] z-10 overflow-x-auto">
                 {(['details', 'images'] as VehicleModalTab[]).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setVehicleModalTab(tab)}
-                    className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold capitalize border-b-2 transition mr-2 ${vehicleModalTab === tab
-                        ? 'border-primary-600 text-primary-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                    className={`flex items-center gap-2 px-3 lg:px-4 py-2.5 lg:py-3 text-xs lg:text-sm font-semibold capitalize border-b-2 transition mr-2 whitespace-nowrap ${vehicleModalTab === tab
+                      ? 'border-primary-600 text-primary-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
                       }`}
                   >
                     {tab === 'images'
@@ -304,7 +310,7 @@ const VehiclesTab: React.FC = () => {
               </div>
             )}
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 lg:p-6 space-y-4 lg:space-y-6">
 
               {/* ── DETAILS TAB ── */}
               {vehicleModalTab === 'details' && (
@@ -312,8 +318,11 @@ const VehiclesTab: React.FC = () => {
                   {/* Basic Info */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Basic Information</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField label="Vehicle Name" value={vehicleForm.name} onChange={(v) => setVehicleForm({ ...vehicleForm, name: v })} required placeholder="e.g. Honda Activa 6G" />
+                      <FormField label="Registration No" value={vehicleForm.registrationNumber ?? ''} onChange={(v) => setVehicleForm({ ...vehicleForm, registrationNumber: v })} placeholder="e.g. MH01AB1234" />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                       <FormField label="Make / Brand" value={vehicleForm.make} onChange={(v) => setVehicleForm({ ...vehicleForm, make: v })} required placeholder="e.g. Honda" />
                       <FormField label="Model" value={vehicleForm.model} onChange={(v) => setVehicleForm({ ...vehicleForm, model: v })} required placeholder="e.g. Activa 6G" />
                     </div>

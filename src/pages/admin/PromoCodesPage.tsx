@@ -11,6 +11,7 @@ import {
   type PromoCodeDto,
 } from '../../store/api/promoCodeApi';
 import { useGetCitiesQuery } from '../../store/api/cityApi';
+import { handleNumberInputChange, stripLeadingZeros } from '../../utils/numberInput';
 import { useAppSelector } from '../../store/hooks';
 import { toast } from 'sonner';
 
@@ -24,6 +25,7 @@ const EMPTY_FORM: Omit<PromoCodeDto, 'id' | 'usedCount' | 'createdAt' | 'updated
   maxUses: undefined,
   isFirstRideOnly: false,
   isActive: true,
+  showOnHomepage: false,
   validFrom: new Date().toISOString().slice(0, 10),
   validUntil: undefined,
   cityId: null,
@@ -77,8 +79,9 @@ const PromoCodesPage: React.FC = () => {
       maxUses: promo.maxUses,
       isFirstRideOnly: promo.isFirstRideOnly,
       isActive: promo.isActive,
+      showOnHomepage: promo.showOnHomepage ?? false,
       validFrom: promo.validFrom?.slice(0, 10) ?? '',
-      validUntil: promo.validUntil?.slice(0, 10) ?? '',
+      validUntil: promo.validUntil?.slice(0, 10) || undefined,
       cityId: promo.cityId ?? null,
     });
     setShowModal(true);
@@ -91,12 +94,18 @@ const PromoCodesPage: React.FC = () => {
     if (form.discountType === 'percentage' && form.discountValue > 100) { setFormError('Percentage cannot exceed 100'); return; }
     if (!form.validFrom) { setFormError('Valid from date is required'); return; }
 
+    // Prepare the payload - ensure validUntil is null if empty, not empty string
+     const payload = {
+      ...form,
+      ...(form.validUntil ? { validUntil: form.validUntil } : {}),
+    };
+
     try {
       if (editingPromo) {
-        await updatePromoCode({ id: editingPromo.id, dto: { ...editingPromo, ...form } as PromoCodeDto }).unwrap();
+        await updatePromoCode({ id: editingPromo.id, dto: { ...editingPromo, ...payload } as PromoCodeDto }).unwrap();
         toast.success('Promo code updated successfully');
       } else {
-        await createPromoCode(form).unwrap();
+        await createPromoCode(payload).unwrap();
         toast.success('Promo code created successfully');
       }
       setShowModal(false);
@@ -217,7 +226,14 @@ const PromoCodesPage: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <Tag className="w-4 h-4 text-purple-400 flex-shrink-0" />
                           <div>
-                            <p className="font-semibold text-gray-800 tracking-wide">{promo.code}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-gray-800 tracking-wide">{promo.code}</p>
+                              {promo.showOnHomepage && (
+                                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-xs font-medium">
+                                  Homepage
+                                </span>
+                              )}
+                            </div>
                             {promo.description && (
                               <p className="text-xs text-gray-400 mt-0.5">{promo.description}</p>
                             )}
@@ -399,7 +415,10 @@ const PromoCodesPage: React.FC = () => {
                   <input
                     type="number"
                     value={form.discountValue}
-                    onChange={(e) => setForm({ ...form, discountValue: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const next = handleNumberInputChange(e);
+                      if (next !== null) setForm({ ...form, discountValue: next });
+                    }}
                     placeholder={form.discountType === 'percentage' ? '10' : '50'}
                     min={0}
                     max={form.discountType === 'percentage' ? 100 : undefined}
@@ -418,7 +437,15 @@ const PromoCodesPage: React.FC = () => {
                   <input
                     type="number"
                     value={form.maxDiscountAmount ?? ''}
-                    onChange={(e) => setForm({ ...form, maxDiscountAmount: e.target.value ? Number(e.target.value) : undefined })}
+                    onChange={(e) => {
+                      // Optional field — empty stays undefined
+                      const stripped = stripLeadingZeros(e.target.value);
+                      if (stripped !== e.target.value) e.target.value = stripped;
+                      setForm({
+                        ...form,
+                        maxDiscountAmount: stripped === '' ? undefined : Number(stripped),
+                      });
+                    }}
                     placeholder="e.g. 200"
                     min={0}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 outline-none transition"
@@ -429,7 +456,10 @@ const PromoCodesPage: React.FC = () => {
                   <input
                     type="number"
                     value={form.minOrderAmount}
-                    onChange={(e) => setForm({ ...form, minOrderAmount: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const next = handleNumberInputChange(e);
+                      if (next !== null) setForm({ ...form, minOrderAmount: next });
+                    }}
                     placeholder="0"
                     min={0}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 outline-none transition"
@@ -446,7 +476,15 @@ const PromoCodesPage: React.FC = () => {
                 <input
                   type="number"
                   value={form.maxUses ?? ''}
-                  onChange={(e) => setForm({ ...form, maxUses: e.target.value ? Number(e.target.value) : undefined })}
+                  onChange={(e) => {
+                    // Optional field — empty stays undefined (= "unlimited")
+                    const stripped = stripLeadingZeros(e.target.value);
+                    if (stripped !== e.target.value) e.target.value = stripped;
+                    setForm({
+                      ...form,
+                      maxUses: stripped === '' ? undefined : Number(stripped),
+                    });
+                  }}
                   placeholder="Unlimited"
                   min={1}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 outline-none transition"
@@ -531,6 +569,18 @@ const PromoCodesPage: React.FC = () => {
                     <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.isFirstRideOnly ? 'translate-x-5' : 'translate-x-0'}`} />
                   </div>
                   <span className="text-sm text-gray-700">First ride only</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div
+                    onClick={() => setForm({ ...form, showOnHomepage: !form.showOnHomepage })}
+                    className={`relative w-11 h-6 rounded-full transition-colors ${form.showOnHomepage ? 'bg-amber-500' : 'bg-gray-300'}`}
+                  >
+                    <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.showOnHomepage ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm text-gray-700">Show on Homepage</span>
+                    <span className="text-xs text-gray-400">Display this coupon in city selector banner (only one can be active)</span>
+                  </div>
                 </label>
               </div>
             </div>

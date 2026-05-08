@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus,
   Pencil,
@@ -17,6 +17,8 @@ import {
   ZoomIn,
   ZoomOut,
   RefreshCw,
+  Move,
+  UploadCloud,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -27,17 +29,24 @@ import {
   useDeleteHeroBannerMutation,
   type HeroBanner,
 } from '../../store/api/heroBannerApi';
+import { generateCroppedImage } from '../../utils/cropImage';
+import { stripLeadingZeros } from '../../utils/numberInput';
 
-// ── Form state ──────────────────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type ObjectPosition = { x: number; y: number }; // 0–100 percentages
 
 type FormState = {
   file: File | null;
   displayOrder: number;
-  durationSec: number; // Seconds in the UI; converted to ms on submit
+  durationSec: number;
   title: string;
   subtitle: string;
   isActive: boolean;
+  objectPosition: ObjectPosition;
 };
+
+const DEFAULT_POSITION: ObjectPosition = { x: 50, y: 50 };
 
 const EMPTY_FORM: FormState = {
   file: null,
@@ -46,111 +55,305 @@ const EMPTY_FORM: FormState = {
   title: '',
   subtitle: '',
   isActive: true,
+  objectPosition: DEFAULT_POSITION,
 };
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
-// ── Slide preview (mirrors HeroSlideshow rendering) ─────────────────────────
+// ── CropPositioner ────────────────────────────────────────────────────────────
+// The interactive 3:1 crop canvas. Drag the image to reposition it.
+
+interface CropPositionerProps {
+  imageUrl: string | null;
+  title: string;
+  subtitle: string;
+  position: ObjectPosition;
+  onPositionChange: (pos: ObjectPosition) => void;
+  onOpenLightbox: () => void;
+  onFileSelect: (file: File) => void;
+}
+
+const CropPositioner: React.FC<CropPositionerProps> = ({
+  imageUrl,
+  title,
+  subtitle,
+  position,
+  onPositionChange,
+  onOpenLightbox,
+  onFileSelect,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dragState = useRef<{
+    active: boolean;
+    startX: number;
+    startY: number;
+    startPos: ObjectPosition;
+  }>({ active: false, startX: 0, startY: 0, startPos: DEFAULT_POSITION });
+
+  const hasText = !!(title || subtitle);
+
+  // ── File drop handlers (work whether or not an image is loaded) ─────────
+
+  const onContainerDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDraggingFile(true);
+  };
+
+  const onContainerDragLeave = (e: React.DragEvent) => {
+    // Only clear when leaving the actual container (not its children)
+    if (e.currentTarget === e.target) setIsDraggingFile(false);
+  };
+
+  const onContainerDrop = (e: React.DragEvent) => {
+    if (!e.dataTransfer.files?.length) return;
+    e.preventDefault();
+    setIsDraggingFile(false);
+    const file = e.dataTransfer.files[0];
+    onFileSelect(file);
+  };
+
+  const triggerFileBrowser = () => fileInputRef.current?.click();
+
+  // ── Pointer drag ────────────────────────────────────────────────────────
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!imageUrl) return;
+      e.preventDefault();
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      dragState.current = {
+        active: true,
+        startX: e.clientX,
+        startY: e.clientY,
+        startPos: { ...position },
+      };
+    },
+    [imageUrl, position],
+  );
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragState.current.active || !containerRef.current) return;
+    e.preventDefault();
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const dx = e.clientX - dragState.current.startX;
+    const dy = e.clientY - dragState.current.startY;
+
+    // Convert pixel delta → percentage shift (drag right = image moves right = position x decreases)
+    const pctX = (dx / rect.width) * 100;
+    const pctY = (dy / rect.height) * 100;
+
+    const newX = Math.min(100, Math.max(0, dragState.current.startPos.x - pctX));
+    const newY = Math.min(100, Math.max(0, dragState.current.startPos.y - pctY));
+
+    onPositionChange({ x: Math.round(newX * 10) / 10, y: Math.round(newY * 10) / 10 });
+  }, [onPositionChange]);
+
+  const onPointerUp = useCallback(() => {
+    dragState.current.active = false;
+  }, []);
+
+  const objectPositionCSS = `${position.x}% ${position.y}%`;
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Hidden file input — opened by the "Choose file" button or click-to-browse */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ALLOWED_TYPES.join(',')}
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFileSelect(f);
+          // Reset so re-selecting the same file fires onChange again
+          e.target.value = '';
+        }}
+      />
+
+      {/* Outer drop zone — fills the entire column height all the way down */}
+      <div
+        onDragOver={onContainerDragOver}
+        onDragLeave={onContainerDragLeave}
+        onDrop={onContainerDrop}
+        onClick={!imageUrl ? triggerFileBrowser : undefined}
+        className={`relative w-full flex-1 min-h-[480px] rounded-xl overflow-visible shadow-sm select-none transition-colors ${
+          isDraggingFile
+            ? 'bg-primary-50 border-2 border-dashed border-primary-500'
+            : imageUrl
+            ? 'bg-white border-2 border-dashed'
+            : 'bg-gray-50 border-2 border-dashed border-gray-300 hover:bg-gray-100 hover:border-gray-400 cursor-pointer'
+        }`}
+        style={{ borderColor: !isDraggingFile && imageUrl ? 'rgb(99 102 241 / 0.5)' : undefined }}
+      >
+        {imageUrl ? (
+          <>
+            {/* Image fills the WHOLE drop zone — no more empty space below */}
+            <div
+              ref={containerRef}
+              className="absolute inset-0 overflow-hidden rounded-[10px]"
+            >
+              <img
+                src={imageUrl}
+                alt="Hero crop"
+                className="absolute inset-0 w-full h-full object-cover transition-none"
+                style={{ objectPosition: objectPositionCSS, cursor: 'grab' }}
+                draggable={false}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerLeave={onPointerUp}
+              />
+
+              {/* Text overlay — covers the whole image */}
+              {hasText && (
+                <>
+                  <div className="absolute inset-0 bg-black/35 pointer-events-none" />
+                  <div className="absolute inset-0 flex items-center justify-center px-4 text-center pointer-events-none">
+                    <div className="max-w-xl">
+                      {title && (
+                        <h2 className="text-xl md:text-3xl font-bold text-white mb-1.5 leading-tight drop-shadow-lg">
+                          {title}
+                        </h2>
+                      )}
+                      {subtitle && (
+                        <p className="text-xs md:text-base text-white/95 drop-shadow-md">{subtitle}</p>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Drag hint badge — sits on top-left of the filled image */}
+            <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] pointer-events-none z-10">
+              <Move className="w-3 h-3" />
+              Drag to reposition
+            </div>
+
+            {/* Open full-image preview in lightbox */}
+            <button
+              type="button"
+              onClick={onOpenLightbox}
+              className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] hover:bg-black/80 transition-colors z-10"
+            >
+              <Maximize2 className="w-3 h-3" />
+              Preview
+            </button>
+
+            {/* Homepage booking/search section preview — half on image, half below border (matches user side) */}
+            <div className="absolute left-1/2 -translate-x-1/2 -bottom-4 w-[78%] z-20 pointer-events-none">
+              <div className="overflow-hidden rounded-[20px] bg-white shadow-xl border border-gray-200">
+                <div className="grid grid-cols-5 divide-x divide-gray-200">
+                  <div className="px-2 py-1.5 bg-white">
+                    <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">Location</p>
+                    <p className="mt-1 text-[9px] font-semibold text-gray-900 truncate leading-none">Udaipur</p>
+                  </div>
+                  <div className="px-2 py-1.5 bg-white">
+                    <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">Pickup</p>
+                    <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">dd-mm</p>
+                  </div>
+                  <div className="px-2 py-1.5 bg-white">
+                    <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">Time</p>
+                    <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">10:00</p>
+                  </div>
+                  <div className="px-2 py-1.5 bg-white">
+                    <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">Return</p>
+                    <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">dd-mm</p>
+                  </div>
+                  <div className="bg-gradient-to-r from-teal-500 to-cyan-600 flex items-center justify-center px-2">
+                    <span className="w-full h-full flex items-center justify-center py-1.5 text-white font-semibold text-[9px] tracking-wide">
+                      Ride Now
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          /* Empty state — fills the FULL outer drop zone (not just the 3:1 area) */
+          <div
+            className={`absolute inset-0 flex flex-col items-center justify-center px-6 text-center transition-colors ${
+              isDraggingFile ? 'text-primary-700' : 'text-gray-500'
+            }`}
+          >
+            <UploadCloud
+              className={`w-14 h-14 mb-3 ${isDraggingFile ? 'text-primary-600' : 'text-gray-400'}`}
+            />
+            <p className="text-base font-semibold">
+              {isDraggingFile ? 'Drop image to upload' : 'Drag & drop image here'}
+            </p>
+            {!isDraggingFile && (
+              <>
+                <p className="text-xs text-gray-400 my-2">or</p>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerFileBrowser();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition-colors"
+                >
+                  Choose file
+                </button>
+                <p className="text-[11px] text-gray-400 mt-4">
+                  JPG, PNG, GIF or WebP &middot; Max 10 MB &middot; 1920×1080 (16:9) recommended
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── SlidePreview ─────────────────────────────────────────────────────────────
 
 interface SlidePreviewProps {
   imageUrl: string | null;
   title: string;
   subtitle: string;
+  position: ObjectPosition;
+  onPositionChange: (pos: ObjectPosition) => void;
+  onFileSelect: (file: File) => void;
 }
 
-type LightboxMode = 'crop' | 'full';
+type LightboxMode = 'crop';
 
-const SlidePreview: React.FC<SlidePreviewProps> = ({ imageUrl, title, subtitle }) => {
-  const hasText = !!(title || subtitle);
+const SlidePreview: React.FC<SlidePreviewProps> = ({
+  imageUrl,
+  title,
+  subtitle,
+  position,
+  onPositionChange,
+  onFileSelect,
+}) => {
   const [lightbox, setLightbox] = useState<LightboxMode | null>(null);
 
   return (
     <div className="space-y-4">
-      {/* ── User-side preview — matches the homepage hero aspect ratio (~3:1) */}
+      {/* Crop canvas with drag-to-reposition AND drag-and-drop upload */}
       <div>
         <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5 font-semibold">
           What users see (desktop hero crop)
         </p>
-        <button
-          type="button"
-          onClick={() => imageUrl && setLightbox('crop')}
-          disabled={!imageUrl}
-          className="group relative aspect-[3/1] w-full rounded-xl overflow-hidden bg-gray-200 border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:cursor-not-allowed enabled:cursor-zoom-in"
-          aria-label="Open hero crop preview at full size"
-        >
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt="Hero crop"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-              <ImageIcon className="w-12 h-12 mb-2" />
-              <p className="text-sm">Upload an image to preview</p>
-            </div>
-          )}
-
-          {hasText && imageUrl && (
-            <>
-              <div className="absolute inset-0 bg-black/35" />
-              <div className="absolute inset-0 flex items-center justify-center px-4 text-center">
-                <div className="max-w-xl">
-                  {title && (
-                    <h2 className="text-xl md:text-3xl font-bold text-white mb-1.5 leading-tight drop-shadow-lg">
-                      {title}
-                    </h2>
-                  )}
-                  {subtitle && (
-                    <p className="text-xs md:text-base text-white/95 drop-shadow-md">{subtitle}</p>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Hover hint with expand icon (top-right) */}
-          {imageUrl && (
-            <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">
-              <Maximize2 className="w-3 h-3" />
-              Open
-            </span>
-          )}
-
-          {/* Fake search bar overlap to show how user side will look */}
-          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-[80%] h-6 rounded-full bg-white/95 shadow-md border border-gray-200 flex items-center justify-center text-[10px] text-gray-400 pointer-events-none">
-            ⤷ Search bar overlaps here
-          </div>
-        </button>
+        <CropPositioner
+          imageUrl={imageUrl}
+          title={title}
+          subtitle={subtitle}
+          position={position}
+          onPositionChange={onPositionChange}
+          onOpenLightbox={() => imageUrl && setLightbox('crop')}
+          onFileSelect={onFileSelect}
+        />
       </div>
 
-      {/* ── Full-image preview — native aspect ratio, no crop */}
-      {imageUrl && (
-        <div>
-          <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5 font-semibold">
-            Your uploaded image (full, uncropped)
-          </p>
-          <button
-            type="button"
-            onClick={() => setLightbox('full')}
-            className="group relative w-full max-h-72 rounded-xl overflow-hidden border border-gray-200 bg-[linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%),linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%)] bg-[length:16px_16px] bg-[position:0_0,8px_8px] flex items-center justify-center cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-primary-500"
-            aria-label="Open full image preview"
-          >
-            <img
-              src={imageUrl}
-              alt="Uploaded original"
-              className="block max-w-full max-h-72 object-contain"
-            />
-            <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">
-              <Maximize2 className="w-3 h-3" />
-              Open
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* ── Lightbox */}
       {lightbox && imageUrl && (
         <ImageLightbox
           imageUrl={imageUrl}
@@ -178,7 +381,6 @@ const ZOOM_STEPS = [1, 1.5, 2, 3] as const;
 
 const ImageLightbox: React.FC<ImageLightboxProps> = ({
   imageUrl,
-  mode,
   title,
   subtitle,
   onClose,
@@ -187,7 +389,6 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
   const scale = ZOOM_STEPS[zoomIdx];
   const hasText = !!(title || subtitle);
 
-  // ESC closes; lock body scroll while open
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -215,25 +416,19 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Image preview"
     >
-      {/* Top bar */}
       <div
         className="flex items-center justify-between gap-3 px-4 py-3 text-white border-b border-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         <span className="text-sm font-medium uppercase tracking-wide opacity-90">
-          {mode === 'crop' ? 'Hero crop preview' : 'Original image'} · {Math.round(scale * 100)}%
+          Image preview · {Math.round(scale * 100)}%
         </span>
         <div className="flex items-center gap-1">
           <IconButton onClick={zoomOut} disabled={zoomIdx === 0} title="Zoom out (−)">
             <ZoomOut className="w-4 h-4" />
           </IconButton>
-          <IconButton
-            onClick={zoomIn}
-            disabled={zoomIdx === ZOOM_STEPS.length - 1}
-            title="Zoom in (+)"
-          >
+          <IconButton onClick={zoomIn} disabled={zoomIdx === ZOOM_STEPS.length - 1} title="Zoom in (+)">
             <ZoomIn className="w-4 h-4" />
           </IconButton>
           <IconButton onClick={resetZoom} disabled={zoomIdx === 0} title="Reset (0)">
@@ -245,11 +440,7 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
         </div>
       </div>
 
-      {/* Image stage — overflow-auto handles panning natively when zoomed */}
-      <div
-        className="flex-1 overflow-auto p-6"
-        onClick={onClose}
-      >
+      <div className="flex-1 overflow-auto p-6" onClick={onClose}>
         <div
           className="mx-auto"
           style={{
@@ -258,61 +449,42 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
             transformOrigin: 'top center',
             transition: 'transform 200ms ease-out',
           }}
-          onClick={(e) => {
-            e.stopPropagation();
-            cycleZoom();
-          }}
+          onClick={(e) => { e.stopPropagation(); cycleZoom(); }}
         >
-          {mode === 'crop' ? (
-            <div
-              className="relative bg-black"
-              style={{
-                width: 'min(90vw, 1280px)',
-                aspectRatio: '3 / 1',
-                cursor: scale === ZOOM_STEPS[ZOOM_STEPS.length - 1] ? 'zoom-out' : 'zoom-in',
-              }}
-            >
-              <img
-                src={imageUrl}
-                alt="Hero crop"
-                className="absolute inset-0 w-full h-full object-cover select-none"
-                draggable={false}
-              />
-              {hasText && (
-                <>
-                  <div className="absolute inset-0 bg-black/35" />
-                  <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
-                    <div className="max-w-3xl">
-                      {title && (
-                        <h2 className="text-3xl md:text-5xl font-bold text-white mb-3 leading-tight drop-shadow-lg">
-                          {title}
-                        </h2>
-                      )}
-                      {subtitle && (
-                        <p className="text-base md:text-xl text-white/95 drop-shadow-md">
-                          {subtitle}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : (
+          <div
+            className="relative inline-block bg-black"
+            style={{
+              cursor: scale === ZOOM_STEPS[ZOOM_STEPS.length - 1] ? 'zoom-out' : 'zoom-in',
+            }}
+          >
+            {/* Full image — fits naturally in viewport, no aspect-ratio cropping */}
             <img
               src={imageUrl}
-              alt="Uploaded original"
-              className="max-w-[90vw] max-h-[80vh] object-contain block select-none"
+              alt="Uploaded banner"
+              className="block max-w-[min(90vw,1280px)] max-h-[78vh] w-auto h-auto select-none"
               draggable={false}
-              style={{
-                cursor: scale === ZOOM_STEPS[ZOOM_STEPS.length - 1] ? 'zoom-out' : 'zoom-in',
-              }}
             />
-          )}
+            {hasText && (
+              <>
+                <div className="absolute inset-0 bg-black/35" />
+                <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+                  <div className="max-w-3xl">
+                    {title && (
+                      <h2 className="text-3xl md:text-5xl font-bold text-white mb-3 leading-tight drop-shadow-lg">
+                        {title}
+                      </h2>
+                    )}
+                    {subtitle && (
+                      <p className="text-base md:text-xl text-white/95 drop-shadow-md">{subtitle}</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Footer hint */}
       <div
         className="px-4 py-2 text-center text-xs text-white/60 border-t border-white/10"
         onClick={(e) => e.stopPropagation()}
@@ -359,10 +531,23 @@ const HeroBannersPage: React.FC = () => {
 
   const isSaving = isCreating || isUpdating;
 
+  const isEditDirty = useMemo(() => {
+    if (!editing) return true; // create mode: allow save (validation still applies)
+    const durationMs = form.durationSec * 1000;
+    return (
+      !!form.file ||
+      form.displayOrder !== editing.displayOrder ||
+      durationMs !== editing.durationMs ||
+      form.title !== (editing.title ?? '') ||
+      form.subtitle !== (editing.subtitle ?? '') ||
+      form.isActive !== editing.isActive
+    );
+  }, [editing, form]);
+
   // Sort banners by displayOrder for reliable up/down behavior
   const sortedBanners = useMemo(
     () => [...banners].sort((a, b) => a.displayOrder - b.displayOrder),
-    [banners]
+    [banners],
   );
 
   // ── Modal lifecycle ──────────────────────────────────────────────────────
@@ -371,7 +556,6 @@ const HeroBannersPage: React.FC = () => {
     setEditing(null);
     setForm({
       ...EMPTY_FORM,
-      // Suggest the next displayOrder based on existing banners
       displayOrder: (sortedBanners[sortedBanners.length - 1]?.displayOrder ?? 0) + 1,
     });
     setPreviewUrl(null);
@@ -388,8 +572,9 @@ const HeroBannersPage: React.FC = () => {
       title: banner.title ?? '',
       subtitle: banner.subtitle ?? '',
       isActive: banner.isActive,
+      objectPosition: DEFAULT_POSITION,
     });
-    setPreviewUrl(banner.imageUrl); // Existing image as initial preview
+    setPreviewUrl(banner.imageUrl);
     setErrors({});
     setShowModal(true);
   };
@@ -403,7 +588,6 @@ const HeroBannersPage: React.FC = () => {
     setErrors({});
   };
 
-  // Clean up blob URLs when component unmounts or preview changes
   useEffect(() => {
     return () => {
       if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
@@ -420,7 +604,6 @@ const HeroBannersPage: React.FC = () => {
       setErrors((e) => ({ ...e, file: undefined }));
       return;
     }
-
     if (!ALLOWED_TYPES.includes(file.type)) {
       setErrors((e) => ({ ...e, file: 'Only JPEG, PNG, GIF, and WebP are allowed' }));
       return;
@@ -429,23 +612,29 @@ const HeroBannersPage: React.FC = () => {
       setErrors((e) => ({ ...e, file: 'Image exceeds 10 MB size limit' }));
       return;
     }
-
     if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
-    const blobUrl = URL.createObjectURL(file);
-    setForm((f) => ({ ...f, file }));
-    setPreviewUrl(blobUrl);
+    setForm((f) => ({ ...f, file, objectPosition: DEFAULT_POSITION }));
+    setPreviewUrl(URL.createObjectURL(file));
     setErrors((e) => ({ ...e, file: undefined }));
   };
 
   // ── Validation ───────────────────────────────────────────────────────────
 
+  const findOrderConflict = (displayOrder: number) =>
+    sortedBanners.find((b) => b.displayOrder === displayOrder && b.id !== editing?.id);
+
   const validate = (): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
     if (!editing && !form.file) next.file = 'Image is required';
-    if (form.durationSec < 1 || form.durationSec > 60) {
+    if (form.durationSec < 1 || form.durationSec > 60)
       next.durationSec = 'Duration must be between 1 and 60 seconds';
-    }
     if (form.displayOrder < 0) next.displayOrder = 'Display order must be ≥ 0';
+    if (!next.displayOrder) {
+      const conflict = findOrderConflict(form.displayOrder);
+      if (conflict) {
+        next.displayOrder = `Order ${form.displayOrder} is already used. Please choose a unique order.`;
+      }
+    }
     if (form.title.length > 200) next.title = 'Title must be ≤ 200 characters';
     if (form.subtitle.length > 500) next.subtitle = 'Subtitle must be ≤ 500 characters';
     setErrors(next);
@@ -455,10 +644,19 @@ const HeroBannersPage: React.FC = () => {
   // ── Submit ───────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
+    if (editing && !isEditDirty) return;
     if (!validate()) return;
 
     const fd = new FormData();
-    if (form.file) fd.append('file', form.file);
+    if (form.file) {
+  const croppedFile =
+    await generateCroppedImage(
+      form.file,
+      form.objectPosition
+    );
+
+  fd.append('file', croppedFile);
+}
     fd.append('displayOrder', String(form.displayOrder));
     fd.append('durationMs', String(form.durationSec * 1000));
     fd.append('title', form.title);
@@ -467,6 +665,12 @@ const HeroBannersPage: React.FC = () => {
 
     try {
       if (editing) {
+        // If the admin changed displayOrder to an already-used value, swap orders first
+        // to preserve uniqueness and avoid backend unique-constraint failures.
+        const conflict = findOrderConflict(form.displayOrder);
+        if (conflict && conflict.displayOrder !== editing.displayOrder) {
+          await reorderBanner({ id: conflict.id, displayOrder: editing.displayOrder }).unwrap();
+        }
         await updateBanner({ id: editing.id, formData: fd }).unwrap();
         toast.success('Banner updated');
       } else {
@@ -476,22 +680,18 @@ const HeroBannersPage: React.FC = () => {
       closeModal();
     } catch (err: any) {
       const msg =
-        err?.data?.error ??
-        err?.data?.errors?.[0]?.message ??
-        'Failed to save banner';
+        err?.data?.error ?? err?.data?.errors?.[0]?.message ?? 'Failed to save banner';
       toast.error(msg);
     }
   };
 
-  // ── Reorder (swap displayOrder with neighbour) ───────────────────────────
+  // ── Reorder ──────────────────────────────────────────────────────────────
 
   const swapOrder = async (idx: number, direction: 'up' | 'down') => {
     const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
     if (targetIdx < 0 || targetIdx >= sortedBanners.length) return;
-
     const current = sortedBanners[idx];
     const neighbour = sortedBanners[targetIdx];
-
     setReorderingId(current.id);
     try {
       await Promise.all([
@@ -548,7 +748,9 @@ const HeroBannersPage: React.FC = () => {
       ) : isError ? (
         <div className="flex items-center gap-2 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
           <AlertCircle className="w-5 h-5" /> Failed to load banners.
-          <button onClick={() => refetch()} className="ml-auto underline">Retry</button>
+          <button onClick={() => refetch()} className="ml-auto underline">
+            Retry
+          </button>
         </div>
       ) : sortedBanners.length === 0 ? (
         <div className="text-center py-20 border-2 border-dashed border-gray-300 rounded-xl">
@@ -568,7 +770,6 @@ const HeroBannersPage: React.FC = () => {
               key={banner.id}
               className="flex flex-col md:flex-row gap-4 bg-white rounded-xl border border-gray-200 p-4 shadow-sm"
             >
-              {/* Thumbnail */}
               <div className="relative w-full md:w-48 aspect-video rounded-lg overflow-hidden bg-gray-100 shrink-0">
                 <img
                   src={banner.imageUrl}
@@ -582,7 +783,6 @@ const HeroBannersPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Meta */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -609,7 +809,6 @@ const HeroBannersPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Actions */}
               <div className="flex md:flex-col items-center gap-1 shrink-0">
                 <button
                   onClick={() => swapOrder(idx, 'up')}
@@ -651,12 +850,14 @@ const HeroBannersPage: React.FC = () => {
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
-            {/* Modal header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
               <h2 className="text-xl font-bold text-gray-900">
                 {editing ? 'Edit banner' : 'New banner'}
               </h2>
-              <button onClick={closeModal} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+              <button
+                onClick={closeModal}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -667,36 +868,50 @@ const HeroBannersPage: React.FC = () => {
                 <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-700">
                   <Eye className="w-4 h-4" /> Live preview (matches user side)
                 </div>
-                <SlidePreview imageUrl={previewUrl} title={form.title} subtitle={form.subtitle} />
+                <SlidePreview
+                  imageUrl={previewUrl}
+                  title={form.title}
+                  subtitle={form.subtitle}
+                  position={form.objectPosition}
+                  onPositionChange={(pos) => setForm((f) => ({ ...f, objectPosition: pos }))}
+                  onFileSelect={(f) => handleFileChange(f)}
+                />
+
+                {/* File status + Remove — sits right under the preview where it's visible */}
+                {(form.file || editing) && (
+                  <div className="mt-3 flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-gray-50 border border-gray-200">
+                    <ImageIcon className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                    <span className="text-gray-700 truncate flex-1">
+                      {form.file
+                        ? `${form.file.name} · ${(form.file.size / 1024 / 1024).toFixed(1)} MB`
+                        : 'Existing image (drag a new file onto the preview to replace)'}
+                    </span>
+                    {form.file && (
+                      <button
+                        type="button"
+                        onClick={() => handleFileChange(null)}
+                        className="text-red-600 hover:text-red-700 hover:underline font-semibold shrink-0"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <p className="text-xs text-gray-500 mt-3">
-                  This preview mirrors how the slide will render in the homepage hero, including the
-                  title/subtitle overlay. The "search bar overlaps here" indicator shows where the
-                  search bar will visually cut into the bottom of the banner on the live site.
+                  {previewUrl
+                    ? 'Drag the image in the preview to set the focal point. Click "Preview 3:1" to see exactly how the homepage hero will crop it.'
+                    : 'Drag a file onto the area above, or click it to browse.'}
                 </p>
+                {errors.file && (
+                  <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> {errors.file}
+                  </p>
+                )}
               </div>
 
               {/* Form */}
               <div className="space-y-4">
-                {/* File upload */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Image {editing ? '(leave empty to keep existing)' : '*'}
-                  </label>
-                  <input
-                    type="file"
-                    accept={ALLOWED_TYPES.join(',')}
-                    onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-                    className="block w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer"
-                  />
-                  {errors.file && (
-                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> {errors.file}
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">
-                    JPEG, PNG, GIF, or WebP — max 10 MB. Recommended ~1920×1080 for full-width display.
-                  </p>
-                </div>
 
                 {/* Display order + Duration */}
                 <div className="grid grid-cols-2 gap-3">
@@ -708,9 +923,14 @@ const HeroBannersPage: React.FC = () => {
                       type="number"
                       min={0}
                       value={form.displayOrder}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, displayOrder: Number(e.target.value) || 0 }))
-                      }
+                      onChange={(e) => {
+                        const stripped = stripLeadingZeros(e.target.value);
+                        if (stripped !== e.target.value) e.target.value = stripped;
+                        setForm((f) => ({
+                          ...f,
+                          displayOrder: stripped === '' ? 0 : Number(stripped),
+                        }));
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                     {errors.displayOrder && (
@@ -726,9 +946,14 @@ const HeroBannersPage: React.FC = () => {
                       min={1}
                       max={60}
                       value={form.durationSec}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, durationSec: Number(e.target.value) || 0 }))
-                      }
+                      onChange={(e) => {
+                        const stripped = stripLeadingZeros(e.target.value);
+                        if (stripped !== e.target.value) e.target.value = stripped;
+                        setForm((f) => ({
+                          ...f,
+                          durationSec: stripped === '' ? 0 : Number(stripped),
+                        }));
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                     {errors.durationSec && (
@@ -790,7 +1015,6 @@ const HeroBannersPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Modal footer */}
             <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl">
               <button
                 onClick={closeModal}
@@ -801,10 +1025,14 @@ const HeroBannersPage: React.FC = () => {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={isSaving}
+                disabled={isSaving || (editing ? !isEditDirty : false)}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-medium disabled:opacity-50"
               >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
                 {editing ? 'Save changes' : 'Create banner'}
               </button>
             </div>
@@ -841,7 +1069,11 @@ const HeroBannersPage: React.FC = () => {
                 disabled={isDeleting}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium disabled:opacity-50"
               >
-                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {isDeleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
                 Delete
               </button>
             </div>

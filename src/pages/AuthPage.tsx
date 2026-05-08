@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Phone, Lock, ArrowRight, AlertCircle, Loader2, User, Mail, CheckCircle } from 'lucide-react';
+import { Phone, ArrowRight, AlertCircle, Loader2, User, Mail, CheckCircle } from 'lucide-react';
 import { useSendOtpMutation, useVerifyOtpMutation, useSendEmailOtpMutation, useVerifyEmailOtpMutation, useUpdateProfileMutation } from '../store/api/authApi';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
 import { toast } from 'sonner';
 import Header from '../components/Header';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
+import OtpInput from '../components/OtpInput';
 import { executeRecaptcha } from '../utils/recaptcha';
 
 type Step = 'phone' | 'otp' | 'details' | 'emailOtp';
@@ -216,86 +217,86 @@ const AuthPage: React.FC = () => {
   };
 
   const completeLogin = (response: any) => {
-  dispatch(
-    setCredentials({
-      user: {
-        id: response.user.id,
-        name: response.user.name ?? response.user.userNumber,
-        phone: response.user.userNumber,
-        email: response.user.email ?? undefined,
-        userType: 'user',
-        cityId: response.user.cityId ?? undefined,
-      },
-      token: response.token,
-    })
-  );
-
-  localStorage.setItem('token', response.token);
-  localStorage.setItem('userId', response.user.id.toString());
-  localStorage.setItem('userPhone', response.user.userNumber);
-  localStorage.setItem(
-    'userName',
-    response.user.name ?? response.user.userNumber
-  );
-
-  if (response.user.email) {
-    localStorage.setItem('userEmail', response.user.email);
-  }
-
-  toast.success(
-    response.isNewUser
-      ? 'Welcome to ScootyOnRent!'
-      : 'Welcome back!',
-    {
-      description: 'You are now logged in.',
-    }
-  );
-
-  // Priority 1: bookingIntent
-  const intentRaw = sessionStorage.getItem('bookingIntent');
-
-  if (intentRaw) {
-    try {
-      const intent = JSON.parse(intentRaw);
-      sessionStorage.removeItem('bookingIntent');
-
-      if (intent.vehicleId) {
-        const params = new URLSearchParams();
-
-        if (intent.startDate) params.set('startDate', intent.startDate);
-        if (intent.startTime) params.set('startTime', intent.startTime);
-        if (intent.endDate) params.set('endDate', intent.endDate);
-        if (intent.endTime) params.set('endTime', intent.endTime);
-
-        navigate(
-          `/book/${intent.vehicleId}?${params.toString()}`,
-          { replace: true }
-        );
-        return;
-      }
-    } catch {
-      sessionStorage.removeItem('bookingIntent');
-    }
-  }
-
-  // Priority 2: ProtectedRoute redirect
-  const from = (location.state as any)?.from;
-
-  if (
-    from?.pathname &&
-    from.pathname !== '/auth' &&
-    from.pathname !== '/login'
-  ) {
-    navigate(
-      `${from.pathname}${from.search || ''}${from.hash || ''}`,
-      { replace: true }
+    dispatch(
+      setCredentials({
+        user: {
+          id: response.user.id,
+          name: response.user.name ?? response.user.userNumber,
+          phone: response.user.userNumber,
+          email: response.user.email ?? undefined,
+          userType: 'user',
+          cityId: response.user.cityId ?? undefined,
+        },
+        token: response.token,
+      })
     );
-    return;
-  }
 
-  // Default
-  navigate('/profile', { replace: true });
-};
+    localStorage.setItem('token', response.token);
+    localStorage.setItem('userId', response.user.id.toString());
+    localStorage.setItem('userPhone', response.user.userNumber);
+    localStorage.setItem(
+      'userName',
+      response.user.name ?? response.user.userNumber
+    );
+
+    if (response.user.email) {
+      localStorage.setItem('userEmail', response.user.email);
+    }
+
+    toast.success(
+      response.isNewUser
+        ? 'Welcome to ScootyOnRent!'
+        : 'Welcome back!',
+      {
+        description: 'You are now logged in.',
+      }
+    );
+
+    // Priority 1: bookingIntent
+    const intentRaw = sessionStorage.getItem('bookingIntent');
+
+    if (intentRaw) {
+      try {
+        const intent = JSON.parse(intentRaw);
+        sessionStorage.removeItem('bookingIntent');
+
+        if (intent.vehicleId) {
+          const params = new URLSearchParams();
+
+          if (intent.startDate) params.set('startDate', intent.startDate);
+          if (intent.startTime) params.set('startTime', intent.startTime);
+          if (intent.endDate) params.set('endDate', intent.endDate);
+          if (intent.endTime) params.set('endTime', intent.endTime);
+
+          navigate(
+            `/book/${intent.vehicleId}?${params.toString()}`,
+            { replace: true }
+          );
+          return;
+        }
+      } catch {
+        sessionStorage.removeItem('bookingIntent');
+      }
+    }
+
+    // Priority 2: ProtectedRoute redirect
+    const from = (location.state as any)?.from;
+
+    if (
+      from?.pathname &&
+      from.pathname !== '/auth' &&
+      from.pathname !== '/login'
+    ) {
+      navigate(
+        `${from.pathname}${from.search || ''}${from.hash || ''}`,
+        { replace: true }
+      );
+      return;
+    }
+
+    // Default
+    navigate('/profile', { replace: true });
+  };
 
   const handleResendOtp = async () => {
     setOtp('');
@@ -402,22 +403,13 @@ const AuthPage: React.FC = () => {
                     <label htmlFor="otp" className="mb-2 block text-sm font-medium text-gray-700">
                       Enter OTP
                     </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <Lock className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <input
-                        id="otp"
-                        type="text"
-                        value={otp}
-                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        placeholder="123456"
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-center text-2xl tracking-widest"
-                        maxLength={6}
-                        required
-                        autoFocus
-                      />
-                    </div>
+                    <OtpInput
+                      value={otp}
+                      onChange={setOtp}
+                      length={6}
+                      disabled={isVerifyingOtp}
+                      autoFocus
+                    />
                     <p className="text-sm text-gray-500 mt-2">OTP expires in 10 minutes</p>
                   </div>
                   <button
@@ -505,21 +497,13 @@ const AuthPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-medium text-gray-700">Enter Email OTP</label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <Lock className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <input
-                        type="text"
-                        value={emailOtp}
-                        onChange={(e) => { setEmailOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setEmailOtpError(''); }}
-                        placeholder="123456"
-                        className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all text-center text-2xl tracking-widest ${emailOtpError ? 'border-red-500' : 'border-gray-300'}`}
-                        maxLength={6}
-                        required
-                        autoFocus
-                      />
-                    </div>
+                    <OtpInput
+                      value={emailOtp}
+                      onChange={(val) => { setEmailOtp(val); setEmailOtpError(''); }}
+                      length={6}
+                      disabled={isVerifyingEmailOtp}
+                      autoFocus
+                    />
                     {emailOtpError && (
                       <p className="text-xs text-red-600 mt-1 flex items-center">
                         <AlertCircle className="w-3 h-3 mr-1" />

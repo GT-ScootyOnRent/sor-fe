@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Header from '../components/Header';
 import VehicleCard from '../components/VehicleCard';
@@ -9,6 +9,7 @@ import { useGetCitiesQuery } from '../store/api/cityApi';
 import { useAppSelector } from '../store/hooks';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
 import { Slider } from '../components/ui/slider';
+import { stripLeadingZeros } from '../utils/numberInput';
 import {
   AlertCircle,
   Filter,
@@ -54,7 +55,7 @@ function formatDateShort(dateStr: string): string {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 const VehicleListingPage: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const selectedCity = useAppSelector((state) => state.city.selectedCity);
   const { data: cities = [] } = useGetCitiesQuery({ page: 1, size: 100 });
 
@@ -65,7 +66,11 @@ const VehicleListingPage: React.FC = () => {
   const endTime = searchParams.get('endTime');
   const hasDateFilter = !!(startDate && endDate);
 
-  // const hasDateFilter = !!(startDate && startTime && endDate && endTime);
+  // Date editing state
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [editStartDate, setEditStartDate] = useState(startDate || '');
+  const [editEndDate, setEditEndDate] = useState(endDate || '');
+  const returnDateInputRef = useRef<HTMLInputElement>(null);
 
   // ── Top-bar state ──
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,11 +95,18 @@ const VehicleListingPage: React.FC = () => {
     }
   }, [selectedCity, selectedCityId]);
 
+  // Sync date edit state with URL params
+  useEffect(() => {
+    setEditStartDate(startDate || '');
+    setEditEndDate(endDate || '');
+  }, [startDate, endDate]);
+
   // Close dropdowns on outside click
   useEffect(() => {
     const handler = () => {
       setShowSortMenu(false);
       setShowCityMenu(false);
+      setShowDatePicker(false);
     };
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
@@ -129,12 +141,19 @@ const VehicleListingPage: React.FC = () => {
 
     // Sort
     result = [...result].sort((a, b) => {
+      // Always put unavailable vehicles (booked) at the end
+      const aUnavailable = a.isAvailable === false;
+      const bUnavailable = b.isAvailable === false;
+      if (aUnavailable && !bUnavailable) return 1;
+      if (!aUnavailable && bUnavailable) return -1;
+
+      // Then apply user-selected sort
       switch (sortBy) {
-        case 'price_asc':  return a.pricePerHour - b.pricePerHour;
+        case 'price_asc': return a.pricePerHour - b.pricePerHour;
         case 'price_desc': return b.pricePerHour - a.pricePerHour;
-        case 'name_asc':   return (a.name || '').localeCompare(b.name || '');
-        case 'name_desc':  return (b.name || '').localeCompare(a.name || '');
-        default:           return 0;
+        case 'name_asc': return (a.name || '').localeCompare(b.name || '');
+        case 'name_desc': return (b.name || '').localeCompare(a.name || '');
+        default: return 0;
       }
     });
 
@@ -184,9 +203,9 @@ const VehicleListingPage: React.FC = () => {
         <div className="container mx-auto px-4 py-8">
 
           {/* ── Page heading ── */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-black mb-1">Available Vehicles</h1>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-black mb-1">Available Vehicles</h1>
               <p className="text-gray-500 text-sm">Explore our complete fleet of two-wheelers</p>
             </div>
 
@@ -194,10 +213,15 @@ const VehicleListingPage: React.FC = () => {
             <Button
               onClick={() => setShowMobileFilters(!showMobileFilters)}
               variant="outline"
-              className="lg:hidden flex items-center gap-2 border-primary-500 text-primary-500"
+              className="lg:hidden flex items-center justify-center gap-2 border-primary-500 text-primary-500 w-full sm:w-auto"
             >
               <SlidersHorizontal className="w-4 h-4" />
-              {showMobileFilters ? 'Hide Filters' : 'Show Filters'}
+              {showMobileFilters ? 'Hide Filters' : 'Filters'}
+              {sidebarFilterCount > 0 && (
+                <span className="w-5 h-5 bg-primary-500 text-white rounded-full text-xs font-bold flex items-center justify-center">
+                  {sidebarFilterCount}
+                </span>
+              )}
             </Button>
           </div>
 
@@ -205,7 +229,7 @@ const VehicleListingPage: React.FC = () => {
               TOP FILTER BAR
           ══════════════════════════════════════════════════════════════ */}
           <div className="mb-6 bg-white border border-gray-200 rounded-2xl shadow-sm">
-            <div className="flex flex-wrap items-stretch divide-x divide-gray-200">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
 
               {/* 1. Search input */}
               <div className="flex items-center gap-3 flex-1 min-w-0 px-4 py-3">
@@ -214,7 +238,7 @@ const VehicleListingPage: React.FC = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search vehicles by name, model or brand…"
+                  placeholder="Search vehicles…"
                   className="flex-1 min-w-0 bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400"
                 />
                 {searchQuery && (
@@ -234,6 +258,7 @@ const VehicleListingPage: React.FC = () => {
                     e.stopPropagation();
                     setShowCityMenu((v) => !v);
                     setShowSortMenu(false);
+                    setShowDatePicker(false);
                   }}
                   className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors h-full whitespace-nowrap"
                 >
@@ -266,17 +291,90 @@ const VehicleListingPage: React.FC = () => {
                 )}
               </div>
 
-              {/* 3. Date display — only when dates came from home page */}
-              {hasDateFilter && (
-                <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0">
+              {/* 3. Date picker — editable */}
+              <div className="relative flex-shrink-0">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDatePicker((v) => !v);
+                    setShowCityMenu(false);
+                    setShowSortMenu(false);
+                  }}
+                  className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors h-full whitespace-nowrap"
+                >
                   <Calendar className="w-4 h-4 text-primary-500 flex-shrink-0" />
-                  <span className="text-sm text-gray-700 font-medium whitespace-nowrap">
-                    {formatDateShort(startDate!)}
-                    <span className="mx-1.5 text-gray-400">–</span>
-                    {formatDateShort(endDate!)}
-                  </span>
-                </div>
-              )}
+                  {hasDateFilter ? (
+                    <span>
+                      {formatDateShort(startDate!)}
+                      <span className="mx-1.5 text-gray-400">–</span>
+                      {formatDateShort(endDate!)}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">Select dates</span>
+                  )}
+                  <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${showDatePicker ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showDatePicker && (
+                  <div
+                    className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-4 -translate-x-1/3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex gap-3">
+                      <div className="flex-1 min-w-[140px]">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Pickup Date</label>
+                        <input
+                          type="date"
+                          value={editStartDate}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setEditStartDate(value);
+                            // Auto-update return date if not set or before pickup
+                            if (value && (!editEndDate || editEndDate < value)) {
+                              setEditEndDate(value);
+                            }
+                            // Auto-focus return date input
+                            setTimeout(() => {
+                              returnDateInputRef.current?.showPicker?.();
+                              returnDateInputRef.current?.focus();
+                            }, 100);
+                          }}
+                          min={new Date().toISOString().split('T')[0]}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-[140px]">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Return Date</label>
+                        <input
+                          ref={returnDateInputRef}
+                          type="date"
+                          value={editEndDate}
+                          onChange={(e) => setEditEndDate(e.target.value)}
+                          min={editStartDate || new Date().toISOString().split('T')[0]}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (editStartDate && editEndDate) {
+                          const newParams = new URLSearchParams(searchParams);
+                          newParams.set('startDate', editStartDate);
+                          newParams.set('endDate', editEndDate);
+                          if (!newParams.get('startTime')) newParams.set('startTime', '08:00');
+                          if (!newParams.get('endTime')) newParams.set('endTime', '22:00');
+                          setSearchParams(newParams);
+                        }
+                        setShowDatePicker(false);
+                      }}
+                      disabled={!editStartDate || !editEndDate}
+                      className="w-full mt-3 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* 4. Sort dropdown */}
               <div className="relative flex-shrink-0">
@@ -285,6 +383,7 @@ const VehicleListingPage: React.FC = () => {
                     e.stopPropagation();
                     setShowSortMenu((v) => !v);
                     setShowCityMenu(false);
+                    setShowDatePicker(false);
                   }}
                   className="flex items-center gap-2 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors h-full whitespace-nowrap"
                 >
@@ -332,9 +431,25 @@ const VehicleListingPage: React.FC = () => {
           ══════════════════════════════════════════════════════════════ */}
           <div className="flex gap-8 items-start">
 
-            {/* ── LEFT: Filter Sidebar (City removed) ── */}
-            <aside className={`w-64 flex-shrink-0 ${showMobileFilters ? 'block' : 'hidden'} lg:block`}>
-              <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden sticky top-24">
+            {/* ── Mobile Filter Drawer Overlay ── */}
+            {showMobileFilters && (
+              <div
+                className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+                onClick={() => setShowMobileFilters(false)}
+              />
+            )}
+
+            {/* ── LEFT: Filter Sidebar ── */}
+            <aside className={`
+              fixed lg:relative inset-y-0 left-0 z-50 lg:z-auto
+              w-[280px] sm:w-[320px] lg:w-64 
+              transform transition-transform duration-300 ease-in-out
+              ${showMobileFilters ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+              lg:flex-shrink-0 lg:block
+              bg-white lg:bg-transparent
+              overflow-y-auto lg:overflow-visible
+            `}>
+              <div className="bg-white border border-gray-200 rounded-none lg:rounded-xl shadow-sm overflow-hidden lg:sticky lg:top-24 min-h-screen lg:min-h-0">
 
                 {/* Sidebar header */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -347,15 +462,24 @@ const VehicleListingPage: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  {hasActiveSidebarFilters && (
+                  <div className="flex items-center gap-2">
+                    {hasActiveSidebarFilters && (
+                      <button
+                        onClick={clearFilters}
+                        className="flex items-center gap-1 text-sm text-red-500 hover:text-red-600 transition-colors font-medium"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        Clear
+                      </button>
+                    )}
+                    {/* Close button for mobile */}
                     <button
-                      onClick={clearFilters}
-                      className="flex items-center gap-1 text-sm text-red-500 hover:text-red-600 transition-colors font-medium"
+                      onClick={() => setShowMobileFilters(false)}
+                      className="lg:hidden p-1.5 hover:bg-gray-100 rounded-full transition-colors"
                     >
-                      <X className="w-3.5 h-3.5" />
-                      Clear
+                      <X className="w-5 h-5 text-gray-500" />
                     </button>
-                  )}
+                  </div>
                 </div>
 
                 <div className="p-5 space-y-6">
@@ -384,16 +508,64 @@ const VehicleListingPage: React.FC = () => {
                       <span>₹0</span>
                       <span>₹500</span>
                     </div>
-                    <div className="mt-3 flex gap-2">
-                      <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center">
-                        <p className="text-xs text-gray-400 leading-none mb-0.5">Min</p>
-                        <p className="text-sm font-bold text-gray-900">₹{priceRange[0]}</p>
-                      </div>
+                    <div className="mt-3 flex gap-2 items-stretch">
+                      <label className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent transition cursor-text">
+                        <span className="block text-xs text-gray-400 leading-none mb-0.5">Min</span>
+                        <span className="flex items-center gap-1">
+                          <span className="text-sm font-bold text-gray-900">₹</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={500}
+                            inputMode="numeric"
+                            value={priceRange[0]}
+                            onChange={(e) => {
+                              const stripped = stripLeadingZeros(e.target.value);
+                              if (stripped !== e.target.value) e.target.value = stripped;
+                              const n = stripped === '' ? 0 : Number(stripped);
+                              if (Number.isNaN(n)) return;
+                              const clamped = Math.max(0, Math.min(500, n));
+                              setPriceRange([clamped, priceRange[1]]);
+                            }}
+                            onBlur={() => {
+                              if (priceRange[0] > priceRange[1]) {
+                                setPriceRange([priceRange[1], priceRange[0]]);
+                              }
+                            }}
+                            className="w-full text-sm font-bold text-gray-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            aria-label="Minimum price"
+                          />
+                        </span>
+                      </label>
                       <div className="flex items-center text-gray-300 text-lg">—</div>
-                      <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center">
-                        <p className="text-xs text-gray-400 leading-none mb-0.5">Max</p>
-                        <p className="text-sm font-bold text-gray-900">₹{priceRange[1]}</p>
-                      </div>
+                      <label className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent transition cursor-text">
+                        <span className="block text-xs text-gray-400 leading-none mb-0.5">Max</span>
+                        <span className="flex items-center gap-1">
+                          <span className="text-sm font-bold text-gray-900">₹</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={500}
+                            inputMode="numeric"
+                            value={priceRange[1]}
+                            onChange={(e) => {
+                              const stripped = stripLeadingZeros(e.target.value);
+                              if (stripped !== e.target.value) e.target.value = stripped;
+                              const n = stripped === '' ? 0 : Number(stripped);
+                              if (Number.isNaN(n)) return;
+                              const clamped = Math.max(0, Math.min(500, n));
+                              setPriceRange([priceRange[0], clamped]);
+                            }}
+                            onBlur={() => {
+                              if (priceRange[0] > priceRange[1]) {
+                                setPriceRange([priceRange[1], priceRange[0]]);
+                              }
+                            }}
+                            className="w-full text-sm font-bold text-gray-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            aria-label="Maximum price"
+                          />
+                        </span>
+                      </label>
                     </div>
                   </div>
 
@@ -435,6 +607,16 @@ const VehicleListingPage: React.FC = () => {
                   </div>
 
                   {/* City is intentionally removed from sidebar — moved to top bar */}
+
+                  {/* Mobile Apply Filters Button */}
+                  <div className="lg:hidden pt-4 border-t border-gray-100">
+                    <Button
+                      onClick={() => setShowMobileFilters(false)}
+                      className="w-full bg-primary-500 hover:bg-primary-600 text-white"
+                    >
+                      Show {filteredVehicles.length} Vehicles
+                    </Button>
+                  </div>
 
                 </div>
               </div>

@@ -1,0 +1,34 @@
+# ScootyOnRent - Robots.txt
+# https://scootyonrent.com
+
+User-agent: *
+Allow: /
+
+# Public pages
+Allow: /
+Allow: /vehicles
+Allow: /contact
+Allow: /terms
+Allow: /privacy-policy
+Allow: /work-with-us
+
+# Disallow protected/private areas
+Disallow: /admin
+Disallow: /staff
+Disallow: /profile
+Disallow: /book/
+Disallow: /booking-success
+Disallow: /payment-failure
+Disallow: /auth
+Disallow: /login
+
+# Disallow API and internal paths
+Disallow: /api/
+Disallow: /*.json$
+Disallow: /*?*
+
+# Crawl-delay for polite crawling
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://scootyonrent.com/sitemap.xml

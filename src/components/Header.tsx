@@ -2,7 +2,6 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
 import {
   User,
-  LogOut,
   MapPin,
   ChevronDown,
   Menu,
@@ -10,7 +9,6 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { logout } from '../store/slices/authSlice';
 import { openCityModal } from '../store/slices/citySlice';
 import ContactButton from './ContactButton';
 
@@ -54,24 +52,16 @@ export default function Header() {
     setMobileMenuOpen(false);
   };
 
-  const handleLogout = () => {
-    dispatch(logout());
-    navigate('/');
-    setMobileMenuOpen(false);
-  };
-
   const isActive = (path: string) => location.pathname === path;
   const navLinkClass = (path: string) =>
-    `relative font-medium pb-1 transition-colors ${
-      isActive(path)
-        ? 'text-primary-600 after:absolute after:left-0 after:right-0 after:bottom-0 after:h-[3px] after:rounded-full after:bg-primary-500'
-        : 'text-black hover:text-primary-500'
+    `relative font-medium pb-1 transition-colors ${isActive(path)
+      ? 'text-primary-600 after:absolute after:left-0 after:right-0 after:bottom-0 after:h-[3px] after:rounded-full after:bg-primary-500'
+      : 'text-black hover:text-primary-500'
     }`;
   const mobileNavLinkClass = (path: string) =>
-    `block font-medium pl-3 border-l-4 transition-colors ${
-      isActive(path)
-        ? 'text-primary-600 border-primary-500'
-        : 'text-black border-transparent'
+    `block font-medium pl-3 border-l-4 transition-colors ${isActive(path)
+      ? 'text-primary-600 border-primary-500'
+      : 'text-black border-transparent'
     }`;
 
   return (
@@ -115,84 +105,14 @@ export default function Header() {
             >
               Home
             </Link>
-           <a
-  href="/vehicles"
-  onClick={handleVehiclesClick}
-  className="
-  relative inline-flex items-center justify-center
-  px-6 py-2 text-sm font-semibold text-teal-600
-  rounded-full bg-white overflow-hidden
-
-  transition-all duration-200 ease-out
-
-  hover:scale-105
-  hover:text-teal-700
-  hover:shadow-[0_0_0_2px_rgba(20,184,166,0.15)]
-
-  active:scale-95
-  active:shadow-[0_0_0_3px_rgba(20,184,166,0.25)_inset]
-"
->
-  {/* SVG border animation */}
-  <svg
-    className="absolute inset-0 w-full h-full"
-    viewBox="0 0 200 60"
-    preserveAspectRatio="none"
-  >
-    {/* Path around pill */}
-    <rect
-      x="1"
-      y="1"
-      width="198"
-      height="58"
-      rx="30"
-      ry="30"
-      fill="none"
-      stroke="#14b8a6"
-      strokeWidth="2"
-      strokeDasharray="40 220"   // length of line + gap
-      strokeLinecap="round"
-    >
-      <animate
-        attributeName="stroke-dashoffset"
-        from="0"
-        to="-260"
-        dur="3s"
-        repeatCount="indefinite"
-      />
-    </rect>
-
-    {/* Second opposite line */}
-    <rect
-      x="1"
-      y="1"
-      width="198"
-      height="58"
-      rx="30"
-      ry="30"
-      fill="none"
-      stroke="#14b8a6"
-      strokeWidth="2"
-      strokeDasharray="40 220"
-      strokeDashoffset="130"   // EXACT opposite
-      strokeLinecap="round"
-    >
-      <animate
-        attributeName="stroke-dashoffset"
-        from="130"
-        to="-130"
-        dur="3s"
-        repeatCount="indefinite"
-      />
-    </rect>
-  </svg>
-
-  {/* Inner mask */}
-  <span className="absolute inset-[2px] bg-white rounded-full"></span>
-
-  {/* Text */}
-  <span className="relative z-10">Booking/Vehicles</span>
-</a>
+            <a
+              href="/vehicles"
+              onClick={handleVehiclesClick}
+              className={`btn-snake shrink-0 ${isActive('/vehicles') ? 'btn-snake-active' : ''}`}
+            >
+              <span className="btn-snake-sides" aria-hidden />
+              <span className="btn-snake-label">Booking/Vehicles</span>
+            </a>
 
             <Link to="/contact" className={navLinkClass('/contact')}>
               Contact Us
@@ -204,6 +124,9 @@ export default function Header() {
           </nav>
 
           {/* Desktop Right Side */}
+          {/* All right-side buttons share h-10 + min-w-[120px] so they line up
+              regardless of label length. ContactButton already follows the
+              same shape internally. */}
           <div className="hidden md:flex items-center gap-3">
             <ContactButton />
             {isAuthenticated ? (
@@ -211,25 +134,16 @@ export default function Header() {
                 <Button
                   onClick={() => navigate('/profile')}
                   variant="outline"
-                  className="border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white"
+                  className="h-10 px-4 min-w-[120px] border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white"
                 >
                   <User className="w-4 h-4 mr-2" />
                   Profile
-                </Button>
-
-                <Button
-                  onClick={handleLogout}
-                  variant="outline"
-                  className="border-red-400 text-red-500 hover:bg-red-500 hover:text-white"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
                 </Button>
               </>
             ) : (
               <Button
                 onClick={() => navigate('/login')}
-                className="bg-primary-500 hover:bg-primary-600 text-white"
+                className="h-10 px-4 min-w-[120px] bg-primary-500 hover:bg-primary-600 text-white"
               >
                 Login
               </Button>
@@ -261,10 +175,12 @@ export default function Header() {
             </Link>
 
             <button
+              type="button"
               onClick={handleVehiclesClick}
-              className={`${mobileNavLinkClass('/vehicles')} w-full text-left`}
+              className={`btn-snake w-full justify-start ${isActive('/vehicles') ? 'btn-snake-active' : ''}`}
             >
-              Booking
+              <span className="btn-snake-sides" aria-hidden />
+              <span className="btn-snake-label pl-0.5">Booking/Vehicles</span>
             </button>
 
             <Link
@@ -299,15 +215,6 @@ export default function Header() {
                   >
                     <User className="w-4 h-4 mr-2" />
                     Profile
-                  </Button>
-
-                  <Button
-                    onClick={handleLogout}
-                    className="w-full"
-                    variant="outline"
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Logout
                   </Button>
                 </div>
               ) : (

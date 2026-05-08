@@ -3,10 +3,12 @@ export interface VehicleDto {
   name: string;
   make: string;
   model: string;
+  registrationNumber?: string;
   cityId: number;
   hourlyRate: number;
   minBookingHours: number;
   isAvailable: boolean;
+  nextAvailableFrom?: string;
   lastServiceTime?: string;
   nextServiceTime?: string;
   insuranceExpiryDate?: string;

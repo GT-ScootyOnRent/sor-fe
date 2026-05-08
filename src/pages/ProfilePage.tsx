@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   User, Phone, Mail, Calendar, Clock, MapPin,
   Edit2, Save, X, Loader2, Bike, CheckCircle, XCircle,
-  AlertCircle, RefreshCw, ChevronLeft, ChevronRight
+  AlertCircle, RefreshCw, ChevronLeft, ChevronRight, LogOut
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
+import { logout } from '../store/slices/authSlice';
 import { useGetBookingsByUserIdQuery } from '../store/api/bookingApi';
 import { useUpdateUserMutation } from '../store/api/userApi';
 import { toast } from 'sonner';
@@ -87,6 +88,12 @@ export default function ProfilePage() {
   //   navigate('/');
   // };
 
+  const handleLogout = () => {
+    dispatch(logout());
+    toast.success('Logged out successfully');
+    navigate('/');
+  };
+
   const handleSaveName = async () => {
     if (!editedName.trim()) { toast.error('Name cannot be empty'); return; }
     if (!user?.id) return;
@@ -122,11 +129,11 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <div className="container mx-auto px-4 py-6 sm:py-8 max-w-4xl">
 
         {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Profile</h1>
         </div>
 
 
@@ -206,6 +213,18 @@ export default function ProfilePage() {
                     <p className="text-sm font-medium text-gray-900">{user.email}</p>
                   </div>
                 )}
+              </div>
+
+              {/* Logout (kept inside Profile section; bottom-aligned on mobile) */}
+              <div className="mt-5 pt-4 border-t border-gray-200 flex">
+                <Button
+                  onClick={handleLogout}
+                  variant="outline"
+                  className="w-full border-red-400 text-red-500 hover:bg-red-500 hover:text-white"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </Button>
               </div>
             </div>
 
@@ -367,13 +386,13 @@ export default function ProfilePage() {
 
                   {/* Pagination */}
                   {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
-                      <p className="text-sm text-gray-500">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
+                      <p className="text-sm text-gray-500 text-center sm:text-left">
                         Showing{' '}
                         <span className="font-semibold text-gray-700">
                           {(currentPage - 1) * BOOKINGS_PER_PAGE + 1}–{Math.min(currentPage * BOOKINGS_PER_PAGE, filteredBookings.length)}
                         </span>{' '}
-                        of <span className="font-semibold text-gray-700">{filteredBookings.length}</span> bookings
+                        of <span className="font-semibold text-gray-700">{filteredBookings.length}</span>
                       </p>
                       <div className="flex items-center gap-2">
                         <button

@@ -13,6 +13,7 @@ export interface BookingDto {
   startTime: string;
   endTime: string;
   totalAmount: number;
+  includeSecondHelmet?: boolean;
   status: 0 | 1 | 2 | 3;
   friendFamilyContactNumber?: string | null;
 }
@@ -26,6 +27,7 @@ export interface CreateBookingRequest {
   startTime: string;
   endTime: string;
   totalAmount: number;
+  includeSecondHelmet?: boolean;
 }
 
 export const bookingApi = createApi({

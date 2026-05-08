@@ -23,8 +23,10 @@ export interface VehicleDto {
   name: string;
   make: string;
   model: string;
+  registrationNumber?: string;
   cityId: number;
   isAvailable: boolean;
+  nextAvailableFrom?: string;
   featured: boolean;
   pricePerHour: number;
   pricePerDay: number;

@@ -6,30 +6,35 @@ import "./index.css";
 import { Toaster } from "sonner";
 import { AnimatePresence } from "framer-motion";
 import SplashScreen from "./components/SplashScreen";
+import { isMainApp } from "./utils/appType";
 
 const SESSION_KEY = "splash_seen";
 
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(false);
 
-  useEffect(() => {
-    const alreadySeen = sessionStorage.getItem(SESSION_KEY);
-    const pathname = window.location.pathname;
-    const skipSplashPaths = new Set(["/terms", "/privacy-policy"]);
+  const handleSplashComplete = () => {
+    setShowSplash(false);
+    sessionStorage.setItem(SESSION_KEY, "true");
+  };
 
-    if (skipSplashPaths.has(pathname)) {
-      // Don't show splash on legal pages (often opened in a new tab).
-      sessionStorage.setItem(SESSION_KEY, "true");
+  useEffect(() => {
+    const pathname = window.location.pathname;
+
+    // Show splash ONLY on main app (not admin/staff) and homepage
+    if (!isMainApp || pathname !== "/") {
       return;
     }
+
+    const alreadySeen = sessionStorage.getItem(SESSION_KEY);
 
     if (!alreadySeen) {
       setShowSplash(true);
 
+      // Auto-complete after animation finishes (4 seconds)
       const timer = setTimeout(() => {
-        setShowSplash(false);
-        sessionStorage.setItem(SESSION_KEY, "true");
-      }, 3000);
+        handleSplashComplete();
+      }, 4000);
 
       return () => clearTimeout(timer);
     }
@@ -46,7 +51,11 @@ const App: React.FC = () => {
       />
 
       <AnimatePresence mode="wait">
-        {showSplash ? <SplashScreen key="splash" /> : <AppRoutes key="app" />}
+        {showSplash ? (
+          <SplashScreen key="splash" onSkip={handleSplashComplete} />
+        ) : (
+          <AppRoutes key="app" />
+        )}
       </AnimatePresence>
     </Provider>
   );
