@@ -3,14 +3,18 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Calendar, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import Header from '../components/Header';
-import MapWithLocations from '../components/MapWithLocations';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
 import PaymentModal from '../components/PaymentModal';
 import PriceCalculator from '../components/PriceCalculator';
+import PickupLocationCard from '../components/PickupLocationCard';
+import PickupLocationModal from '../components/PickupLocationModal';
+import LoginModal from '../components/LoginModal';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { useGetVehicleByIdQuery } from '../store/api/vehicleApi';
 import { useCreateBookingMutation } from '../store/api/bookingApi';
+import { useGetPickupLocationByIdQuery } from '../store/api/pickupLocationApi';
+import type { PickupLocationDto } from '../store/api/pickupLocationApi';
 import { useAppSelector } from '../store/hooks';
 import { calculateTotalPrice, calculateDuration } from '../utils/vehicleUtils';
 import { toast } from 'sonner';
@@ -18,8 +22,9 @@ import { toast } from 'sonner';
 export default function BookNow() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAppSelector((state) => state.auth);
+  const selectedCity = useAppSelector((state) => state.city.selectedCity);
 
   // Pre-fill from URL search params (passed from VehicleListingPage)
   const startDateParam = searchParams.get('startDate');
@@ -28,6 +33,8 @@ export default function BookNow() {
   const endTimeParam = searchParams.get('endTime');
   const packagePriceParam = searchParams.get('packagePrice');
   const packageLabelParam = searchParams.get('packageLabel');
+  const pickupLocationIdParam = searchParams.get('pickupLocationId');
+  const cityIdParam = searchParams.get('cityId');
 
   // Refs for auto-focus
   const returnDateRef = useRef<HTMLInputElement>(null);
@@ -56,9 +63,11 @@ export default function BookNow() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [createdBookingId, setCreatedBookingId] = useState<number | null>(null);
   const [finalBookingAmount, setFinalBookingAmount] = useState<number>(0);
-  const [selectedPickup, setSelectedPickup] = useState<string>('');
+  const [selectedPickup, setSelectedPickup] = useState<string>(pickupLocationIdParam || '');
   const [includeSecondHelmet, setIncludeSecondHelmet] = useState(false);
-  const [bookingError, setBookingError] = useState<string>('');
+  const [showPickupModal, setShowPickupModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [pendingBookingAmount, setPendingBookingAmount] = useState<number | null>(null);
 
   // Package pricing state - reset when user changes dates
   const [activePackagePrice, setActivePackagePrice] = useState<number | null>(
@@ -129,10 +138,22 @@ export default function BookNow() {
   const { data: vehicleData, isLoading: vehicleLoading, error: vehicleError } =
     useGetVehicleByIdQuery(parseInt(id || '0'));
 
+  // Fetch pickup location details if we have a pickupLocationId
+  const { data: pickupLocationData, isLoading: pickupLocationLoading } = useGetPickupLocationByIdQuery(
+    parseInt(selectedPickup || '0'),
+    { skip: !selectedPickup }
+  );
+
   const [createBooking, { isLoading: bookingLoading }] = useCreateBookingMutation();
 
-  const handleMapLocationSelect = (location: any) => {
+  // Handle pickup location change from modal
+  const handlePickupLocationChange = (location: PickupLocationDto) => {
     setSelectedPickup(location.id.toString());
+    // Update URL with new pickupLocationId
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('pickupLocationId', location.id.toString());
+    setSearchParams(newParams, { replace: true });
+    setShowPickupModal(false);
   };
 
   const calculateTotalHours = () => {
@@ -171,19 +192,11 @@ export default function BookNow() {
 
   // Called by PriceCalculator with the final discounted+GST amount
   const handleBooking = async (finalAmount?: number) => {
-    setBookingError('');
-
     // If not logged in — save booking intent then redirect to login
     if (!user) {
-      // Save booking intent so Login.tsx can restore it after OTP
-      sessionStorage.setItem('bookingIntent', JSON.stringify({
-        vehicleId: vehicleData?.id,
-        startDate: bookingDates.startDate,
-        startTime: bookingDates.startTime,
-        endDate: bookingDates.endDate,
-        endTime: bookingDates.endTime,
-      }));
-      navigate('/login');
+      // Save the pending amount and show login modal
+      setPendingBookingAmount(finalAmount ?? null);
+      setShowLoginModal(true);
       return;
     }
 
@@ -231,7 +244,9 @@ export default function BookNow() {
       setShowPaymentModal(true);
     } catch (error: any) {
       console.error('Booking error:', error);
-      setBookingError(error?.data?.message || 'Failed to create booking. Please try again.');
+      toast.error('Booking Failed', {
+        description: error?.data?.error || error?.data?.message || 'Failed to create booking. Please try again.',
+      });
     }
   };
 
@@ -245,6 +260,18 @@ export default function BookNow() {
   const handlePaymentFailure = (error: string) => {
     setShowPaymentModal(false);
     toast.error('Payment Failed', { description: error });
+  };
+
+  // Handle successful login - continue the booking process
+  const handleLoginSuccess = () => {
+    setShowLoginModal(false);
+    // Re-trigger booking with the pending amount
+    if (pendingBookingAmount !== null) {
+      handleBooking(pendingBookingAmount);
+    } else {
+      handleBooking();
+    }
+    setPendingBookingAmount(null);
   };
 
   if (vehicleLoading) return <LoadingSpinner fullScreen message="Loading vehicle details..." />;
@@ -271,195 +298,176 @@ export default function BookNow() {
 
           <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-6 sm:mb-8">Complete Your Booking</h1>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Column - Map and Booking Details */}
-            <div className="lg:col-span-2 space-y-8">
+          <div className="max-w-3xl mx-auto space-y-6">
 
-              {/* Map and Pickup Locations */}
+            {/* Pickup Location Card */}
+            {pickupLocationData ? (
               <div>
-                <h3 className="text-xl text-black mb-4">Select Pickup Location</h3>
-                <MapWithLocations
-                  cityId={vehicleData.cityId}
-                  onLocationSelect={handleMapLocationSelect}
-                  selectedLocationId={selectedPickup ? parseInt(selectedPickup) : undefined}
+                <h3 className="text-xl text-black mb-4">Pickup Location</h3>
+                <PickupLocationCard
+                  location={pickupLocationData}
+                  onChangeLocation={() => setShowPickupModal(true)}
                 />
               </div>
-
-              {/* Vehicle Details Card */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex gap-4">
-                  <img
-                    src={vehicleData.primaryImageUrl || vehicleData.images?.[0]?.imageUrl || '/placeholder.jpg'}
-                    alt={vehicleData.name}
-                    className="w-32 h-32 object-cover rounded-lg"
-                  />
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-2">{vehicleData.name}</h3>
-                    <p className="text-gray-600 mb-3">{vehicleData.make} {vehicleData.model}</p>
-                    <div className="flex gap-4 text-sm">
-                      <span className="text-primary-600 font-bold text-xl">₹{vehicleData.pricePerHour}/hr</span>
-                      <span className="text-gray-500 self-end">Min: {vehicleData.minBookingHours}h</span>
-                    </div>
-                  </div>
-                </div>
+            ) : pickupLocationLoading ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <p className="text-gray-500">Loading pickup location...</p>
               </div>
+            ) : (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-yellow-600" />
+                  <p className="text-yellow-800 font-medium">No pickup location selected</p>
+                </div>
+                <p className="text-yellow-700 text-sm mt-1">Please go back and select a pickup location.</p>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(-1)}
+                  className="mt-3"
+                >
+                  Go Back
+                </Button>
+              </div>
+            )}
 
-              {/* Rental Period */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-xl text-black mb-4">Rental Period</h3>
-
-                {/* Error Message */}
-                {bookingError && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4 flex items-start">
-                    <AlertCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-red-800">{bookingError}</p>
-                  </div>
-                )}
-
-                {/* Pre-filled dates notice */}
-                {startDateParam && startTimeParam && endDateParam && endTimeParam && (
-                  <div className="bg-primary-50 border border-primary-200 rounded-lg p-3 mb-4 flex items-start">
-                    <CheckCircle className="w-5 h-5 text-primary-600 mr-2 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-blue-800">
-                      Booking dates and times have been pre-filled from your search. You can modify them if needed.
-                    </p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Start Date & Time */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <Calendar className="inline w-4 h-4 mr-1" />
-                      Pickup Date & Time
-                    </label>
-                    <div className="space-y-2">
-                      <input
-                        type="date"
-                        value={bookingDates.startDate}
-                        onChange={(e) =>
-                          handleDateChange({ ...bookingDates, startDate: e.target.value }, 'startDate')
-                        }
-                        min={new Date().toISOString().split('T')[0]}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                      />
-                      <input
-                        type="time"
-                        value={bookingDates.startTime}
-                        onChange={(e) =>
-                          handleDateChange({ ...bookingDates, startTime: e.target.value }, 'startTime')
-                        }
-                        min={bookingDates.startDate === new Date().toISOString().split('T')[0] ? (() => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; })() : '08:00'}
-                        max="22:00"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* End Date & Time */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <Calendar className="inline w-4 h-4 mr-1" />
-                      Return Date & Time
-                    </label>
-                    <div className="space-y-2">
-                      <input
-                        ref={returnDateRef}
-                        type="date"
-                        value={bookingDates.endDate}
-                        onChange={(e) =>
-                          handleDateChange({ ...bookingDates, endDate: e.target.value }, 'endDate')
-                        }
-                        min={bookingDates.startDate || new Date().toISOString().split('T')[0]}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                      />
-                      <input
-                        ref={returnTimeRef}
-                        type="time"
-                        value={bookingDates.endTime}
-                        onChange={(e) =>
-                          handleDateChange({ ...bookingDates, endTime: e.target.value }, 'endTime')
-                        }
-                        min={(() => {
-                          const today = new Date().toISOString().split('T')[0];
-                          const getMinForToday = () => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; };
-                          if (bookingDates.startDate === bookingDates.endDate && bookingDates.startTime) {
-                            if (bookingDates.endDate === today) {
-                              const minForToday = getMinForToday();
-                              return bookingDates.startTime > minForToday ? bookingDates.startTime : minForToday;
-                            }
-                            return bookingDates.startTime;
-                          }
-                          if (bookingDates.endDate === today) return getMinForToday();
-                          return '08:00';
-                        })()}
-                        max="22:00"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                      />
-                    </div>
+            {/* Vehicle Details Card */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <div className="flex gap-4">
+                <img
+                  src={vehicleData.primaryImageUrl || vehicleData.images?.[0]?.imageUrl || '/placeholder.jpg'}
+                  alt={vehicleData.name}
+                  className="w-32 h-32 object-cover rounded-lg"
+                />
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{vehicleData.name}</h3>
+                  <p className="text-gray-600 mb-3">{vehicleData.make} {vehicleData.model}</p>
+                  <div className="flex gap-4 text-sm">
+                    <span className="text-primary-600 font-bold text-xl">₹{vehicleData.pricePerHour}/hr</span>
+                    <span className="text-gray-500 self-end">Min: {vehicleData.minBookingHours}h</span>
                   </div>
                 </div>
-
-                {/* Duration Display */}
-                {totalHours > 0 && (
-                  <div className="mt-4 p-3 bg-primary-50 rounded-lg">
-                    <p className="text-sm text-blue-800">
-                      Total Duration: <strong>{totalHours} hours</strong>
-                      {vehicleData.minBookingHours && totalHours < vehicleData.minBookingHours && (
-                        <span className="text-red-600 ml-2">
-                          (Minimum {vehicleData.minBookingHours}h required)
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Right Column - Price Calculator */}
-            <div>
-              <PriceCalculator
-                basePrice={vehicleData.pricePerHour}
-                hours={totalHours}
-                vehicleName={vehicleData.name}
-                onProceedToPayment={handleBooking}
-                isLoading={bookingLoading}
-                isLoggedIn={!!user}
-                minBookingHours={vehicleData.minBookingHours}
-                includeSecondHelmet={includeSecondHelmet}
-                onSecondHelmetChange={setIncludeSecondHelmet}
-                cityId={vehicleData.cityId}
-                userId={user?.id}
-                packagePrice={activePackagePrice}
-                packageLabel={activePackageLabel}
-              />
+            {/* Rental Period */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h3 className="text-xl text-black mb-4">Rental Period</h3>
 
-              {/* Login notice shown below PriceCalculator when not logged in */}
-              {/* {!user && (
-                <div className="mt-4 p-4 bg-primary-50 rounded-lg border border-primary-200 text-center">
-                  <p className="text-sm text-gray-700 mb-3">
-                    You'll be asked to login before completing payment
+              {/* Pre-filled dates notice */}
+              {startDateParam && startTimeParam && endDateParam && endTimeParam && (
+                <div className="bg-primary-50 border border-primary-200 rounded-lg p-3 mb-4 flex items-start">
+                  <CheckCircle className="w-5 h-5 text-primary-600 mr-2 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-blue-800">
+                    Booking dates and times have been pre-filled from your search. You can modify them if needed.
                   </p>
-                  <Button
-                    onClick={() => {
-                      const intent = {
-                        vehicleId: id,
-                        startDate: bookingDates.startDate,
-                        startTime: bookingDates.startTime,
-                        endDate: bookingDates.endDate,
-                        endTime: bookingDates.endTime,
-                        pickupLocationId: selectedPickup,
-                      };
-                      sessionStorage.setItem('bookingIntent', JSON.stringify(intent));
-                      navigate(`/auth?redirect=/book/${id}`);
-                    }}
-                    className="bg-primary-500 hover:bg-primary-600 text-white"
-                  >
-                    Login to Continue
-                  </Button>
                 </div>
-              )} */}
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Start Date & Time */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Calendar className="inline w-4 h-4 mr-1" />
+                    Pickup Date & Time
+                  </label>
+                  <div className="space-y-2">
+                    <input
+                      type="date"
+                      value={bookingDates.startDate}
+                      onChange={(e) =>
+                        handleDateChange({ ...bookingDates, startDate: e.target.value }, 'startDate')
+                      }
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                    />
+                    <input
+                      type="time"
+                      value={bookingDates.startTime}
+                      onChange={(e) =>
+                        handleDateChange({ ...bookingDates, startTime: e.target.value }, 'startTime')
+                      }
+                      min={bookingDates.startDate === new Date().toISOString().split('T')[0] ? (() => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; })() : '08:00'}
+                      max="22:00"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* End Date & Time */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Calendar className="inline w-4 h-4 mr-1" />
+                    Return Date & Time
+                  </label>
+                  <div className="space-y-2">
+                    <input
+                      ref={returnDateRef}
+                      type="date"
+                      value={bookingDates.endDate}
+                      onChange={(e) =>
+                        handleDateChange({ ...bookingDates, endDate: e.target.value }, 'endDate')
+                      }
+                      min={bookingDates.startDate || new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                    />
+                    <input
+                      ref={returnTimeRef}
+                      type="time"
+                      value={bookingDates.endTime}
+                      onChange={(e) =>
+                        handleDateChange({ ...bookingDates, endTime: e.target.value }, 'endTime')
+                      }
+                      min={(() => {
+                        const today = new Date().toISOString().split('T')[0];
+                        const getMinForToday = () => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; };
+                        if (bookingDates.startDate === bookingDates.endDate && bookingDates.startTime) {
+                          if (bookingDates.endDate === today) {
+                            const minForToday = getMinForToday();
+                            return bookingDates.startTime > minForToday ? bookingDates.startTime : minForToday;
+                          }
+                          return bookingDates.startTime;
+                        }
+                        if (bookingDates.endDate === today) return getMinForToday();
+                        return '08:00';
+                      })()}
+                      max="22:00"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Duration Display */}
+              {totalHours > 0 && (
+                <div className="mt-4 p-3 bg-primary-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    Total Duration: <strong>{totalHours} hours</strong>
+                    {vehicleData.minBookingHours && totalHours < vehicleData.minBookingHours && (
+                      <span className="text-red-600 ml-2">
+                        (Minimum {vehicleData.minBookingHours}h required)
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
             </div>
+
+            {/* Booking Summary - Price Calculator */}
+            <PriceCalculator
+              basePrice={vehicleData.pricePerHour}
+              hours={totalHours}
+              vehicleName={vehicleData.name}
+              onProceedToPayment={handleBooking}
+              isLoading={bookingLoading}
+              isLoggedIn={!!user}
+              minBookingHours={vehicleData.minBookingHours}
+              includeSecondHelmet={includeSecondHelmet}
+              onSecondHelmetChange={setIncludeSecondHelmet}
+              cityId={vehicleData.cityId}
+              userId={user?.id}
+              packagePrice={activePackagePrice}
+              packageLabel={activePackageLabel}
+            />
           </div>
         </div>
       </div>
@@ -475,6 +483,25 @@ export default function BookNow() {
           onFailure={handlePaymentFailure}
         />
       )}
+
+      {/* Pickup Location Modal */}
+      <PickupLocationModal
+        isOpen={showPickupModal}
+        onClose={() => setShowPickupModal(false)}
+        cityId={vehicleData?.cityId ?? parseInt(cityIdParam || '0') ?? selectedCity?.id ?? 1}
+        cityName={selectedCity?.name ?? 'City'}
+        onContinue={handlePickupLocationChange}
+      />
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => {
+          setShowLoginModal(false);
+          setPendingBookingAmount(null);
+        }}
+        onSuccess={handleLoginSuccess}
+      />
     </div>
   );
 }

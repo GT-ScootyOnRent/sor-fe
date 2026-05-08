@@ -3,6 +3,7 @@ export interface VehicleDto {
   name: string;
   make: string;
   model: string;
+  registrationNumber?: string;
   cityId: number;
   hourlyRate: number;
   minBookingHours: number;

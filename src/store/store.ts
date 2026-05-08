@@ -24,6 +24,7 @@ import { stateApi } from './api/stateApi';
 import { partnerInquiryApi } from './api/partnerInquiryApi';
 import { contactApi } from './api/contactApi';
 import { heroBannerApi } from './api/heroBannerApi';
+import { bookingCustomerDetailsApi } from './api/bookingCustomerDetailsApi';
 
 export const store = configureStore({
   reducer: {
@@ -50,6 +51,7 @@ export const store = configureStore({
     [partnerInquiryApi.reducerPath]: partnerInquiryApi.reducer,
     [contactApi.reducerPath]: contactApi.reducer,
     [heroBannerApi.reducerPath]: heroBannerApi.reducer,
+    [bookingCustomerDetailsApi.reducerPath]: bookingCustomerDetailsApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -70,7 +72,8 @@ export const store = configureStore({
       stateApi.middleware,
       partnerInquiryApi.middleware,
       contactApi.middleware,
-      heroBannerApi.middleware
+      heroBannerApi.middleware,
+      bookingCustomerDetailsApi.middleware
     ),
 });
 
