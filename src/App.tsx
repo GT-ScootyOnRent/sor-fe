@@ -13,27 +13,26 @@ const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(false);
 
   useEffect(() => {
-    const alreadySeen = sessionStorage.getItem(SESSION_KEY);
-    const pathname = window.location.pathname;
-    const skipSplashPaths = new Set(["/terms", "/privacy-policy"]);
+  const pathname = window.location.pathname;
 
-    if (skipSplashPaths.has(pathname)) {
-      // Don't show splash on legal pages (often opened in a new tab).
+  // Show splash ONLY on homepage
+  if (pathname !== "/") {
+    return;
+  }
+
+  const alreadySeen = sessionStorage.getItem(SESSION_KEY);
+
+  if (!alreadySeen) {
+    setShowSplash(true);
+
+    const timer = setTimeout(() => {
+      setShowSplash(false);
       sessionStorage.setItem(SESSION_KEY, "true");
-      return;
-    }
+    }, 3000);
 
-    if (!alreadySeen) {
-      setShowSplash(true);
-
-      const timer = setTimeout(() => {
-        setShowSplash(false);
-        sessionStorage.setItem(SESSION_KEY, "true");
-      }, 3000);
-
-      return () => clearTimeout(timer);
-    }
-  }, []);
+    return () => clearTimeout(timer);
+  }
+}, []);
 
   return (
     <Provider store={store}>

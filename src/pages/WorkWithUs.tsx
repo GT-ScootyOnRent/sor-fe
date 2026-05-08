@@ -46,7 +46,6 @@ type FormState = {
   investmentAmount: InvestmentAmount | '';
   ownsVehicles: boolean;
   vehicleCount: string;
-  agreePrivacy: boolean;
   agreeTerms: boolean;
 };
 
@@ -60,7 +59,6 @@ const initialState: FormState = {
   investmentAmount: '',
   ownsVehicles: false,
   vehicleCount: '',
-  agreePrivacy: false,
   agreeTerms: false,
 };
 
@@ -101,9 +99,10 @@ export default function WorkWithUs() {
       else if (!Number.isFinite(count) || count <= 0) next.vehicleCount = 'Enter a positive number';
     }
 
-    if (!form.agreePrivacy) next.agreePrivacy = 'You must agree to the Privacy Policy';
-    if (!form.agreeTerms) next.agreeTerms = 'You must agree to the Terms & Conditions';
-
+   if (!form.agreeTerms) {
+  next.agreeTerms =
+    'You must agree to the Terms & Conditions and Privacy Policy';
+}
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -492,102 +491,135 @@ export default function WorkWithUs() {
                 </div>
 
                 {/* Vehicle Ownership */}
-                <div className="pt-2">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.ownsVehicles}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
+<div className="pt-2">
+  <div className="rounded-2xl border border-gray-200 bg-gray-50/80 px-4 sm:px-5 py-4 transition-all duration-200 focus-within:border-primary-400">
 
-                        setForm((prev) => ({
-                          ...prev,
-                          ownsVehicles: checked,
-                          vehicleCount: checked
-                            ? prev.vehicleCount
-                            : '',
-                        }));
-                      }}
-                      className="w-4 h-4 accent-primary-500"
-                    />
+    <label className="flex items-start gap-3 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={form.ownsVehicles}
+        onChange={(e) => {
+          const checked = e.target.checked;
 
-                    <span className="text-gray-700">
-                      Do you own vehicles?
-                    </span>
-                  </label>
+          setForm((prev) => ({
+            ...prev,
+            ownsVehicles: checked,
+            vehicleCount: checked ? prev.vehicleCount : '',
+          }));
 
-                  {form.ownsVehicles && (
-                    <div className="mt-5">
-                      <Label className="text-gray-500 text-sm">
-                        Number of Vehicles *
-                      </Label>
+          if (errors.vehicleCount) {
+            setErrors((prev) => ({
+              ...prev,
+              vehicleCount: undefined,
+            }));
+          }
+        }}
+        className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 accent-primary-500"
+      />
 
-                      <Input
-                        type="number"
-                        min={1}
-                        value={form.vehicleCount}
-                        onChange={(e) =>
-                          setField(
-                            'vehicleCount',
-                            e.target.value
-                          )
-                        }
-                        className={`mt-3 border-0 border-b rounded-none px-0 py-3 shadow-none focus-visible:ring-0 bg-transparent text-base sm:text-lg ${
-                          errors.vehicleCount
-                            ? 'border-red-400'
-                            : 'border-gray-300 focus:border-primary-500'
-                        }`}
-                      />
+      <div className="flex-1">
+        <span className="text-sm sm:text-[15px] leading-relaxed text-gray-700 font-medium">
+          Do you own vehicles?
+        </span>
 
-                      {errors.vehicleCount && (
-                        <p className="text-xs text-red-600 mt-1">
-                          {errors.vehicleCount}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
+        <p className="mt-1 text-xs sm:text-sm text-gray-500 leading-relaxed">
+          Let us know if you already own scooters or vehicles for partnership operations.
+        </p>
+      </div>
+    </label>
+
+    {form.ownsVehicles && (
+      <div className="mt-5 border-t border-gray-200 pt-5">
+
+        <Label className="text-gray-500 text-sm">
+          Number of Vehicles *
+        </Label>
+
+        <Input
+          type="number"
+          min={1}
+          value={form.vehicleCount}
+          onChange={(e) =>
+            setField('vehicleCount', e.target.value)
+          }
+          className={`mt-3 border-0 border-b rounded-none px-0 py-3 shadow-none focus-visible:ring-0 bg-transparent text-base sm:text-lg ${
+            errors.vehicleCount
+              ? 'border-red-400'
+              : 'border-gray-300 focus:border-primary-500'
+          }`}
+        />
+
+        {errors.vehicleCount && (
+          <p className="text-xs text-red-600 mt-1">
+            {errors.vehicleCount}
+          </p>
+        )}
+      </div>
+    )}
+  </div>
+</div>
 
                 {/* Agreements */}
-                <div className="space-y-4 pt-4 border-t border-gray-100">
+<div className="pt-2">
+  <div
+    className={`rounded-2xl border bg-gray-50/80 px-4 sm:px-5 py-4 transition-all duration-200 ${
+      errors.agreeTerms
+        ? 'border-red-400'
+        : 'border-gray-200 focus-within:border-primary-400'
+    }`}
+  >
+    <label className="flex items-start gap-3 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={form.agreeTerms}
+        onChange={(e) => {
+          const checked = e.target.checked;
 
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.agreePrivacy}
-                      onChange={(e) =>
-                        setField(
-                          'agreePrivacy',
-                          e.target.checked
-                        )
-                      }
-                      className="mt-1 w-4 h-4 accent-primary-500"
-                    />
+          setForm((prev) => ({
+            ...prev,
+            agreeTerms: checked,
+          }));
 
-                    <span className="text-sm text-gray-700 leading-relaxed">
-                      I agree to the Privacy Policy
-                    </span>
-                  </label>
+          if (errors.agreeTerms) {
+            setErrors((prev) => ({
+              ...prev,
+              agreeTerms: undefined,
+            }));
+          }
+        }}
+        className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 accent-primary-500"
+      />
 
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.agreeTerms}
-                      onChange={(e) =>
-                        setField(
-                          'agreeTerms',
-                          e.target.checked
-                        )
-                      }
-                      className="mt-1 w-4 h-4 accent-primary-500"
-                    />
+      <span className="text-sm sm:text-[15px] leading-relaxed text-gray-700">
+        I agree to the{' '}
+        <a
+          href="/terms"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-primary-600 underline underline-offset-2 transition hover:text-primary-700"
+        >
+          Terms & Conditions
+        </a>{' '}
+        and{' '}
+        <a
+          href="/privacy-policy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-primary-600 underline underline-offset-2 transition hover:text-primary-700"
+        >
+          Privacy Policy
+        </a>
+        .
+      </span>
+    </label>
+  </div>
 
-                    <span className="text-sm text-gray-700 leading-relaxed">
-                      I agree to the Terms & Conditions
-                    </span>
-                  </label>
-
-                </div>
+  {errors.agreeTerms && (
+    <p className="mt-2 px-1 text-xs text-red-600">
+      {errors.agreeTerms}
+    </p>
+  )}
+</div>
 
                 {/* Submit */}
                 <div className="pt-4">
