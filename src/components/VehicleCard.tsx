@@ -105,7 +105,7 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
         if (!startDate) {
           const today = new Date();
           startDate = today.toISOString().split('T')[0];
-          
+
           // Use current time + 1 hour buffer for pickup time
           const pickupTime = new Date(today.getTime() + 60 * 60 * 1000); // Add 1 hour
           const hours = pickupTime.getHours().toString().padStart(2, '0');
@@ -117,12 +117,12 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
         const start = new Date(startDate);
         start.setDate(start.getDate() + selectedPkg.days);
         endDate = start.toISOString().split('T')[0];
-        
+
         // If no end time, use default return time 10:00 PM
         if (!endTime) {
           endTime = '22:00';
         }
-        
+
         // If no start time set, use default 8:00 AM
         if (!startTime) {
           startTime = '08:00';

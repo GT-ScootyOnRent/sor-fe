@@ -149,7 +149,7 @@ export default function DateTimePicker() {
   // Calculate min return time when same day or when return date is today
   const getMinReturnTime = () => {
     const today = getTodayDate();
-    
+
     if (pickupDate && returnDate && pickupDate === returnDate && pickupTime) {
       // Return time must be after pickup time on same day
       // Also consider if it's today, use the greater of pickup time or current time + 1hr
@@ -159,12 +159,12 @@ export default function DateTimePicker() {
       }
       return pickupTime;
     }
-    
+
     // If return date is today (but pickup was earlier), enforce current time + 1hr
     if (returnDate === today) {
       return getMinTimeForToday();
     }
-    
+
     return MIN_TIME;
   };
 

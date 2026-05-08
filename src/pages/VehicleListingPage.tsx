@@ -140,6 +140,13 @@ const VehicleListingPage: React.FC = () => {
 
     // Sort
     result = [...result].sort((a, b) => {
+      // Always put unavailable vehicles (booked) at the end
+      const aUnavailable = a.isAvailable === false;
+      const bUnavailable = b.isAvailable === false;
+      if (aUnavailable && !bUnavailable) return 1;
+      if (!aUnavailable && bUnavailable) return -1;
+
+      // Then apply user-selected sort
       switch (sortBy) {
         case 'price_asc': return a.pricePerHour - b.pricePerHour;
         case 'price_desc': return b.pricePerHour - a.pricePerHour;
