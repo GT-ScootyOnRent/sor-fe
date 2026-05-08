@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { Phone, Lock, ArrowRight, AlertCircle, Loader2, User, Mail, CheckCircle } from 'lucide-react';
+import { Phone, ArrowRight, AlertCircle, Loader2, User, Mail, CheckCircle } from 'lucide-react';
 import { useSendOtpMutation, useVerifyOtpMutation, useSendEmailOtpMutation, useVerifyEmailOtpMutation, useUpdateProfileMutation } from '../store/api/authApi';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
