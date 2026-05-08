@@ -19,6 +19,8 @@ interface PriceCalculatorProps {
   onSecondHelmetChange?: (value: boolean) => void;
   cityId?: number;
   userId?: number;
+  packagePrice?: number | null; // Fixed package price (overrides hourly calculation)
+  packageLabel?: string | null; // Package label (e.g., "3 Days")
 }
 
 export default function PriceCalculator({
@@ -33,6 +35,8 @@ export default function PriceCalculator({
   onSecondHelmetChange,
   cityId,
   userId,
+  packagePrice = null,
+  packageLabel = null,
 }: PriceCalculatorProps) {
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [appliedPromo, setAppliedPromo] = useState<PromoCodeDto | null>(null);
@@ -41,8 +45,9 @@ export default function PriceCalculator({
 
   const [validatePromo, { isLoading: validatingPromo }] = useValidatePromoCodeMutation();
 
-  // Calculate subtotal first (needed for promo validation)
-  const subtotal = basePrice * hours;
+  // Calculate subtotal: use package price if available, otherwise hourly rate
+  const subtotal = packagePrice !== null ? packagePrice : basePrice * hours;
+  const isPackagePricing = packagePrice !== null;
   const helmetCharge = includeSecondHelmet ? SECOND_HELMET_PRICE : 0;
   const helmetDiscount = includeSecondHelmet ? SECOND_HELMET_PRICE : 0; // Free promo!
   const subtotalAfterHelmet = subtotal + helmetCharge - helmetDiscount; // Helmet cancels out
@@ -168,22 +173,46 @@ export default function PriceCalculator({
 
       {/* Hourly Rate Info */}
       <div className="mb-6 p-4 bg-primary-50 rounded-lg">
-        <div className="flex items-baseline justify-between">
-          <span className="text-sm text-gray-600">Hourly Rate</span>
-          <span className="text-2xl font-bold text-primary-600">₹{basePrice}</span>
-        </div>
-        {minBookingHours > 0 && (
-          <p className="text-xs text-gray-500 mt-1">
-            Minimum {minBookingHours} hours booking required
-          </p>
+        {isPackagePricing ? (
+          <>
+            <div className="flex items-center gap-2 mb-2">
+              <Gift className="w-4 h-4 text-primary-600" />
+              <span className="text-sm font-semibold text-primary-700">Package Deal</span>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm text-gray-600">{packageLabel}</span>
+              <span className="text-2xl font-bold text-primary-600">₹{packagePrice}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm text-gray-600">Hourly Rate</span>
+              <span className="text-2xl font-bold text-primary-600">₹{basePrice}</span>
+            </div>
+            {minBookingHours > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                Minimum {minBookingHours} hours booking required
+              </p>
+            )}
+          </>
         )}
       </div>
 
       {/* Price Breakdown */}
       <div className="space-y-3 mb-6">
         <div className="flex justify-between">
-          <span className="text-gray-600">Rate × {hours} hours</span>
-          <span className="text-black">₹{subtotal.toFixed(2)}</span>
+          {isPackagePricing ? (
+            <>
+              <span className="text-gray-600">{packageLabel} Package</span>
+              <span className="text-black">₹{subtotal.toFixed(2)}</span>
+            </>
+          ) : (
+            <>
+              <span className="text-gray-600">Rate × {hours} hours</span>
+              <span className="text-black">₹{subtotal.toFixed(2)}</span>
+            </>
+          )}
         </div>
 
         {/* 2nd Helmet charges - show when selected */}

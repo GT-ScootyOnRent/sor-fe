@@ -1,12 +1,22 @@
 
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Fuel, Gauge, Package } from 'lucide-react';
+import { Fuel, Gauge, Check } from 'lucide-react';
 import { Button } from './ui/button';
 import type { VehicleWithImagesDto } from '../store/api/vehicleApi';
 
 interface VehicleCardProps {
   vehicle: VehicleWithImagesDto;
+}
+
+interface PackageOption {
+  label: string;
+  price: number;
+  days: number;
+  color: string;
+  hoverColor: string;
+  tag?: string;
+  tagColor?: string;
 }
 
 function formatNextAvailableFrom(value: string): string {
@@ -33,24 +43,52 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
   const [searchParams] = useSearchParams();
 
   const [isFlipped, setIsFlipped] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<number | null>(null);
 
-const packageList = vehicle.packages
-  ? [
-      { label: '4 Hours', price: vehicle.packages.fourHours },
-      { label: '1 Day', price: vehicle.packages.oneDay },
-      { label: '3 Days', price: vehicle.packages.threeDays },
-      { label: '7 Days', price: vehicle.packages.sevenDays },
-      { label: '15 Days', price: vehicle.packages.fifteenDays },
-      { label: 'Monthly', price: vehicle.packages.monthly },
+  // Build package options for 2x2 grid (3 days, 7 days, 15 days, 1 month)
+  const packageOptions: PackageOption[] = vehicle.packages
+    ? [
+      {
+        label: '3 Days',
+        price: vehicle.packages.threeDays,
+        days: 3,
+        color: 'from-blue-50 to-indigo-100',
+        hoverColor: 'hover:from-blue-100 hover:to-indigo-200',
+      },
+      {
+        label: '7 Days',
+        price: vehicle.packages.sevenDays,
+        days: 7,
+        color: 'from-green-50 to-emerald-100',
+        hoverColor: 'hover:from-green-100 hover:to-emerald-200',
+        tag: 'POPULAR',
+        tagColor: 'bg-green-500',
+      },
+      {
+        label: '15 Days',
+        price: vehicle.packages.fifteenDays,
+        days: 15,
+        color: 'from-purple-50 to-violet-100',
+        hoverColor: 'hover:from-purple-100 hover:to-violet-200',
+      },
+      {
+        label: '1 Month',
+        price: vehicle.packages.monthly,
+        days: 30,
+        color: 'from-amber-50 to-orange-100',
+        hoverColor: 'hover:from-amber-100 hover:to-orange-200',
+        tag: 'BEST VALUE',
+        tagColor: 'bg-orange-500',
+      },
     ].filter((item) => item.price > 0)
-  : [];
+    : [];
 
-const hasPackages = packageList.length > 0;
+  const hasPackages = packageOptions.length > 0;
 
   const handleBookNow = () => {
     const startDate = searchParams.get('startDate');
     const startTime = searchParams.get('startTime');
-    const endDate = searchParams.get('endDate');
+    let endDate = searchParams.get('endDate');
     const endTime = searchParams.get('endTime');
 
     const cityIdValue = vehicle.cityId ?? 1;
@@ -58,6 +96,20 @@ const hasPackages = packageList.length > 0;
     const params = new URLSearchParams({
       cityId: cityIdValue.toString(),
     });
+
+    // If a package is selected, calculate end date and pass package info
+    if (selectedPackage !== null && startDate) {
+      const selectedPkg = packageOptions[selectedPackage];
+      if (selectedPkg) {
+        const start = new Date(startDate);
+        start.setDate(start.getDate() + selectedPkg.days);
+        // Format as YYYY-MM-DD
+        endDate = start.toISOString().split('T')[0];
+        // Pass package price and label
+        params.append('packagePrice', selectedPkg.price.toString());
+        params.append('packageLabel', selectedPkg.label);
+      }
+    }
 
     if (startDate && startTime && endDate && endTime) {
       params.append('startDate', startDate);
@@ -85,66 +137,82 @@ const hasPackages = packageList.length > 0;
     : undefined;
 
   return (
-    <div className="perspective-[1200px] w-full">
-      <div
-        className={`relative h-[560px] md:h-[600px] w-full transition-transform duration-500 [transform-style:preserve-3d] ${
-          isFlipped ? 'rotate-y-180' : ''
-        }`}
-      >
-        {/* FRONT SIDE */}
-        <div className="absolute inset-0 bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl [backface-visibility:hidden]">
-          {/* IMAGE */}
-          <div className="relative h-56 md:h-64 bg-gray-100">
-            <img
-              src={imageUrl}
-              alt={vehicle.name}
-              className="w-full h-full object-cover"
-              crossOrigin="anonymous"
-              loading="lazy"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
+    <div className="w-full bg-white rounded-2xl border border-gray-200 overflow-visible hover:shadow-xl transition-shadow">
+      {/* IMAGE - Fixed, doesn't flip */}
+      <div className="relative h-56 md:h-64 bg-gray-100">
+        <img
+          src={imageUrl}
+          alt={vehicle.name}
+          className="w-full h-full object-cover rounded-t-2xl"
+          crossOrigin="anonymous"
+          loading="lazy"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (!target.src.includes('placeholder')) {
+              target.src = 'https://via.placeholder.com/400x300?text=Vehicle+Image';
+            }
+          }}
+        />
 
-                if (!target.src.includes('placeholder')) {
-                  target.src =
-                    'https://via.placeholder.com/400x300?text=Vehicle+Image';
-                }
-              }}
-            />
-
-            {showAvailabilityBadge && (
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-white/85 text-gray-900 text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate">
-                {availableFromLabel}
-              </div>
-            )}
-
-            {!isAvailable && !showAvailabilityBadge && (
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-black/60 text-white text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate">
-                Unavailable
-              </div>
-            )}
+        {showAvailabilityBadge && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-white/85 text-gray-900 text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate">
+            {availableFromLabel}
           </div>
+        )}
 
-          {/* PACKAGE BUTTON DIVIDER */}
-          {hasPackages && (
-            <div className="px-5 pt-4">
-              <button
-                type="button"
-                onClick={() => setIsFlipped(true)}
-                className="w-full flex items-center gap-3 group"
-              >
-                <div className="flex-1 h-px bg-gray-300 group-hover:bg-primary-500 transition-colors" />
+        {!isAvailable && !showAvailabilityBadge && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-black/60 text-white text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate">
+            Unavailable
+          </div>
+        )}
 
-                <span className="px-4 py-1.5 rounded-full border border-primary-500 text-primary-600 text-sm font-semibold hover:bg-primary-50 transition">
-                  Package
-                </span>
-
-                <div className="flex-1 h-px bg-gray-300 group-hover:bg-primary-500 transition-colors" />
-              </button>
+        {/* PACKAGE/BACK TOGGLE BUTTON - Hexagon with Border Glow */}
+        {hasPackages && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsFlipped(!isFlipped);
+              if (isFlipped) setSelectedPackage(null);
+            }}
+            className="absolute -bottom-[18px] left-0 right-0 z-10 flex items-center justify-center group"
+          >
+            <div className="h-px flex-1 bg-gray-400 mr-[-1px]" />
+            <div className="relative w-[120px] h-[36px] hover:drop-shadow-[0_0_8px_rgba(58,111,155,0.6)] transition-all duration-300">
+              <svg viewBox="0 0 120 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                <path
+                  d="M12 1 L108 1 L119 18 L108 35 L12 35 L1 18 Z"
+                  fill="white"
+                  stroke="black"
+                  strokeWidth="1"
+                  className="group-hover:stroke-primary-500 group-hover:stroke-2 transition-all duration-300"
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-gray-700 text-sm font-medium group-hover:text-primary-600 transition-colors duration-300">
+                {isFlipped ? 'Back' : 'Package'}
+              </span>
             </div>
-          )}
+            <div className="h-px flex-1 bg-gray-400 ml-[-1px]" />
+          </button>
+        )}
+      </div>
 
-          {/* DETAILS */}
-          <div className="p-5 md:p-6">
+      {/* FLIP CONTAINER - Only bottom part flips */}
+      <div className="relative pt-6" style={{ perspective: '1000px' }}>
+        <div
+          className={`relative transition-transform duration-500`}
+          style={{
+            transformStyle: 'preserve-3d',
+            transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+            minHeight: hasPackages ? '280px' : 'auto',
+          }}
+        >
+          {/* FRONT - Vehicle Details */}
+          <div
+            className="p-5 md:p-6"
+            style={{
+              backfaceVisibility: 'hidden',
+            }}
+          >
             <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">
               {vehicle.name}
             </h3>
@@ -185,55 +253,52 @@ const hasPackages = packageList.length > 0;
               </Button>
             </span>
           </div>
-        </div>
 
-        {/* BACK SIDE */}
-        <div className="absolute inset-0 bg-white rounded-2xl border border-gray-200 overflow-hidden rotate-y-180 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-          <div className="p-5 md:p-6 h-full flex flex-col">
-            {/* HEADER */}
-            <div className="flex items-center gap-2 mb-5">
-              <Package className="w-5 h-5 text-primary-600" />
-              <h3 className="text-xl font-bold text-gray-900">Packages</h3>
+          {/* BACK - Package Options (2x2 Grid) */}
+          <div
+            className="absolute inset-0 p-5 md:p-6 bg-white"
+            style={{
+              backfaceVisibility: 'hidden',
+              transform: 'rotateY(180deg)',
+            }}
+          >
+            <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-3">
+              Select Package
+            </p>
+
+            {/* 2x2 GRID */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {packageOptions.map((pkg, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => setSelectedPackage(index)}
+                  className={`relative bg-gradient-to-br ${pkg.color} ${pkg.hoverColor} border-2 rounded-xl p-3 cursor-pointer text-center transition-all ${selectedPackage === index
+                      ? 'border-primary-500 ring-2 ring-primary-200'
+                      : 'border-transparent'
+                    }`}
+                >
+                  {/* Checkmark */}
+                  {selectedPackage === index && (
+                    <div className="absolute top-1 right-1 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                    </div>
+                  )}
+
+                  {/* Tag Badge */}
+                  {pkg.tag && (
+                    <span
+                      className={`absolute -top-2 -right-2 ${pkg.tagColor} text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm`}
+                    >
+                      {pkg.tag}
+                    </span>
+                  )}
+
+                  <p className="text-lg font-bold text-gray-900">₹{pkg.price}</p>
+                  <p className="text-xs text-gray-600">{pkg.label}</p>
+                </button>
+              ))}
             </div>
-
-            {/* PACKAGE LIST */}
-            <div className="space-y-4 flex-1 overflow-y-auto">
-  {packageList.length > 0 ? (
-    packageList.map((pkg, index) => (
-      <div
-        key={index}
-        className="rounded-2xl border border-gray-200 bg-white px-4 py-4 flex justify-between items-center transition-all hover:shadow-md hover:-translate-y-0.5"
-      >
-        <span className="font-medium text-gray-700">
-          {pkg.label}
-        </span>
-
-        <span className="font-bold text-primary-600">
-          ₹{pkg.price}
-        </span>
-      </div>
-    ))
-  ) : (
-    <div className="text-sm text-gray-500">
-      No packages available
-    </div>
-  )}
-</div>
-
-            {/* DETAILS BUTTON */}
-            <button
-              type="button"
-              onClick={() => setIsFlipped(false)}
-              className="w-full flex items-center gap-3 mt-5 mb-4"
-            >
-              <div className="flex-1 h-px bg-gray-300" />
-
-              <span className="px-4 py-1.5 rounded-full border border-gray-400 text-gray-700 text-sm font-semibold">
-                Details
-              </span>
-
-              <div className="flex-1 h-px bg-gray-300" />
-            </button>
 
             {/* BOOK NOW */}
             <span className="block" title={unavailableTitle}>
