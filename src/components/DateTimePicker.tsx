@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Calendar, Clock, AlertCircle, Search, MapPin } from 'lucide-react';
 import { Button } from './ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -10,24 +10,52 @@ export default function DateTimePicker() {
   const dispatch = useAppDispatch();
   const selectedCity = useAppSelector((state) => state.city.selectedCity);
   const [pickupDate, setPickupDate] = useState('');
-  const [pickupTime, setPickupTime] = useState('10:00'); // Auto-filled
+  const [pickupTime, setPickupTime] = useState(''); // Empty until date selected
   const [returnDate, setReturnDate] = useState('');
-  const [returnTime, setReturnTime] = useState('20:00'); // Auto-filled (8 PM)
+  const [returnTime, setReturnTime] = useState(''); // Empty until date selected
+  const returnDateRef = useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
+  // Operating hours: 08:00 AM to 10:00 PM
+  const MIN_TIME = '08:00';
+  const MAX_TIME = '22:00';
+  const DEFAULT_PICKUP_TIME = '08:00'; // 8 AM
+  const DEFAULT_RETURN_TIME = '22:00'; // 10 PM
+
+  // Helper to validate time is within operating hours
+  const isValidTime = (time: string) => {
+    if (!time) return true; // Empty is handled separately
+    return time >= MIN_TIME && time <= MAX_TIME;
+  };
+
   // Auto-fill times when dates are selected
   useEffect(() => {
-    if (pickupDate && !touched.pickupTime) {
-      setPickupTime('10:00');
+    if (pickupDate && !pickupTime && !touched.pickupTime) {
+      setPickupTime(DEFAULT_PICKUP_TIME);
     }
-  }, [pickupDate, touched.pickupTime]);
+  }, [pickupDate, pickupTime, touched.pickupTime]);
 
   useEffect(() => {
-    if (returnDate && !touched.returnTime) {
-      setReturnTime('20:00');
+    if (returnDate && !returnTime && !touched.returnTime) {
+      setReturnTime(DEFAULT_RETURN_TIME);
     }
-  }, [returnDate, touched.returnTime]);
+  }, [returnDate, returnTime, touched.returnTime]);
+
+  // Auto-adjust return time if same day and return time is before/equal pickup time
+  useEffect(() => {
+    if (pickupDate && returnDate && pickupDate === returnDate && pickupTime && returnTime) {
+      if (returnTime <= pickupTime) {
+        // Set return time to 1 hour after pickup (or max time if that would exceed)
+        const [hours, mins] = pickupTime.split(':').map(Number);
+        const newHours = Math.min(hours + 1, 22); // Cap at 10 PM
+        const newReturnTime = `${String(newHours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        if (newReturnTime <= MAX_TIME) {
+          setReturnTime(newReturnTime);
+        }
+      }
+    }
+  }, [pickupDate, returnDate, pickupTime]);
 
   // Real-time validation
   useEffect(() => {
@@ -39,6 +67,8 @@ export default function DateTimePicker() {
 
     if (touched.pickupTime && !pickupTime) {
       newErrors.pickupTime = 'Pickup time is required';
+    } else if (pickupTime && !isValidTime(pickupTime)) {
+      newErrors.pickupTime = 'Time must be between 8 AM and 10 PM';
     }
 
     if (touched.returnDate && !returnDate) {
@@ -47,15 +77,21 @@ export default function DateTimePicker() {
 
     if (touched.returnTime && !returnTime) {
       newErrors.returnTime = 'Return time is required';
+    } else if (returnTime && !isValidTime(returnTime)) {
+      newErrors.returnTime = 'Time must be between 8 AM and 10 PM';
     }
 
     // Validate return is after pickup
     if (pickupDate && pickupTime && returnDate && returnTime) {
       const pickup = new Date(`${pickupDate}T${pickupTime}`);
       const returnD = new Date(`${returnDate}T${returnTime}`);
-      
+
       if (returnD <= pickup) {
-        newErrors.returnDate = 'Return must be after pickup';
+        if (pickupDate === returnDate) {
+          newErrors.returnTime = 'Return time must be after pickup time';
+        } else {
+          newErrors.returnDate = 'Return must be after pickup';
+        }
       }
     }
 
@@ -69,12 +105,27 @@ export default function DateTimePicker() {
   const handlePickupDateChange = (value: string) => {
     setPickupDate(value);
     setTouched(prev => ({ ...prev, pickupDate: true }));
-    
-    // Auto-update return date to next day if not set
-    if (!returnDate && value) {
-      const sameDay = new Date(value);
-      setReturnDate(sameDay.toISOString().split('T')[0]);
+
+    // Auto-update return date to same day if not set or if it's before pickup
+    if (value) {
+      if (!returnDate || returnDate < value) {
+        setReturnDate(value);
+      }
+      // Auto-focus return date input for seamless flow
+      setTimeout(() => {
+        returnDateRef.current?.showPicker?.();
+        returnDateRef.current?.focus();
+      }, 100);
     }
+  };
+
+  // Calculate min return time when same day
+  const getMinReturnTime = () => {
+    if (pickupDate && returnDate && pickupDate === returnDate && pickupTime) {
+      // Return time must be after pickup time on same day
+      return pickupTime;
+    }
+    return MIN_TIME;
   };
 
   const handleSearch = () => {
@@ -94,7 +145,7 @@ export default function DateTimePicker() {
     // Validate return after pickup
     const pickup = new Date(`${pickupDate}T${pickupTime}`);
     const returnD = new Date(`${returnDate}T${returnTime}`);
-    
+
     if (returnD <= pickup) {
       return;
     }
@@ -106,7 +157,7 @@ export default function DateTimePicker() {
       endDate: returnDate,
       endTime: returnTime,
     });
-    
+
     navigate(`/vehicles?${params.toString()}`);
   };
 
@@ -116,8 +167,7 @@ export default function DateTimePicker() {
   const showErrorBar = !!firstError && Object.values(touched).some(Boolean);
 
   const fieldClass = (hasError: boolean) =>
-    `flex-1 px-5 py-3 transition-colors ${
-      hasError ? 'bg-red-50' : 'hover:bg-gray-50'
+    `flex-1 px-5 py-3 transition-colors ${hasError ? 'bg-red-50' : 'hover:bg-gray-50'
     }`;
 
   const labelClass =
@@ -186,7 +236,10 @@ export default function DateTimePicker() {
                 setTouched((prev) => ({ ...prev, pickupTime: true }));
               }}
               onBlur={() => handleBlur('pickupTime')}
+              min={MIN_TIME}
+              max={MAX_TIME}
               className={inputClass}
+              placeholder="Select time"
             />
           </div>
 
@@ -197,6 +250,7 @@ export default function DateTimePicker() {
               Return Date
             </label>
             <input
+              ref={returnDateRef}
               id="return-date"
               type="date"
               value={returnDate}
@@ -225,7 +279,10 @@ export default function DateTimePicker() {
                 setTouched((prev) => ({ ...prev, returnTime: true }));
               }}
               onBlur={() => handleBlur('returnTime')}
+              min={getMinReturnTime()}
+              max={MAX_TIME}
               className={inputClass}
+              placeholder="Select time"
             />
           </div>
 

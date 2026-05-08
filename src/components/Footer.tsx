@@ -31,6 +31,11 @@ export default function Footer() {
             <h4 className="text-base md:text-lg font-semibold mb-1">Quick Links</h4>
             <ul className="space-y-1 text-gray-400 text-sm md:text-base">
               <li>
+                <Link to="/about-us" className="hover:text-primary-500 transition-colors">
+                  About Us
+                </Link>
+              </li>
+              <li>
                 <Link to="/privacy-policy" className="hover:text-primary-500 transition-colors">
                   Privacy Policy
                 </Link>
@@ -38,11 +43,6 @@ export default function Footer() {
               <li>
                 <Link to="/terms" className="hover:text-primary-500 transition-colors">
                   Terms & Conditions
-                </Link>
-              </li>
-              <li>
-                <Link to="/contact" className="hover:text-primary-500 transition-colors">
-                  Contact Us
                 </Link>
               </li>
             </ul>

@@ -33,14 +33,14 @@ export default function CitySelectorModal() {
     const activeCities = cities.filter((d) => d.isActive);
 
     return (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]">
-            <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl mx-4">
+        <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[100]">
+            <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-hidden shadow-2xl sm:mx-4">
                 {/* Header */}
-                <div className="p-5 border-b border-gray-100">
+                <div className="p-4 sm:p-5 border-b border-gray-100">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h2 className="text-xl font-bold text-gray-900">Select Your City</h2>
-                            <p className="text-sm text-gray-500 mt-1">Choose a city to see available vehicles</p>
+                            <h2 className="text-lg sm:text-xl font-bold text-gray-900">Select Your City</h2>
+                            <p className="text-xs sm:text-sm text-gray-500 mt-1">Choose a city to see available vehicles</p>
                         </div>
                         {/* Only show close button if city already selected (for changing city later) */}
                         {selectedCity && (
@@ -55,7 +55,7 @@ export default function CitySelectorModal() {
                 </div>
 
                 {/* City Grid */}
-                <div className="p-5 overflow-y-auto max-h-[60vh]">
+                <div className="p-4 sm:p-5 overflow-y-auto max-h-[70vh] sm:max-h-[60vh]">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-12">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
@@ -65,17 +65,17 @@ export default function CitySelectorModal() {
                             No cities available
                         </div>
                     ) : (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3">
                             {activeCities.map((city) => (
                                 <button
                                     key={city.id}
                                     onClick={() => handleSelectCity(city)}
                                     disabled={city.isComingSoon}
                                     className={`p-3 rounded-xl border-2 text-center transition-all relative ${city.isComingSoon
-                                            ? 'border-amber-200 bg-amber-50 cursor-not-allowed opacity-80'
-                                            : selectedCity?.id === city.id
-                                                ? 'border-primary-500 bg-primary-50 text-primary-700 hover:scale-105'
-                                                : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50 hover:scale-105'
+                                        ? 'border-amber-200 bg-amber-50 cursor-not-allowed opacity-80'
+                                        : selectedCity?.id === city.id
+                                            ? 'border-primary-500 bg-primary-50 text-primary-700 hover:scale-105'
+                                            : 'border-gray-200 hover:border-primary-300 hover:bg-gray-50 hover:scale-105'
                                         }`}
                                 >
                                     <span className={`text-sm font-medium truncate block ${city.isComingSoon ? 'text-amber-700' : ''

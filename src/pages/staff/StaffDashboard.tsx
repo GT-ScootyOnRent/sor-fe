@@ -23,22 +23,22 @@ const StaffDashboard: React.FC = () => {
 
     return (
         <div>
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900">Welcome, {staff?.username}!</h1>
-                <p className="text-gray-500 mt-1">Here's what's happening in your city today.</p>
+            <div className="mb-6 lg:mb-8">
+                <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Welcome, {staff?.username}!</h1>
+                <p className="text-gray-500 mt-1 text-sm lg:text-base">Here's what's happening in your city today.</p>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
                 {stats.map(({ label, value, icon: Icon, color }) => (
-                    <div key={label} className="bg-white rounded-xl shadow-md p-6">
-                        <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-lg ${color} flex items-center justify-center`}>
-                                <Icon className="w-6 h-6" />
+                    <div key={label} className="bg-white rounded-xl shadow-md p-4 lg:p-6">
+                        <div className="flex items-center gap-3 lg:gap-4">
+                            <div className={`w-10 h-10 lg:w-12 lg:h-12 rounded-lg ${color} flex items-center justify-center`}>
+                                <Icon className="w-5 h-5 lg:w-6 lg:h-6" />
                             </div>
                             <div>
-                                <p className="text-2xl font-bold text-gray-900">{value}</p>
-                                <p className="text-sm text-gray-500">{label}</p>
+                                <p className="text-xl lg:text-2xl font-bold text-gray-900">{value}</p>
+                                <p className="text-xs lg:text-sm text-gray-500">{label}</p>
                             </div>
                         </div>
                     </div>
@@ -46,8 +46,8 @@ const StaffDashboard: React.FC = () => {
             </div>
 
             {/* Today's Bookings List */}
-            <div className="bg-white rounded-xl shadow-md p-6">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Today's Bookings</h2>
+            <div className="bg-white rounded-xl shadow-md p-4 lg:p-6">
+                <h2 className="text-base lg:text-lg font-bold text-gray-900 mb-4">Today's Bookings</h2>
                 {todayBookings.length === 0 ? (
                     <p className="text-gray-500 text-center py-8">No bookings scheduled for today.</p>
                 ) : (

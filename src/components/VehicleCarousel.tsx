@@ -236,63 +236,62 @@ export default function VehicleCarousel({ vehicles }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-primary-50 py-16">
+    <div className="bg-gradient-to-br from-gray-50 to-primary-50 py-10 sm:py-16">
       <div className="max-w-7xl mx-auto px-4">
 
         {/* Title */}
-        <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold text-gray-800 relative inline-block">
+        <div className="text-center mb-8 sm:mb-16">
+          <h2 className="text-2xl sm:text-4xl md:text-5xl font-bold text-gray-800 relative inline-block">
             Our Rental <span className="text-primary-500">Services</span>
-            <span className="absolute left-1/2 -translate-x-1/2 -bottom-3 w-24 h-1.5 bg-primary-500 rounded-full" />
+            <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 sm:-bottom-3 w-16 sm:w-24 h-1 sm:h-1.5 bg-primary-500 rounded-full" />
           </h2>
         </div>
 
         {/* Carousel */}
-        <div className="relative h-[640px] md:h-[700px] mb-8 flex items-center justify-center overflow-hidden">
+        <div className="relative h-[580px] sm:h-[640px] md:h-[700px] mb-6 sm:mb-8 flex items-center justify-center overflow-hidden">
 
           {/* Left */}
           <button
             onClick={goToPrevious}
-            className="absolute left-4 md:left-12 top-1/2 -translate-y-1/2 z-20 w-16 h-16 rounded-full bg-white border-2 border-gray-300 hover:bg-primary-500 hover:text-white hover:border-primary-500 flex items-center justify-center transition-all shadow-lg hover:scale-110"
+            className="absolute left-2 sm:left-4 md:left-12 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full bg-white border-2 border-gray-300 hover:bg-primary-500 hover:text-white hover:border-primary-500 flex items-center justify-center transition-all shadow-lg hover:scale-110"
           >
-            <ChevronLeft className="w-8 h-8" />
+            <ChevronLeft className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8" />
           </button>
 
           {/* Right */}
           <button
             onClick={goToNext}
-            className="absolute right-4 md:right-12 top-1/2 -translate-y-1/2 z-20 w-16 h-16 rounded-full bg-white border-2 border-gray-300 hover:bg-primary-500 hover:text-white hover:border-primary-500 flex items-center justify-center transition-all shadow-lg hover:scale-110"
+            className="absolute right-2 sm:right-4 md:right-12 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full bg-white border-2 border-gray-300 hover:bg-primary-500 hover:text-white hover:border-primary-500 flex items-center justify-center transition-all shadow-lg hover:scale-110"
           >
-            <ChevronRight className="w-8 h-8" />
+            <ChevronRight className="w-5 h-5 sm:w-7 sm:h-7 md:w-8 md:h-8" />
           </button>
 
-          {/* Slides */}
+          {/* Slides - Mobile shows only center, larger screens show 3D effect */}
           <div className="relative h-full w-full flex items-center justify-center" style={{ perspective: '2000px' }}>
             {getVisibleSlides().map((slide) => (
               <div
                 key={`${slide.vehicle.id}-${slide.index}`}
-                className={`absolute transition-all duration-700 ease-in-out cursor-pointer ${
-                  slide.position === 'center'
+                className={`absolute transition-all duration-700 ease-in-out cursor-pointer ${slide.position === 'center'
                     ? 'z-10 scale-100 opacity-100'
                     : slide.position === 'left' || slide.position === 'right'
-                    ? 'z-5 scale-85 opacity-70'
-                    : 'z-0 scale-70 opacity-40'
-                }`}
+                      ? 'z-5 scale-85 opacity-70 hidden sm:block'
+                      : 'z-0 scale-70 opacity-40 hidden lg:block'
+                  }`}
                 style={{
                   transform:
                     slide.position === 'center'
                       ? 'translateX(0)'
                       : slide.position === 'left'
-                      ? 'translateX(-440px) rotateY(25deg)'
-                      : slide.position === 'right'
-                      ? 'translateX(440px) rotateY(-25deg)'
-                      : slide.position === 'far-left'
-                      ? 'translateX(-780px) rotateY(40deg)'
-                      : 'translateX(780px) rotateY(-40deg)',
+                        ? 'translateX(-340px) rotateY(25deg)'
+                        : slide.position === 'right'
+                          ? 'translateX(340px) rotateY(-25deg)'
+                          : slide.position === 'far-left'
+                            ? 'translateX(-640px) rotateY(40deg)'
+                            : 'translateX(640px) rotateY(-40deg)',
                 }}
                 onClick={() => slide.position !== 'center' && goToSlide(slide.index)}
               >
-                <div className="w-[300px] sm:w-[360px] lg:w-[420px]">
+                <div className="w-[280px] sm:w-[320px] lg:w-[380px]">
                   <VehicleCard vehicle={slide.vehicle} />
                 </div>
               </div>
@@ -301,16 +300,20 @@ export default function VehicleCarousel({ vehicles }: Props) {
         </div>
 
         {/* Dots */}
-        <div className="flex justify-center gap-3 mt-12">
+        <div className="flex justify-center gap-2 sm:gap-3 mt-8 sm:mt-12 flex-wrap px-4">
           {vehicles.map((_, index) => (
             <button
               key={index}
               onClick={() => goToSlide(index)}
-              className={`transition-all ${
-                index === currentIndex
-                  ? 'bg-primary-500 w-10 h-3 rounded-full'
-                  : 'bg-gray-300 hover:bg-gray-400 w-3 h-3 rounded-full'
-              }`}
+              className={`transition-all min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center ${index === currentIndex
+                  ? 'bg-primary-500'
+                  : 'bg-gray-300 hover:bg-gray-400'
+                }`}
+              style={{
+                width: index === currentIndex ? '40px' : '12px',
+                height: '12px',
+                borderRadius: '9999px',
+              }}
             />
           ))}
         </div>

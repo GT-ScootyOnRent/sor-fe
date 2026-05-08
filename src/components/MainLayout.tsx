@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import WhatsAppButton from './WhatsAppButton';
 import CitySelectorModal from './CitySelectorModal';
 import Footer from './Footer';
+import HomepageCouponBanner from './HomepageCouponBanner';
 
 /**
  * Main site layout (scootyonrent.com)
@@ -15,6 +16,7 @@ const MainLayout: React.FC = () => {
             <Outlet />
             <Footer />
             <WhatsAppButton />
+            <HomepageCouponBanner />
         </>
     );
 };

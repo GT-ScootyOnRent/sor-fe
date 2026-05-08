@@ -13,6 +13,7 @@ export interface PromoCodeDto {
   usedCount: number;
   isFirstRideOnly: boolean;
   isActive: boolean;
+  showOnHomepage: boolean;
   validFrom: string;
   validUntil?: string;
   cityId?: number | null; // null = global (superadmin), number = city-specific
@@ -92,6 +93,19 @@ export const promoCodeApi = createApi({
         body: dto,
       }),
     }),
+    getHomepagePromoCode: builder.query<PromoCodeDto | null, void>({
+      query: () => '/PromoCodes/homepage',
+      // Handle 204 No Content response
+      transformResponse: (response: PromoCodeDto | '') => {
+        if (response === '' || response === null || response === undefined) {
+          return null;
+        }
+        return response;
+      },
+    }),
+    getAvailablePromoCodesForCity: builder.query<PromoCodeDto[], number>({
+      query: (cityId) => `/PromoCodes/available/${cityId}`,
+    }),
   }),
 });
 
@@ -103,4 +117,6 @@ export const {
   useDeletePromoCodeMutation,
   useValidatePromoCodeMutation,
   useRecordPromoUsageMutation,
+  useGetHomepagePromoCodeQuery,
+  useGetAvailablePromoCodesForCityQuery,
 } = promoCodeApi;
