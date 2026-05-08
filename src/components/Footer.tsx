@@ -1,17 +1,12 @@
-import { Link , useLocation} from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Facebook, Instagram, Twitter, MapPin } from 'lucide-react';
-import { useAppSelector } from '../store/hooks';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
-  const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
-   const location = useLocation();
+  const location = useLocation();
 
-  // Footer is hidden until the user logs in
-  if (!isAuthenticated) return null;
-  if (location.pathname === '/login') {
-    return null;
-  }
+  // Footer is visible everywhere on the user-facing site EXCEPT the login page.
+  if (location.pathname === '/login') return null;
 
   return (
     <footer className="bg-black text-white w-full">
@@ -95,27 +90,6 @@ export default function Footer() {
 
         <div className="border-t border-gray-800 mt-3 pt-3 text-center text-gray-400 space-y-1">
           <p>&copy; {currentYear} scootyonrent. All rights reserved.</p>
-          <p className="text-xs text-gray-500">
-            This site is protected by reCAPTCHA and the Google{' '}
-            <a
-              href="https://policies.google.com/privacy"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-primary-500 transition-colors"
-            >
-              Privacy Policy
-            </a>{' '}
-            and{' '}
-            <a
-              href="https://policies.google.com/terms"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-primary-500 transition-colors"
-            >
-              Terms of Service
-            </a>{' '}
-            apply.
-          </p>
         </div>
       </div>
     </footer>

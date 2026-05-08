@@ -26,8 +26,8 @@ const HomePage: React.FC = () => {
         <HeroSlideshow />
 
         {/* Search */}
-        <div className="container mx-auto px-4 -mt-6 md:-mt-8 relative z-30 mb-12 md:mb-16">
-          <div className="max-w-6xl mx-auto">
+        <div className="container mx-auto px-4 -mt-6 md:-mt-9 relative z-30 mb-12 md:mb-16">
+          <div className="max-w-7xl mx-auto">
             <DateTimePicker />
           </div>
         </div>

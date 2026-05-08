@@ -124,6 +124,9 @@ export default function Header() {
           </nav>
 
           {/* Desktop Right Side */}
+          {/* All right-side buttons share h-10 + min-w-[120px] so they line up
+              regardless of label length. ContactButton already follows the
+              same shape internally. */}
           <div className="hidden md:flex items-center gap-3">
             <ContactButton />
             {isAuthenticated ? (
@@ -131,7 +134,7 @@ export default function Header() {
                 <Button
                   onClick={() => navigate('/profile')}
                   variant="outline"
-                  className="border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white"
+                  className="h-10 px-4 min-w-[120px] border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white"
                 >
                   <User className="w-4 h-4 mr-2" />
                   Profile
@@ -140,7 +143,7 @@ export default function Header() {
             ) : (
               <Button
                 onClick={() => navigate('/login')}
-                className="bg-primary-500 hover:bg-primary-600 text-white"
+                className="h-10 px-4 min-w-[120px] bg-primary-500 hover:bg-primary-600 text-white"
               >
                 Login
               </Button>

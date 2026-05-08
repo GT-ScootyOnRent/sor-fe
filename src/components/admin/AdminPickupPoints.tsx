@@ -8,6 +8,7 @@ import {
   useDeletePickupLocationMutation,
   type PickupLocationDto,
 } from '../../store/api/pickupLocationApi';
+import { handleNumberInputChange } from '../../utils/numberInput';
 import { useGetCitiesQuery } from '../../store/api/cityApi';
 
 const EMPTY_FORM: Partial<PickupLocationDto> = {
@@ -248,7 +249,10 @@ const AdminPickupPoints: React.FC = () => {
                 <input
                   type="number"
                   value={form.displayOrder ?? 0}
-                  onChange={(e) => setForm({ ...form, displayOrder: Number(e.target.value) })}
+                  onChange={(e) => {
+                    const next = handleNumberInputChange(e);
+                    if (next !== null) setForm({ ...form, displayOrder: next });
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                 />
               </div>
