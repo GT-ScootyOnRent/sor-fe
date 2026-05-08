@@ -105,31 +105,42 @@ const BookingsList: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-4 lg:mb-6">
-                <div className="flex-1 min-w-0 sm:min-w-[200px] sm:max-w-md relative">
-                    <Search className="w-4 h-4 lg:w-5 lg:h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Search by vehicle, customer, phone..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 lg:pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm"
-                    />
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end mb-2">
+                {/* Search */}
+                <div className="flex flex-col flex-1 min-w-0 sm:min-w-[220px] sm:max-w-md">
+                    <label className="text-xs text-gray-500 mb-1">Search</label>
+                    <div className="relative">
+                        <Search className="w-4 h-4 lg:w-5 lg:h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Vehicle, customer, phone..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-9 lg:pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm"
+                        />
+                    </div>
                 </div>
-                <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-3 lg:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm"
-                >
-                    <option value="all">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="active">Active</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                </select>
-                <div className="flex gap-3">
-                    <div className="flex flex-col">
+
+                {/* Status */}
+                <div className="flex flex-col w-full sm:w-auto">
+                    <label className="text-xs text-gray-500 mb-1">Status</label>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="px-3 lg:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm bg-white"
+                    >
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="active">Active</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+
+                {/* Date range — wrapped so From/To stay together */}
+                <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-col flex-1 min-w-[140px]">
                         <label className="text-xs text-gray-500 mb-1">From</label>
                         <input
                             type="date"
@@ -140,7 +151,7 @@ const BookingsList: React.FC = () => {
                             className="px-2 lg:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm"
                         />
                     </div>
-                    <div className="flex flex-col">
+                    <div className="flex flex-col flex-1 min-w-[140px]">
                         <label className="text-xs text-gray-500 mb-1">To</label>
                         <input
                             type="date"
@@ -152,11 +163,11 @@ const BookingsList: React.FC = () => {
                         />
                     </div>
                 </div>
-                <p className="w-full text-xs text-gray-500 mt-1">
-                    Date range is restricted to the last 7 days
-                    ({minYmd} → {todayYmd}).
-                </p>
             </div>
+
+            <p className="text-xs text-gray-500 mb-4 lg:mb-6">
+                Date range is restricted to the last 7 days ({minYmd} → {todayYmd}).
+            </p>
 
             {/* Bookings Table */}
             {isLoading ? (
