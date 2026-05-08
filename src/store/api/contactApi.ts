@@ -8,9 +8,6 @@ export interface ContactDto {
   cityId: number | null;
   name: string;
   phoneNumber: string;
-  email: string | null;
-  address: string | null;
-  isActive: boolean;
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
@@ -20,9 +17,6 @@ export interface CreateContactPayload {
   cityId: number | null;
   name: string;
   phoneNumber: string;
-  email?: string | null;
-  address?: string | null;
-  isActive: boolean;
   isDefault: boolean;
 }
 

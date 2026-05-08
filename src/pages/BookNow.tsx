@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Calendar, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -29,11 +29,28 @@ export default function BookNow() {
   const packagePriceParam = searchParams.get('packagePrice');
   const packageLabelParam = searchParams.get('packageLabel');
 
+  // Refs for auto-focus
+  const returnDateRef = useRef<HTMLInputElement>(null);
+  const returnTimeRef = useRef<HTMLInputElement>(null);
+
+  // Helper to get default pickup time (current time + 1 hour)
+  const getDefaultPickupTime = () => {
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  // Default dates: if no URL params, pre-fill pickup with today + 1 hour buffer
+  const defaultStartDate = startDateParam || new Date().toISOString().split('T')[0];
+  const defaultStartTime = startTimeParam || getDefaultPickupTime();
+  const defaultEndDate = endDateParam || ''; // Let user fill return date
+  const defaultEndTime = endTimeParam || '22:00'; // Default 10:00 PM
+
   const [bookingDates, setBookingDates] = useState({
-    startDate: startDateParam || '',
-    startTime: startTimeParam || '10:00',
-    endDate: endDateParam || '',
-    endTime: endTimeParam || '20:00',
+    startDate: defaultStartDate,
+    startTime: defaultStartTime,
+    endDate: defaultEndDate,
+    endTime: defaultEndTime,
   });
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -42,7 +59,7 @@ export default function BookNow() {
   const [selectedPickup, setSelectedPickup] = useState<string>('');
   const [includeSecondHelmet, setIncludeSecondHelmet] = useState(false);
   const [bookingError, setBookingError] = useState<string>('');
-  
+
   // Package pricing state - reset when user changes dates
   const [activePackagePrice, setActivePackagePrice] = useState<number | null>(
     packagePriceParam ? parseInt(packagePriceParam) : null
@@ -51,8 +68,51 @@ export default function BookNow() {
     packageLabelParam || null
   );
 
+  // Helper to get minimum allowed time (current time + 1 hour buffer)
+  const getMinTimeForToday = () => {
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  const getTodayDate = () => new Date().toISOString().split('T')[0];
+
   // Handler to clear package pricing when user changes dates
-  const handleDateChange = (newDates: typeof bookingDates) => {
+  const handleDateChange = (newDates: typeof bookingDates, fieldChanged?: string) => {
+    const today = getTodayDate();
+    const minTimeToday = getMinTimeForToday();
+
+    // Validate and auto-correct start time if it's today and time is in the past
+    if (newDates.startDate === today && newDates.startTime && newDates.startTime < minTimeToday) {
+      newDates.startTime = minTimeToday;
+    }
+
+    // Validate and auto-correct end time if it's today
+    if (newDates.endDate === today && newDates.endTime) {
+      // If same day as start, end time must be after start time
+      if (newDates.startDate === newDates.endDate && newDates.startTime) {
+        const minEndTime = newDates.startTime > minTimeToday ? newDates.startTime : minTimeToday;
+        if (newDates.endTime < minEndTime) {
+          newDates.endTime = minEndTime;
+        }
+      } else if (newDates.endTime < minTimeToday) {
+        newDates.endTime = minTimeToday;
+      }
+    }
+
+    // Auto-focus: pickup date → return date, pickup time → return time
+    if (fieldChanged === 'startDate' && newDates.startDate) {
+      setTimeout(() => {
+        returnDateRef.current?.showPicker?.();
+        returnDateRef.current?.focus();
+      }, 100);
+    } else if (fieldChanged === 'startTime' && newDates.startTime) {
+      setTimeout(() => {
+        returnTimeRef.current?.showPicker?.();
+        returnTimeRef.current?.focus();
+      }, 100);
+    }
+
     // If dates are different from original URL params, clear package pricing
     if (
       newDates.startDate !== startDateParam ||
@@ -132,18 +192,18 @@ export default function BookNow() {
 
     // Validate fields
     if (!bookingDates.startDate || !bookingDates.startTime || !bookingDates.endDate || !bookingDates.endTime) {
-      setBookingError('Please fill all date and time fields');
+      toast.error('Please fill all date and time fields');
       return;
     }
 
     const duration = calculateTotalHours();
     if (duration < vehicleData.minBookingHours) {
-      setBookingError(`Minimum booking duration is ${vehicleData.minBookingHours} hours`);
+      toast.error(`Minimum booking duration is ${vehicleData.minBookingHours} hours`);
       return;
     }
 
     if (!selectedPickup) {
-      setBookingError('Please select a pickup location');
+      toast.error('Please select a pickup location');
       return;
     }
 
@@ -278,7 +338,7 @@ export default function BookNow() {
                         type="date"
                         value={bookingDates.startDate}
                         onChange={(e) =>
-                          handleDateChange({ ...bookingDates, startDate: e.target.value })
+                          handleDateChange({ ...bookingDates, startDate: e.target.value }, 'startDate')
                         }
                         min={new Date().toISOString().split('T')[0]}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
@@ -287,8 +347,10 @@ export default function BookNow() {
                         type="time"
                         value={bookingDates.startTime}
                         onChange={(e) =>
-                          handleDateChange({ ...bookingDates, startTime: e.target.value })
+                          handleDateChange({ ...bookingDates, startTime: e.target.value }, 'startTime')
                         }
+                        min={bookingDates.startDate === new Date().toISOString().split('T')[0] ? (() => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; })() : '08:00'}
+                        max="22:00"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                       />
                     </div>
@@ -302,20 +364,36 @@ export default function BookNow() {
                     </label>
                     <div className="space-y-2">
                       <input
+                        ref={returnDateRef}
                         type="date"
                         value={bookingDates.endDate}
                         onChange={(e) =>
-                          handleDateChange({ ...bookingDates, endDate: e.target.value })
+                          handleDateChange({ ...bookingDates, endDate: e.target.value }, 'endDate')
                         }
                         min={bookingDates.startDate || new Date().toISOString().split('T')[0]}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                       />
                       <input
+                        ref={returnTimeRef}
                         type="time"
                         value={bookingDates.endTime}
                         onChange={(e) =>
-                          handleDateChange({ ...bookingDates, endTime: e.target.value })
+                          handleDateChange({ ...bookingDates, endTime: e.target.value }, 'endTime')
                         }
+                        min={(() => {
+                          const today = new Date().toISOString().split('T')[0];
+                          const getMinForToday = () => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; };
+                          if (bookingDates.startDate === bookingDates.endDate && bookingDates.startTime) {
+                            if (bookingDates.endDate === today) {
+                              const minForToday = getMinForToday();
+                              return bookingDates.startTime > minForToday ? bookingDates.startTime : minForToday;
+                            }
+                            return bookingDates.startTime;
+                          }
+                          if (bookingDates.endDate === today) return getMinForToday();
+                          return '08:00';
+                        })()}
+                        max="22:00"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                       />
                     </div>

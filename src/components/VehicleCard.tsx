@@ -86,10 +86,10 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
   const hasPackages = packageOptions.length > 0;
 
   const handleBookNow = () => {
-    const startDate = searchParams.get('startDate');
-    const startTime = searchParams.get('startTime');
+    let startDate = searchParams.get('startDate');
+    let startTime = searchParams.get('startTime');
     let endDate = searchParams.get('endDate');
-    const endTime = searchParams.get('endTime');
+    let endTime = searchParams.get('endTime');
 
     const cityIdValue = vehicle.cityId ?? 1;
 
@@ -97,14 +97,37 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
       cityId: cityIdValue.toString(),
     });
 
-    // If a package is selected, calculate end date and pass package info
-    if (selectedPackage !== null && startDate) {
+    // If a package is selected, calculate dates
+    if (selectedPackage !== null) {
       const selectedPkg = packageOptions[selectedPackage];
       if (selectedPkg) {
+        // If no start date from search, use today
+        if (!startDate) {
+          const today = new Date();
+          startDate = today.toISOString().split('T')[0];
+          
+          // Use current time + 1 hour buffer for pickup time
+          const pickupTime = new Date(today.getTime() + 60 * 60 * 1000); // Add 1 hour
+          const hours = pickupTime.getHours().toString().padStart(2, '0');
+          const minutes = pickupTime.getMinutes().toString().padStart(2, '0');
+          startTime = `${hours}:${minutes}`;
+        }
+
+        // Calculate end date based on package days
         const start = new Date(startDate);
         start.setDate(start.getDate() + selectedPkg.days);
-        // Format as YYYY-MM-DD
         endDate = start.toISOString().split('T')[0];
+        
+        // If no end time, use default return time 10:00 PM
+        if (!endTime) {
+          endTime = '22:00';
+        }
+        
+        // If no start time set, use default 8:00 AM
+        if (!startTime) {
+          startTime = '08:00';
+        }
+
         // Pass package price and label
         params.append('packagePrice', selectedPkg.price.toString());
         params.append('packageLabel', selectedPkg.label);
@@ -274,8 +297,8 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
                   type="button"
                   onClick={() => setSelectedPackage(index)}
                   className={`relative bg-gradient-to-br ${pkg.color} ${pkg.hoverColor} border-2 rounded-xl p-3 cursor-pointer text-center transition-all ${selectedPackage === index
-                      ? 'border-primary-500 ring-2 ring-primary-200'
-                      : 'border-transparent'
+                    ? 'border-primary-500 ring-2 ring-primary-200'
+                    : 'border-transparent'
                     }`}
                 >
                   {/* Checkmark */}
