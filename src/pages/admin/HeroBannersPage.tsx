@@ -360,7 +360,6 @@ const SlidePreview: React.FC<SlidePreviewProps> = ({
           mode={lightbox}
           title={title}
           subtitle={subtitle}
-          position={position}
           onClose={() => setLightbox(null)}
         />
       )}
@@ -375,7 +374,6 @@ interface ImageLightboxProps {
   mode: LightboxMode;
   title: string;
   subtitle: string;
-  position: ObjectPosition;
   onClose: () => void;
 }
 
@@ -385,7 +383,6 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
   imageUrl,
   title,
   subtitle,
-  position,
   onClose,
 }) => {
   const [zoomIdx, setZoomIdx] = useState(0);
