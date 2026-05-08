@@ -13,7 +13,8 @@ const HomePage: React.FC = () => {
 
   const { data: vehicles = [], isLoading, error } =
     useGetFeaturedVehiclesQuery(
-      selectedCity ? { cityId: selectedCity.id } : undefined
+      { cityId: selectedCity?.id },
+      { skip: !selectedCity }
     );
 
   return (

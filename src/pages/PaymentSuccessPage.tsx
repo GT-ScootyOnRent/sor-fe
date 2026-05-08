@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Home, Calendar, MapPin, CreditCard } from 'lucide-react';
+import { CheckCircle, Calendar, MapPin, CreditCard, ClipboardList, Car } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import Header from '../components/Header';
 import { useGetBookingByIdQuery } from '../store/api/bookingApi';
@@ -49,16 +49,21 @@ export default function PaymentSuccessPage() {
           <div className="p-6 space-y-4">
             {/* IDs */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-xs text-gray-400 mb-1">Booking ID</p>
-                <p className="font-bold text-gray-900 text-lg">
-                  #{booking?.id || bookingId || '—'}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded-xl p-4">
+              {(booking as any)?.vehicleRegistrationNumber && (
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Car className="w-4 h-4 text-gray-500" />
+                    <p className="text-xs text-gray-400">Vehicle No</p>
+                  </div>
+                  <p className="font-bold text-gray-900 text-lg">
+                    {(booking as any).vehicleRegistrationNumber}
+                  </p>
+                </div>
+              )}
+              <div className={`bg-gray-50 rounded-xl p-4 ${!(booking as any)?.vehicleRegistrationNumber ? 'col-span-2' : ''}`}>
                 <p className="text-xs text-gray-400 mb-1">Transaction ID</p>
                 <p className="font-semibold text-gray-900 text-sm break-all">
-                  {txnId || '—'}
+                  {(booking as any)?.transactionId || txnId || '—'}
                 </p>
               </div>
             </div>
@@ -77,7 +82,7 @@ export default function PaymentSuccessPage() {
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Vehicle</p>
                     <p className="font-bold text-gray-900">
-                      {(booking as any).vehicleName || `Vehicle #${booking.vehicleId}`}
+                      {(booking as any).vehicleName || 'N/A'}
                     </p>
                     <p className="text-sm text-gray-600">
                       {(booking as any).vehicleMake} {(booking as any).vehicleModel}
@@ -131,7 +136,7 @@ export default function PaymentSuccessPage() {
                 <span className="font-semibold text-gray-800">Amount Paid</span>
               </div>
               <span className="text-2xl font-bold text-green-600">
-                ₹{booking?.totalAmount || amount || '—'}
+                ₹{Number(booking?.totalAmount || amount || 0).toFixed(2)}
               </span>
             </div>
 
@@ -156,23 +161,13 @@ export default function PaymentSuccessPage() {
         </div>
 
         {/* Actions */}
-        <div className="grid grid-cols-2 gap-4">
-          <Button
-            onClick={() => navigate('/profile')}
-            className="bg-primary-500 hover:bg-primary-600 text-white py-3 rounded-xl font-semibold"
-          >
-            <Calendar className="w-4 h-4 mr-2" />
-            My Bookings
-          </Button>
-          <Button
-            onClick={() => navigate('/')}
-            variant="outline"
-            className="border-gray-300 py-3 rounded-xl font-semibold"
-          >
-            <Home className="w-4 h-4 mr-2" />
-            Go Home
-          </Button>
-        </div>
+        <Button
+          onClick={() => navigate(`/booking-form/${booking?.id || bookingId}`)}
+          className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-semibold text-lg"
+        >
+          <ClipboardList className="w-5 h-5 mr-2" />
+          Fill the Booking Form
+        </Button>
       </div>
     </div>
   );

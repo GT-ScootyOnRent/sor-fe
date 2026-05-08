@@ -17,6 +17,7 @@ import BookNow from '../pages/BookNow';
 import PaymentSuccessPage from '../pages/PaymentSuccessPage';
 import PaymentFailurePage from '../pages/PaymentFailurePage';
 import Profile from '../pages/ProfilePage';
+import BookingFormPage from '../pages/BookingFormPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import WorkWithUs from '../pages/WorkWithUs';
 
@@ -33,21 +34,23 @@ export const mainRoutes: RouteObject[] = [
             { path: '/privacy-policy', element: <PrivacyPolicy /> },
             { path: '/about-us', element: <AboutUs /> },
             { path: '/work-with-us', element: <WorkWithUs /> },
-            {
-                path: '/book/:id',
-                element: (
-                    <ProtectedRoute allowedRoles={['user']}>
-                        <BookNow />
-                    </ProtectedRoute>
-                ),
-            },
+            { path: '/book/:id', element: <BookNow /> },
             { path: '/booking-success', element: <PaymentSuccessPage /> },
+            { path: '/payment-success', element: <PaymentSuccessPage /> },
             { path: '/payment-failure', element: <PaymentFailurePage /> },
             {
                 path: '/profile',
                 element: (
                     <ProtectedRoute allowedRoles={['user']}>
                         <Profile />
+                    </ProtectedRoute>
+                ),
+            },
+            {
+                path: '/booking-form/:bookingId',
+                element: (
+                    <ProtectedRoute allowedRoles={['user']}>
+                        <BookingFormPage />
                     </ProtectedRoute>
                 ),
             },

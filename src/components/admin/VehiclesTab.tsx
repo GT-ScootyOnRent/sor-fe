@@ -26,7 +26,7 @@ import { FormField } from './FormField';
 
 // ── Vehicle Form Initial State ─────────────────────────────────────────────
 const EMPTY_VEHICLE: Omit<VehicleDto, 'id'> = {
-  name: '', make: '', model: '', cityId: 0,
+  name: '', make: '', model: '', registrationNumber: '', cityId: 0,
   isAvailable: true, featured: false,
   pricePerHour: 0, pricePerDay: 0, minBookingHours: 4,
   kmLimit: 100, excessKmCharge: 5, lateReturnCharge: 80,
@@ -78,6 +78,7 @@ const VehiclesTab: React.FC = () => {
     setEditingVehicle(vehicle);
     setVehicleForm({
       name: vehicle.name, make: vehicle.make, model: vehicle.model,
+      registrationNumber: vehicle.registrationNumber ?? '',
       cityId: vehicle.cityId, isAvailable: vehicle.isAvailable,
       featured: vehicle.featured, pricePerHour: vehicle.pricePerHour,
       pricePerDay: vehicle.pricePerDay, minBookingHours: vehicle.minBookingHours,
@@ -202,10 +203,10 @@ const VehiclesTab: React.FC = () => {
       {vehiclesLoading ? <LoadingSpinner /> : (
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px]">
+            <table className="w-full min-w-[800px]">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Vehicle', 'Make', 'Type', 'Rate/Hr', 'Status', 'Km Travelled', 'Actions'].map((h) => (
+                  {['Vehicle', 'Reg No', 'Make', 'Type', 'Rate/Hr', 'Status', 'Km Travelled', 'Actions'].map((h) => (
                     <th key={h} className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
                   ))}
                 </tr>
@@ -216,6 +217,9 @@ const VehiclesTab: React.FC = () => {
                     <td className="px-4 lg:px-6 py-3 lg:py-4">
                       <p className="font-medium text-gray-900 text-sm lg:text-base">{vehicle.name}</p>
                       <p className="text-xs text-gray-500">{vehicle.model}</p>
+                    </td>
+                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm text-gray-600 font-mono">
+                      {vehicle.registrationNumber || <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm text-gray-600">{vehicle.make}</td>
                     <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm text-gray-600">{vehicle.vehicleType}</td>
@@ -263,7 +267,7 @@ const VehiclesTab: React.FC = () => {
                   </tr>
                 ))}
                 {filteredVehicles.length === 0 && (
-                  <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">No vehicles found</td></tr>
+                  <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500">No vehicles found</td></tr>
                 )}
               </tbody>
             </table>
@@ -314,8 +318,11 @@ const VehiclesTab: React.FC = () => {
                   {/* Basic Info */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Basic Information</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField label="Vehicle Name" value={vehicleForm.name} onChange={(v) => setVehicleForm({ ...vehicleForm, name: v })} required placeholder="e.g. Honda Activa 6G" />
+                      <FormField label="Registration No" value={vehicleForm.registrationNumber ?? ''} onChange={(v) => setVehicleForm({ ...vehicleForm, registrationNumber: v })} placeholder="e.g. MH01AB1234" />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                       <FormField label="Make / Brand" value={vehicleForm.make} onChange={(v) => setVehicleForm({ ...vehicleForm, make: v })} required placeholder="e.g. Honda" />
                       <FormField label="Model" value={vehicleForm.model} onChange={(v) => setVehicleForm({ ...vehicleForm, model: v })} required placeholder="e.g. Activa 6G" />
                     </div>
