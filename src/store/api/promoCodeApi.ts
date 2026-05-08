@@ -15,7 +15,7 @@ export interface PromoCodeDto {
   isActive: boolean;
   showOnHomepage: boolean;
   validFrom: string;
-  validUntil?: string;
+  validUntil?: string | null; // null = no expiry; backend's expected "empty" value
   cityId?: number | null; // null = global (superadmin), number = city-specific
   createdAt: string;
   updatedAt: string;

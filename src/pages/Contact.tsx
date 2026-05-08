@@ -41,12 +41,13 @@ const handleSubmit = async (e: React.FormEvent) => {
 
 
   return (
-  <div className="min-h-screen bg-[#f5fbfb] relative overflow-hidden">
+  <div className="min-h-screen bg-[#f5fbfb] relative">
     <BackgroundSlideshow />
 
     <div className="relative z-10">
       <Header />
 
+      <div className="overflow-x-hidden">
       {/* Hero */}
       <section className="pt-14 sm:pt-16 lg:pt-20 pb-8 sm:pb-10 px-4">
         <div className="max-w-4xl mx-auto text-center">
@@ -333,6 +334,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         </div>
       </section>
+      </div>
     </div>
   </div>
 );

@@ -2,7 +2,6 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
 import {
   User,
-  LogOut,
   MapPin,
   ChevronDown,
   Menu,
@@ -10,7 +9,6 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { logout } from '../store/slices/authSlice';
 import { openCityModal } from '../store/slices/citySlice';
 import ContactButton from './ContactButton';
 
@@ -51,12 +49,6 @@ export default function Header() {
     } else {
       navigate('/');
     }
-    setMobileMenuOpen(false);
-  };
-
-  const handleLogout = () => {
-    dispatch(logout());
-    navigate('/');
     setMobileMenuOpen(false);
   };
 
@@ -144,15 +136,6 @@ export default function Header() {
                   <User className="w-4 h-4 mr-2" />
                   Profile
                 </Button>
-
-                <Button
-                  onClick={handleLogout}
-                  variant="outline"
-                  className="border-red-400 text-red-500 hover:bg-red-500 hover:text-white"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Logout
-                </Button>
               </>
             ) : (
               <Button
@@ -229,15 +212,6 @@ export default function Header() {
                   >
                     <User className="w-4 h-4 mr-2" />
                     Profile
-                  </Button>
-
-                  <Button
-                    onClick={handleLogout}
-                    className="w-full"
-                    variant="outline"
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Logout
                   </Button>
                 </div>
               ) : (
