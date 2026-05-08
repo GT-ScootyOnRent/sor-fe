@@ -4,6 +4,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Fuel, Gauge, Check } from 'lucide-react';
 import { Button } from './ui/button';
 import type { VehicleWithImagesDto } from '../store/api/vehicleApi';
+import { useAppSelector } from '../store/hooks';
+import PickupLocationModal from './PickupLocationModal';
+import LoginModal from './LoginModal';
+import type { PickupLocationDto } from '../store/api/pickupLocationApi';
 
 interface VehicleCardProps {
   vehicle: VehicleWithImagesDto;
@@ -41,9 +45,14 @@ function formatNextAvailableFrom(value: string): string {
 export default function VehicleCard({ vehicle }: VehicleCardProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
+  const selectedCity = useAppSelector((state) => state.city.selectedCity);
 
   const [isFlipped, setIsFlipped] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<number | null>(null);
+  const [showPickupModal, setShowPickupModal] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [pendingLocation, setPendingLocation] = useState<PickupLocationDto | null>(null);
 
   // Build package options for 2x2 grid (3 days, 7 days, 15 days, 1 month)
   const packageOptions: PackageOption[] = vehicle.packages
@@ -85,16 +94,18 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
 
   const hasPackages = packageOptions.length > 0;
 
-  const handleBookNow = () => {
+  // Build URL params for booking
+  const buildBookingParams = (pickupLocationId: number) => {
     let startDate = searchParams.get('startDate');
     let startTime = searchParams.get('startTime');
     let endDate = searchParams.get('endDate');
     let endTime = searchParams.get('endTime');
 
-    const cityIdValue = vehicle.cityId ?? 1;
+    const cityIdValue = vehicle.cityId ?? selectedCity?.id ?? 1;
 
     const params = new URLSearchParams({
       cityId: cityIdValue.toString(),
+      pickupLocationId: pickupLocationId.toString(),
     });
 
     // If a package is selected, calculate dates
@@ -107,7 +118,7 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
           startDate = today.toISOString().split('T')[0];
 
           // Use current time + 1 hour buffer for pickup time
-          const pickupTime = new Date(today.getTime() + 60 * 60 * 1000); // Add 1 hour
+          const pickupTime = new Date(today.getTime() + 60 * 60 * 1000);
           const hours = pickupTime.getHours().toString().padStart(2, '0');
           const minutes = pickupTime.getMinutes().toString().padStart(2, '0');
           startTime = `${hours}:${minutes}`;
@@ -141,7 +152,41 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
       params.append('endTime', endTime);
     }
 
+    return params;
+  };
+
+  // Navigate to booking page
+  const navigateToBooking = (pickupLocationId: number) => {
+    const params = buildBookingParams(pickupLocationId);
     navigate(`/book/${vehicle.id}?${params.toString()}`);
+  };
+
+  // Handle "Book Now" button click - opens pickup location modal
+  const handleBookNow = () => {
+    setShowPickupModal(true);
+  };
+
+  // Handle pickup location selection
+  const handlePickupLocationSelected = (location: PickupLocationDto) => {
+    setShowPickupModal(false);
+
+    if (isAuthenticated) {
+      // User is logged in, go directly to booking
+      navigateToBooking(location.id);
+    } else {
+      // User not logged in, show login modal
+      setPendingLocation(location);
+      setShowLoginModal(true);
+    }
+  };
+
+  // Handle successful login
+  const handleLoginSuccess = () => {
+    setShowLoginModal(false);
+    if (pendingLocation) {
+      navigateToBooking(pendingLocation.id);
+      setPendingLocation(null);
+    }
   };
 
   const imageUrl =
@@ -336,6 +381,25 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
           </div>
         </div>
       </div>
+
+      {/* Pickup Location Modal */}
+      <PickupLocationModal
+        isOpen={showPickupModal}
+        onClose={() => setShowPickupModal(false)}
+        cityId={vehicle.cityId ?? selectedCity?.id ?? 1}
+        cityName={selectedCity?.name ?? 'City'}
+        onContinue={handlePickupLocationSelected}
+      />
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => {
+          setShowLoginModal(false);
+          setPendingLocation(null);
+        }}
+        onSuccess={handleLoginSuccess}
+      />
     </div>
   );
 }
