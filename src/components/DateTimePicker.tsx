@@ -207,14 +207,35 @@ export default function DateTimePicker() {
   const showErrorBar = !!firstError && Object.values(touched).some(Boolean);
 
   const fieldClass = (hasError: boolean) =>
-    `flex-1 px-5 py-3 transition-colors ${hasError ? 'bg-red-50' : 'hover:bg-gray-50'
-    }`;
+  `
+    group
+    flex-1
+    px-5
+    py-4
+    transition-all
+    duration-300
+    ${hasError
+      ? 'bg-red-50'
+      : 'hover:bg-primary-50'
+    }
+  `;
 
   const labelClass =
-    'flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-1';
+  'flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 mb-1.5';
 
   const inputClass =
-    'w-full text-sm font-semibold text-gray-900 bg-transparent focus:outline-none cursor-pointer';
+  `
+    w-full
+    bg-transparent
+    text-sm
+    font-semibold
+    text-gray-900
+    outline-none
+    cursor-pointer
+    transition-colors
+    duration-200
+    focus:outline-none
+  `;
 
   return (
     <div>
@@ -227,27 +248,62 @@ export default function DateTimePicker() {
       )}
 
       {/* Horizontal search bar */}
-      <div className="bg-white/95 backdrop-blur-sm rounded-2xl md:rounded-full shadow-2xl border border-gray-200 overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-stretch divide-y md:divide-y-0 md:divide-x divide-gray-200">
+      <div className="
+    bg-white/95
+    backdrop-blur-xl
+    rounded-3xl
+    md:rounded-full
+    shadow-[0_20px_60px_rgba(0,0,0,0.12)]
+    border
+    border-white/60
+    overflow-hidden
+  ">
+        <div className="flex flex-col md:flex-row md:items-stretch divide-y md:divide-y-0 md:divide-x divide-gray-100">
           {/* Location */}
           <button
             type="button"
             onClick={() => dispatch(openCityModal())}
-            className="flex-1 text-left px-5 py-3 hover:bg-gray-50 transition-colors"
+           className="
+  group
+  flex-1
+  cursor-pointer
+  text-left
+  px-5
+  py-4
+  transition-all
+  duration-300
+  hover:bg-primary-50
+"
           >
             <div className={labelClass}>
-              <MapPin className="w-3.5 h-3.5 text-primary-600" />
+              <MapPin className="
+    w-4
+    h-4
+    text-primary-700
+    drop-shadow-sm
+    group-hover:scale-110
+    transition-transform
+    duration-300
+  "/>
               Location
             </div>
-            <div className="text-sm font-semibold text-gray-900 truncate">
-              {selectedCity?.name || 'Select city'}
-            </div>
+            <div className="text-sm font-semibold text-gray-900 truncate transition-colors group-hover:text-primary-700">
+  {selectedCity?.name || 'Select city'}
+</div>
           </button>
 
           {/* Pickup Date */}
           <div className={fieldClass(!!(errors.pickupDate && touched.pickupDate))}>
             <label htmlFor="pickup-date" className={`${labelClass} cursor-pointer`}>
-              <Calendar className="w-3.5 h-3.5 text-primary-600" />
+              <Calendar  className="
+    w-4
+    h-4
+    text-primary-700
+    drop-shadow-sm
+    group-hover:scale-110
+    transition-transform
+    duration-300
+  " />
               Pickup Date
             </label>
             <input
@@ -264,7 +320,15 @@ export default function DateTimePicker() {
           {/* Pickup Time */}
           <div className={fieldClass(!!(errors.pickupTime && touched.pickupTime))}>
             <label htmlFor="pickup-time" className={`${labelClass} cursor-pointer`}>
-              <Clock className="w-3.5 h-3.5 text-primary-600" />
+              <Clock  className="
+    w-4
+    h-4
+    text-primary-700
+    drop-shadow-sm
+    group-hover:scale-110
+    transition-transform
+    duration-300
+  " />
               Pickup Time
             </label>
             <input
@@ -291,7 +355,15 @@ export default function DateTimePicker() {
           {/* Return Date */}
           <div className={fieldClass(!!(errors.returnDate && touched.returnDate))}>
             <label htmlFor="return-date" className={`${labelClass} cursor-pointer`}>
-              <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+              <Calendar  className="
+    w-4
+    h-4
+    text-primary-700
+    drop-shadow-sm
+    group-hover:scale-110
+    transition-transform
+    duration-300
+  " />
               Return Date
             </label>
             <input
@@ -312,7 +384,15 @@ export default function DateTimePicker() {
           {/* Return Time */}
           <div className={fieldClass(!!(errors.returnTime && touched.returnTime))}>
             <label htmlFor="return-time" className={`${labelClass} cursor-pointer`}>
-              <Clock className="w-3.5 h-3.5 text-indigo-600" />
+              <Clock  className="
+    w-4
+    h-4
+    text-primary-700
+    drop-shadow-sm
+    group-hover:scale-110
+    transition-transform
+    duration-300
+  " />
               Return Time
             </label>
             <input
@@ -338,14 +418,78 @@ export default function DateTimePicker() {
           </div>
 
           {/* CTA Button — fills the right semicircle edge-to-edge on desktop */}
-          <Button
-            onClick={handleSearch}
-            disabled={hasErrors || !pickupDate || !pickupTime || !returnDate || !returnTime}
-            className="w-full md:w-auto md:self-stretch md:!border-l-0 px-6 py-4 md:px-10 md:py-0 md:h-auto rounded-xl md:rounded-l-none md:rounded-r-full bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center"
-          >
-            <Search className="w-5 h-5 mr-2" />
-            Ride Now
-          </Button>
+         <Button
+  onClick={handleSearch}
+  disabled={
+    hasErrors ||
+    !pickupDate ||
+    !pickupTime ||
+    !returnDate ||
+    !returnTime
+  }
+  className="
+    group
+    relative
+    overflow-hidden
+    w-full
+    md:w-auto
+    md:self-stretch
+    md:!border-l-0
+    px-7
+    py-4
+    md:px-10
+    md:py-0
+    md:h-auto
+    rounded-2xl
+    md:rounded-l-none
+    md:rounded-r-full
+    bg-gradient-to-r
+    from-orange-500
+    via-orange-500
+    to-amber-500
+    text-white
+    font-semibold
+    tracking-wide
+    shadow-[0_10px_30px_rgba(249,115,22,0.35)]
+    transition-all
+    duration-300
+    hover:-translate-y-[2px]
+    hover:shadow-[0_18px_40px_rgba(249,115,22,0.45)]
+    hover:from-orange-600
+    hover:to-amber-500
+    active:scale-[0.98]
+    disabled:opacity-50
+    disabled:cursor-not-allowed
+    inline-flex
+    items-center
+    justify-center
+  "
+>
+  {/* Glow Effect */}
+  <div className="absolute inset-0 bg-white/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+  {/* Animated Content */}
+  <span className="relative z-10 flex items-center">
+    <Search className="mr-2 h-5 w-5 transition-transform duration-300 group-hover:scale-110" />
+
+    <span className="mr-2">Ride Now</span>
+
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M13 7l5 5m0 0l-5 5m5-5H6"
+      />
+    </svg>
+  </span>
+</Button>
         </div>
       </div>
     </div>

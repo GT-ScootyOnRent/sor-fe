@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, KeyboardEvent, ClipboardEvent } from 'react';
+import React,  { useRef, useEffect, type KeyboardEvent, type ClipboardEvent } from 'react';
 
 interface OtpInputProps {
     value: string;
@@ -105,28 +105,30 @@ export default function OtpInput({
         <div className="flex justify-center gap-2 sm:gap-3">
             {Array.from({ length }).map((_, index) => (
                 <input
-                    key={index}
-                    ref={(el) => (inputRefs.current[index] = el)}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={value[index] || ''}
-                    onChange={(e) => handleChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    onPaste={handlePaste}
-                    onFocus={handleFocus}
-                    disabled={disabled}
-                    className={`
-            w-10 h-12 sm:w-12 sm:h-14 
-            text-center text-xl sm:text-2xl font-semibold
-            border-2 rounded-lg
-            focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:outline-none
-            disabled:bg-gray-100 disabled:cursor-not-allowed
-            transition-colors
-            ${value[index] ? 'border-primary-500 bg-primary-50' : 'border-gray-300'}
-          `}
-                    aria-label={`Digit ${index + 1}`}
-                />
+  key={index}
+  ref={(el) => {
+    inputRefs.current[index] = el;
+  }}
+  type="text"
+  inputMode="numeric"
+  maxLength={1}
+  value={value[index] || ''}
+  onChange={(e) => handleChange(index, e.target.value)}
+  onKeyDown={(e) => handleKeyDown(index, e)}
+  onPaste={handlePaste}
+  onFocus={handleFocus}
+  disabled={disabled}
+  className={`
+    w-10 h-12 sm:w-12 sm:h-14 
+    text-center text-xl sm:text-2xl font-semibold
+    border-2 rounded-lg
+    focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:outline-none
+    disabled:bg-gray-100 disabled:cursor-not-allowed
+    transition-colors
+    ${value[index] ? 'border-primary-500 bg-primary-50' : 'border-gray-300'}
+  `}
+  aria-label={`Digit ${index + 1}`}
+/>
             ))}
         </div>
     );
