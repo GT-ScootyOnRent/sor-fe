@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   User, Phone, Mail, Calendar, Clock, MapPin,
   Edit2, Save, X, Loader2, Bike, CheckCircle, XCircle,
-  AlertCircle, RefreshCw, ChevronLeft, ChevronRight
+  AlertCircle, RefreshCw, ChevronLeft, ChevronRight, LogOut
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
+import { logout } from '../store/slices/authSlice';
 import { useGetBookingsByUserIdQuery } from '../store/api/bookingApi';
 import { useUpdateUserMutation } from '../store/api/userApi';
 import { toast } from 'sonner';
@@ -86,6 +87,12 @@ export default function ProfilePage() {
   //   toast.success('Logged out successfully');
   //   navigate('/');
   // };
+
+  const handleLogout = () => {
+    dispatch(logout());
+    toast.success('Logged out successfully');
+    navigate('/');
+  };
 
   const handleSaveName = async () => {
     if (!editedName.trim()) { toast.error('Name cannot be empty'); return; }
@@ -206,6 +213,18 @@ export default function ProfilePage() {
                     <p className="text-sm font-medium text-gray-900">{user.email}</p>
                   </div>
                 )}
+              </div>
+
+              {/* Logout (kept inside Profile section; bottom-aligned on mobile) */}
+              <div className="mt-5 pt-4 border-t border-gray-200 flex">
+                <Button
+                  onClick={handleLogout}
+                  variant="outline"
+                  className="w-full border-red-400 text-red-500 hover:bg-red-500 hover:text-white"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </Button>
               </div>
             </div>
 

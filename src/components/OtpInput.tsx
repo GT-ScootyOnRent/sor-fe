@@ -1,4 +1,5 @@
-import React, { useRef, useEffect, KeyboardEvent, ClipboardEvent } from 'react';
+import React, { useRef, useEffect } from 'react';
+import type { KeyboardEvent, ClipboardEvent } from 'react';
 
 interface OtpInputProps {
     value: string;
@@ -106,7 +107,9 @@ export default function OtpInput({
             {Array.from({ length }).map((_, index) => (
                 <input
                     key={index}
-                    ref={(el) => (inputRefs.current[index] = el)}
+                    ref={(el) => {
+                        inputRefs.current[index] = el;
+                    }}
                     type="text"
                     inputMode="numeric"
                     maxLength={1}
