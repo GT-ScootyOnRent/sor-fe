@@ -93,10 +93,10 @@ const BookingsList: React.FC = () => {
 
     return (
         <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-3">Bookings</h1>
+            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-3">Bookings</h1>
 
             {/* 7-day restriction banner */}
-            <div className="flex items-start gap-2 mb-5 px-4 py-3 rounded-lg bg-primary-50 border border-primary-100 text-sm text-primary-700">
+            <div className="flex items-start gap-2 mb-4 lg:mb-5 px-3 lg:px-4 py-2 lg:py-3 rounded-lg bg-primary-50 border border-primary-100 text-xs lg:text-sm text-primary-700">
                 <Info className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>
                     Showing bookings from the last 7 days only. Contact an administrator
@@ -105,21 +105,21 @@ const BookingsList: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex flex-wrap gap-3 mb-6 items-end">
-                <div className="flex-1 min-w-[260px] relative max-w-md">
-                    <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-4 lg:mb-6">
+                <div className="flex-1 min-w-0 sm:min-w-[200px] sm:max-w-md relative">
+                    <Search className="w-4 h-4 lg:w-5 lg:h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                         type="text"
-                        placeholder="Search by vehicle, customer, phone, or booking ID..."
+                        placeholder="Search by vehicle, customer, phone..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                        className="w-full pl-9 lg:pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm"
                     />
                 </div>
                 <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                    className="px-3 lg:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm"
                 >
                     <option value="all">All Status</option>
                     <option value="pending">Pending</option>
@@ -128,27 +128,29 @@ const BookingsList: React.FC = () => {
                     <option value="completed">Completed</option>
                     <option value="cancelled">Cancelled</option>
                 </select>
-                <div className="flex flex-col">
-                    <label className="text-xs text-gray-500 mb-1">From</label>
-                    <input
-                        type="date"
-                        value={startDate}
-                        min={minYmd}
-                        max={endDate || todayYmd}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                    />
-                </div>
-                <div className="flex flex-col">
-                    <label className="text-xs text-gray-500 mb-1">To</label>
-                    <input
-                        type="date"
-                        value={endDate}
-                        min={startDate || minYmd}
-                        max={todayYmd}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                    />
+                <div className="flex gap-3">
+                    <div className="flex flex-col">
+                        <label className="text-xs text-gray-500 mb-1">From</label>
+                        <input
+                            type="date"
+                            value={startDate}
+                            min={minYmd}
+                            max={endDate || todayYmd}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="px-2 lg:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm"
+                        />
+                    </div>
+                    <div className="flex flex-col">
+                        <label className="text-xs text-gray-500 mb-1">To</label>
+                        <input
+                            type="date"
+                            value={endDate}
+                            min={startDate || minYmd}
+                            max={todayYmd}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="px-2 lg:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm"
+                        />
+                    </div>
                 </div>
                 <p className="w-full text-xs text-gray-500 mt-1">
                     Date range is restricted to the last 7 days
@@ -162,86 +164,88 @@ const BookingsList: React.FC = () => {
                     <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
                 </div>
             ) : filteredBookings.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-                    <Calendar className="w-12 h-12 mb-3 text-gray-400" />
-                    <p className="text-lg font-medium">No bookings found</p>
-                    <p className="text-sm">Bookings from your city will appear here.</p>
+                <div className="flex flex-col items-center justify-center py-16 lg:py-20 text-gray-500">
+                    <Calendar className="w-10 h-10 lg:w-12 lg:h-12 mb-3 text-gray-400" />
+                    <p className="text-base lg:text-lg font-medium">No bookings found</p>
+                    <p className="text-xs lg:text-sm">Bookings from your city will appear here.</p>
                 </div>
             ) : (
-                <div className="bg-white rounded-xl shadow-md overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-gray-50 text-gray-600 uppercase text-xs">
-                                <th className="px-5 py-3 text-left">Booking ID</th>
-                                <th className="px-5 py-3 text-left">Vehicle</th>
-                                <th className="px-5 py-3 text-left">Customer</th>
-                                <th className="px-5 py-3 text-left">Dates</th>
-                                <th className="px-5 py-3 text-left">Amount</th>
-                                <th className="px-5 py-3 text-left">Status</th>
-                                <th className="px-5 py-3 text-left">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filteredBookings.map((booking) => (
-                                <tr key={booking.id} className="hover:bg-gray-50 transition">
-                                    <td className="px-5 py-4">
-                                        <div className="flex flex-col gap-1">
-                                            <p className="font-medium text-gray-900">#{booking.id}</p>
-                                            {booking.isOfflineBooking && (
-                                                <span className="inline-flex w-fit rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                                                    Offline Booking
-                                                </span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4">
-                                        <p className="font-medium text-gray-900">{booking.vehicleName || 'N/A'}</p>
-                                        <p className="text-xs text-gray-500">{booking.vehicleNumber}</p>
-                                    </td>
-                                    <td className="px-5 py-4">
-                                        <p className="text-gray-900">{booking.userName || 'Customer'}</p>
-                                        <p className="text-xs text-gray-500">{booking.userPhone}</p>
-                                        {booking.friendFamilyContactNumber && (
-                                            <p className="text-xs text-gray-500 mt-0.5">
-                                                <span className="font-medium text-gray-400">F&amp;F:</span>{' '}
-                                                {booking.friendFamilyContactNumber}
-                                            </p>
-                                        )}
-                                    </td>
-                                    <td className="px-5 py-4 text-gray-600">
-                                        <p>{formatDate(booking.startDate)}</p>
-                                        <p className="text-xs text-gray-400">to {formatDate(booking.endDate)}</p>
-                                    </td>
-                                    <td className="px-5 py-4 font-medium text-gray-900">₹{booking.totalAmount}</td>
-                                    <td className="px-5 py-4">
-                                        <span
-                                            className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${booking.status === 'confirmed'
-                                                ? 'bg-green-100 text-green-700'
-                                                : booking.status === 'pending'
-                                                    ? 'bg-yellow-100 text-yellow-700'
-                                                    : booking.status === 'active'
-                                                        ? 'bg-blue-100 text-blue-700'
-                                                        : booking.status === 'completed'
-                                                            ? 'bg-gray-100 text-gray-700'
-                                                            : 'bg-red-100 text-red-700'
-                                                }`}
-                                        >
-                                            {booking.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-5 py-4">
-                                        <button
-                                            onClick={() => navigate(`/bookings/${booking.id}`)}
-                                            className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
-                                            title="View Details"
-                                        >
-                                            <Eye className="w-4 h-4" />
-                                        </button>
-                                    </td>
+                <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[700px]">
+                            <thead>
+                                <tr className="bg-gray-50 text-gray-600 uppercase text-xs">
+                                    <th className="px-3 lg:px-5 py-3 text-left">Booking ID</th>
+                                    <th className="px-3 lg:px-5 py-3 text-left">Vehicle</th>
+                                    <th className="px-3 lg:px-5 py-3 text-left">Customer</th>
+                                    <th className="px-3 lg:px-5 py-3 text-left">Dates</th>
+                                    <th className="px-3 lg:px-5 py-3 text-left">Amount</th>
+                                    <th className="px-3 lg:px-5 py-3 text-left">Status</th>
+                                    <th className="px-3 lg:px-5 py-3 text-left">Actions</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredBookings.map((booking) => (
+                                    <tr key={booking.id} className="hover:bg-gray-50 transition">
+                                        <td className="px-3 lg:px-5 py-3 lg:py-4">
+                                            <div className="flex flex-col gap-1">
+                                                <p className="font-medium text-gray-900">#{booking.id}</p>
+                                                {booking.isOfflineBooking && (
+                                                    <span className="inline-flex w-fit rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                                                        Offline
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-3 lg:px-5 py-3 lg:py-4">
+                                            <p className="font-medium text-gray-900">{booking.vehicleName || 'N/A'}</p>
+                                            <p className="text-xs text-gray-500">{booking.vehicleNumber}</p>
+                                        </td>
+                                        <td className="px-3 lg:px-5 py-3 lg:py-4">
+                                            <p className="text-gray-900">{booking.userName || 'Customer'}</p>
+                                            <p className="text-xs text-gray-500">{booking.userPhone}</p>
+                                            {booking.friendFamilyContactNumber && (
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    <span className="font-medium text-gray-400">F&amp;F:</span>{' '}
+                                                    {booking.friendFamilyContactNumber}
+                                                </p>
+                                            )}
+                                        </td>
+                                        <td className="px-3 lg:px-5 py-3 lg:py-4 text-gray-600">
+                                            <p>{formatDate(booking.startDate)}</p>
+                                            <p className="text-xs text-gray-400">to {formatDate(booking.endDate)}</p>
+                                        </td>
+                                        <td className="px-3 lg:px-5 py-3 lg:py-4 font-medium text-gray-900">₹{booking.totalAmount}</td>
+                                        <td className="px-3 lg:px-5 py-3 lg:py-4">
+                                            <span
+                                                className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${booking.status === 'confirmed'
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : booking.status === 'pending'
+                                                        ? 'bg-yellow-100 text-yellow-700'
+                                                        : booking.status === 'active'
+                                                            ? 'bg-blue-100 text-blue-700'
+                                                            : booking.status === 'completed'
+                                                                ? 'bg-gray-100 text-gray-700'
+                                                                : 'bg-red-100 text-red-700'
+                                                    }`}
+                                            >
+                                                {booking.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-3 lg:px-5 py-3 lg:py-4">
+                                            <button
+                                                onClick={() => navigate(`/bookings/${booking.id}`)}
+                                                className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
+                                                title="View Details"
+                                            >
+                                                <Eye className="w-4 h-4" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </div>

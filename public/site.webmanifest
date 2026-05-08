@@ -1,0 +1,26 @@
+{
+    "name": "ScootyOnRent",
+    "short_name": "ScootyOnRent",
+    "description": "Rent scooters and bikes in Rajasthan - Easy, affordable, and convenient two-wheeler rentals",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#f97316",
+    "orientation": "portrait-primary",
+    "scope": "/",
+    "icons": [
+        {
+            "src": "/scooty.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": [
+        "travel",
+        "transportation",
+        "lifestyle"
+    ],
+    "lang": "en",
+    "dir": "ltr"
+}

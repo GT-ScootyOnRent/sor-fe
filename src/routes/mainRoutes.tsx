@@ -12,6 +12,7 @@ import Contact from '../pages/Contact';
 import VehicleListingPage from '../pages/VehicleListingPage';
 import TermsAndConditions from '../pages/TermsAndConditions';
 import PrivacyPolicy from '../pages/PrivacyPolicy';
+import AboutUs from '../pages/AboutUs';
 import BookNow from '../pages/BookNow';
 import PaymentSuccessPage from '../pages/PaymentSuccessPage';
 import PaymentFailurePage from '../pages/PaymentFailurePage';
@@ -30,6 +31,7 @@ export const mainRoutes: RouteObject[] = [
             { path: '/vehicles', element: <VehicleListingPage /> },
             { path: '/terms', element: <TermsAndConditions /> },
             { path: '/privacy-policy', element: <PrivacyPolicy /> },
+            { path: '/about-us', element: <AboutUs /> },
             { path: '/work-with-us', element: <WorkWithUs /> },
             {
                 path: '/book/:id',

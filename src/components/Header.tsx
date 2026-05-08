@@ -62,16 +62,14 @@ export default function Header() {
 
   const isActive = (path: string) => location.pathname === path;
   const navLinkClass = (path: string) =>
-    `relative font-medium pb-1 transition-colors ${
-      isActive(path)
-        ? 'text-primary-600 after:absolute after:left-0 after:right-0 after:bottom-0 after:h-[3px] after:rounded-full after:bg-primary-500'
-        : 'text-black hover:text-primary-500'
+    `relative font-medium pb-1 transition-colors ${isActive(path)
+      ? 'text-primary-600 after:absolute after:left-0 after:right-0 after:bottom-0 after:h-[3px] after:rounded-full after:bg-primary-500'
+      : 'text-black hover:text-primary-500'
     }`;
   const mobileNavLinkClass = (path: string) =>
-    `block font-medium pl-3 border-l-4 transition-colors ${
-      isActive(path)
-        ? 'text-primary-600 border-primary-500'
-        : 'text-black border-transparent'
+    `block font-medium pl-3 border-l-4 transition-colors ${isActive(path)
+      ? 'text-primary-600 border-primary-500'
+      : 'text-black border-transparent'
     }`;
 
   return (

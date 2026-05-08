@@ -38,6 +38,7 @@ export default function BookNow() {
   const [createdBookingId, setCreatedBookingId] = useState<number | null>(null);
   const [finalBookingAmount, setFinalBookingAmount] = useState<number>(0);
   const [selectedPickup, setSelectedPickup] = useState<string>('');
+  const [includeSecondHelmet, setIncludeSecondHelmet] = useState(false);
   const [bookingError, setBookingError] = useState<string>('');
 
   const { data: vehicleData, isLoading: vehicleLoading, error: vehicleError } =
@@ -134,6 +135,7 @@ export default function BookNow() {
         startTime: bookingDates.startTime,
         endTime: bookingDates.endTime,
         totalAmount: amountToCharge,
+        includeSecondHelmet,
       };
 
       const result = await createBooking(bookingRequest).unwrap();
@@ -172,7 +174,7 @@ export default function BookNow() {
       <div className="relative z-10">
         <Header />
 
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-4 py-6 sm:py-8">
           <Button
             variant="ghost"
             onClick={() => navigate(-1)}
@@ -182,7 +184,7 @@ export default function BookNow() {
             Back
           </Button>
 
-          <h1 className="text-4xl text-black mb-8">Complete Your Booking</h1>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-6 sm:mb-8">Complete Your Booking</h1>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Column - Map and Booking Details */}
@@ -321,6 +323,10 @@ export default function BookNow() {
                 isLoading={bookingLoading}
                 isLoggedIn={!!user}
                 minBookingHours={vehicleData.minBookingHours}
+                includeSecondHelmet={includeSecondHelmet}
+                onSecondHelmetChange={setIncludeSecondHelmet}
+                cityId={vehicleData.cityId}
+                userId={user?.id}
               />
 
               {/* Login notice shown below PriceCalculator when not logged in */}
