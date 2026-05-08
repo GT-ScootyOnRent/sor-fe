@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Plus,
   Pencil,
@@ -17,6 +17,8 @@ import {
   ZoomIn,
   ZoomOut,
   RefreshCw,
+  Move,
+  RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -27,17 +29,23 @@ import {
   useDeleteHeroBannerMutation,
   type HeroBanner,
 } from '../../store/api/heroBannerApi';
+import { generateCroppedImage } from '../../utils/cropImage';
 
-// ── Form state ──────────────────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type ObjectPosition = { x: number; y: number }; // 0–100 percentages
 
 type FormState = {
   file: File | null;
   displayOrder: number;
-  durationSec: number; // Seconds in the UI; converted to ms on submit
+  durationSec: number;
   title: string;
   subtitle: string;
   isActive: boolean;
+  objectPosition: ObjectPosition;
 };
+
+const DEFAULT_POSITION: ObjectPosition = { x: 50, y: 50 };
 
 const EMPTY_FORM: FormState = {
   file: null,
@@ -46,86 +54,351 @@ const EMPTY_FORM: FormState = {
   title: '',
   subtitle: '',
   isActive: true,
+  objectPosition: DEFAULT_POSITION,
 };
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
-// ── Slide preview (mirrors HeroSlideshow rendering) ─────────────────────────
+// ── CropPositioner ────────────────────────────────────────────────────────────
+// The interactive 3:1 crop canvas. Drag the image to reposition it.
+
+interface CropPositionerProps {
+  imageUrl: string | null;
+  title: string;
+  subtitle: string;
+  position: ObjectPosition;
+  onPositionChange: (pos: ObjectPosition) => void;
+  onOpenLightbox: () => void;
+}
+
+const NUDGE_PX = 2; // percentage nudge per arrow click
+
+const CropPositioner: React.FC<CropPositionerProps> = ({
+  imageUrl,
+  title,
+  subtitle,
+  position,
+  onPositionChange,
+  onOpenLightbox,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{
+    active: boolean;
+    startX: number;
+    startY: number;
+    startPos: ObjectPosition;
+  }>({ active: false, startX: 0, startY: 0, startPos: DEFAULT_POSITION });
+
+  const hasText = !!(title || subtitle);
+  const isDirty = position.x !== 50 || position.y !== 50;
+
+  // ── Pointer drag ────────────────────────────────────────────────────────
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!imageUrl) return;
+      e.preventDefault();
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      dragState.current = {
+        active: true,
+        startX: e.clientX,
+        startY: e.clientY,
+        startPos: { ...position },
+      };
+    },
+    [imageUrl, position],
+  );
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragState.current.active || !containerRef.current) return;
+    e.preventDefault();
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const dx = e.clientX - dragState.current.startX;
+    const dy = e.clientY - dragState.current.startY;
+
+    // Convert pixel delta → percentage shift (drag right = image moves right = position x decreases)
+    const pctX = (dx / rect.width) * 100;
+    const pctY = (dy / rect.height) * 100;
+
+    const newX = Math.min(100, Math.max(0, dragState.current.startPos.x - pctX));
+    const newY = Math.min(100, Math.max(0, dragState.current.startPos.y - pctY));
+
+    onPositionChange({ x: Math.round(newX * 10) / 10, y: Math.round(newY * 10) / 10 });
+  }, [onPositionChange]);
+
+  const onPointerUp = useCallback(() => {
+    dragState.current.active = false;
+  }, []);
+
+  // ── Keyboard nudge ──────────────────────────────────────────────────────
+
+  const nudge = (axis: 'x' | 'y', dir: 1 | -1) => {
+    onPositionChange({
+      ...position,
+      [axis]: Math.min(100, Math.max(0, Math.round((position[axis] + dir * NUDGE_PX) * 10) / 10)),
+    });
+  };
+
+  const objectPositionCSS = `${position.x}% ${position.y}%`;
+
+  return (
+    <div className="space-y-3 pb-10 ">
+      {/* Crop canvas */}
+      <div
+        ref={containerRef}
+        className="relative aspect-[3/1] w-full rounded-xl overflow-visible bg-gray-200 border-2 border-dashed border-gray-300 shadow-sm select-none"
+        style={{ borderColor: imageUrl ? 'rgb(99 102 241 / 0.5)' : undefined }}
+      >
+        {imageUrl ? (
+          <>
+            {/* Draggable image */}
+            <img
+              src={imageUrl}
+              alt="Hero crop"
+              className="absolute inset-0 w-full h-full object-cover transition-none"
+              style={{ objectPosition: objectPositionCSS, cursor: 'grab' }}
+              draggable={false}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerLeave={onPointerUp}
+            />
+
+            {/* Text overlay */}
+            {hasText && (
+              <>
+                <div className="absolute inset-0 bg-black/35 pointer-events-none" />
+                <div className="absolute inset-0 flex items-center justify-center px-4 text-center pointer-events-none">
+                  <div className="max-w-xl">
+                    {title && (
+                      <h2 className="text-xl md:text-3xl font-bold text-white mb-1.5 leading-tight drop-shadow-lg">
+                        {title}
+                      </h2>
+                    )}
+                    {subtitle && (
+                      <p className="text-xs md:text-base text-white/95 drop-shadow-md">{subtitle}</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Drag hint badge */}
+            <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] pointer-events-none">
+              <Move className="w-3 h-3" />
+              Drag to reposition
+            </div>
+
+            {/* Open full preview */}
+            <button
+              type="button"
+              onClick={onOpenLightbox}
+              className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] hover:bg-black/80 transition-colors"
+            >
+              <Maximize2 className="w-3 h-3" />
+              Preview
+            </button>
+          </>
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+            <ImageIcon className="w-12 h-12 mb-2" />
+            <p className="text-sm">Upload an image to preview</p>
+          </div>
+        )}
+
+{/* Real homepage booking/search section preview */}
+<div className="absolute left-1/2 -translate-x-1/2 -bottom-5 w-[72%] z-20 pointer-events-none">
+  <div className="overflow-hidden rounded-[18px] bg-white shadow-lg border border-gray-200">
+    <div className="grid grid-cols-5 divide-x divide-gray-200">
+
+      {/* Location */}
+      <div className="px-2 py-1.5 bg-white">
+        <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">
+          Location
+        </p>
+
+        <p className="mt-1 text-[9px] font-semibold text-gray-900 truncate leading-none">
+          Udaipur
+        </p>
+      </div>
+
+      {/* Pickup date */}
+      <div className="px-2 py-1.5 bg-white">
+        <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">
+          Pickup
+        </p>
+
+        <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">
+          dd-mm
+        </p>
+      </div>
+
+      {/* Pickup time */}
+      <div className="px-2 py-1.5 bg-white">
+        <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">
+          Time
+        </p>
+
+        <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">
+          10:00
+        </p>
+      </div>
+
+      {/* Return date */}
+      <div className="px-2 py-1.5 bg-white">
+        <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">
+          Return
+        </p>
+
+        <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">
+          dd-mm
+        </p>
+      </div>
+
+      {/* CTA */}
+      <div className="bg-[#F4A261] flex items-center justify-center px-2">
+        <button
+          type="button"
+          className="w-full h-full py-1.5 text-white font-semibold text-[9px]"
+        >
+          Ride
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+      </div>  
+
+      {/* Position controls */}
+      {imageUrl && (
+        <div className="mt-5 flex items-center gap-3 flex-wrap">
+          {/* Arrow nudge pad */}
+          <div className="flex flex-col items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => nudge('y', -1)}
+              title="Shift image up"
+              className="p-1.5 rounded-md hover:bg-indigo-50 text-indigo-600 border border-gray-200 transition-colors"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+            </button>
+            <div className="flex gap-0.5">
+              <button
+                type="button"
+                onClick={() => nudge('x', -1)}
+                title="Shift image left"
+                className="p-1.5 rounded-md hover:bg-indigo-50 text-indigo-600 border border-gray-200 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 4L6 8l4 4"/></svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => onPositionChange(DEFAULT_POSITION)}
+                title="Reset to center"
+                disabled={!isDirty}
+                className="p-1.5 rounded-md hover:bg-red-50 text-red-400 border border-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => nudge('x', 1)}
+                title="Shift image right"
+                className="p-1.5 rounded-md hover:bg-indigo-50 text-indigo-600 border border-gray-200 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4l4 4-4 4"/></svg>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => nudge('y', 1)}
+              title="Shift image down"
+              className="p-1.5 rounded-md hover:bg-indigo-50 text-indigo-600 border border-gray-200 transition-colors"
+            >
+              <ArrowDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Position readout + quick-set presets */}
+          <div className="flex flex-col gap-1.5 text-xs">
+            <span className="font-mono bg-gray-100 px-2 py-1 rounded text-gray-600">
+              {position.x.toFixed(0)}% / {position.y.toFixed(0)}%
+              {isDirty && (
+                <span className="ml-1.5 text-indigo-500 font-semibold">● custom</span>
+              )}
+            </span>
+            <div className="flex gap-1">
+              {([
+                { label: 'Top', x: 50, y: 0 },
+                { label: 'Center', x: 50, y: 50 },
+                { label: 'Bottom', x: 50, y: 100 },
+              ] as Array<{ label: string } & ObjectPosition>).map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => onPositionChange({ x: p.x, y: p.y })}
+                  className={`px-2 py-0.5 rounded border text-[11px] font-medium transition-colors ${
+                    Math.round(position.x) === p.x && Math.round(position.y) === p.y
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-indigo-50'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-[11px] text-gray-400 italic ml-auto hidden sm:block">
+            Drag the image or use arrows to set focal point
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── SlidePreview ─────────────────────────────────────────────────────────────
 
 interface SlidePreviewProps {
   imageUrl: string | null;
   title: string;
   subtitle: string;
+  position: ObjectPosition;
+  onPositionChange: (pos: ObjectPosition) => void;
 }
 
 type LightboxMode = 'crop' | 'full';
 
-const SlidePreview: React.FC<SlidePreviewProps> = ({ imageUrl, title, subtitle }) => {
-  const hasText = !!(title || subtitle);
+const SlidePreview: React.FC<SlidePreviewProps> = ({
+  imageUrl,
+  title,
+  subtitle,
+  position,
+  onPositionChange,
+}) => {
   const [lightbox, setLightbox] = useState<LightboxMode | null>(null);
 
   return (
     <div className="space-y-4">
-      {/* ── User-side preview — matches the homepage hero aspect ratio (~3:1) */}
+      {/* ── Crop canvas with repositioning */}
       <div>
         <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5 font-semibold">
           What users see (desktop hero crop)
         </p>
-        <button
-          type="button"
-          onClick={() => imageUrl && setLightbox('crop')}
-          disabled={!imageUrl}
-          className="group relative aspect-[3/1] w-full rounded-xl overflow-hidden bg-gray-200 border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:cursor-not-allowed enabled:cursor-zoom-in"
-          aria-label="Open hero crop preview at full size"
-        >
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt="Hero crop"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-              <ImageIcon className="w-12 h-12 mb-2" />
-              <p className="text-sm">Upload an image to preview</p>
-            </div>
-          )}
-
-          {hasText && imageUrl && (
-            <>
-              <div className="absolute inset-0 bg-black/35" />
-              <div className="absolute inset-0 flex items-center justify-center px-4 text-center">
-                <div className="max-w-xl">
-                  {title && (
-                    <h2 className="text-xl md:text-3xl font-bold text-white mb-1.5 leading-tight drop-shadow-lg">
-                      {title}
-                    </h2>
-                  )}
-                  {subtitle && (
-                    <p className="text-xs md:text-base text-white/95 drop-shadow-md">{subtitle}</p>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Hover hint with expand icon (top-right) */}
-          {imageUrl && (
-            <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">
-              <Maximize2 className="w-3 h-3" />
-              Open
-            </span>
-          )}
-
-          {/* Fake search bar overlap to show how user side will look */}
-          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-[80%] h-6 rounded-full bg-white/95 shadow-md border border-gray-200 flex items-center justify-center text-[10px] text-gray-400 pointer-events-none">
-            ⤷ Search bar overlaps here
-          </div>
-        </button>
+        <CropPositioner
+          imageUrl={imageUrl}
+          title={title}
+          subtitle={subtitle}
+          position={position}
+          onPositionChange={onPositionChange}
+          onOpenLightbox={() => imageUrl && setLightbox('crop')}
+        />
       </div>
 
-      {/* ── Full-image preview — native aspect ratio, no crop */}
+      {/* ── Full-image preview */}
       {imageUrl && (
         <div>
           <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5 font-semibold">
@@ -150,13 +423,13 @@ const SlidePreview: React.FC<SlidePreviewProps> = ({ imageUrl, title, subtitle }
         </div>
       )}
 
-      {/* ── Lightbox */}
       {lightbox && imageUrl && (
         <ImageLightbox
           imageUrl={imageUrl}
           mode={lightbox}
           title={title}
           subtitle={subtitle}
+          position={position}
           onClose={() => setLightbox(null)}
         />
       )}
@@ -171,6 +444,7 @@ interface ImageLightboxProps {
   mode: LightboxMode;
   title: string;
   subtitle: string;
+  position: ObjectPosition;
   onClose: () => void;
 }
 
@@ -181,13 +455,13 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
   mode,
   title,
   subtitle,
+  position,
   onClose,
 }) => {
   const [zoomIdx, setZoomIdx] = useState(0);
   const scale = ZOOM_STEPS[zoomIdx];
   const hasText = !!(title || subtitle);
 
-  // ESC closes; lock body scroll while open
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -215,9 +489,7 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Image preview"
     >
-      {/* Top bar */}
       <div
         className="flex items-center justify-between gap-3 px-4 py-3 text-white border-b border-white/10"
         onClick={(e) => e.stopPropagation()}
@@ -229,11 +501,7 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
           <IconButton onClick={zoomOut} disabled={zoomIdx === 0} title="Zoom out (−)">
             <ZoomOut className="w-4 h-4" />
           </IconButton>
-          <IconButton
-            onClick={zoomIn}
-            disabled={zoomIdx === ZOOM_STEPS.length - 1}
-            title="Zoom in (+)"
-          >
+          <IconButton onClick={zoomIn} disabled={zoomIdx === ZOOM_STEPS.length - 1} title="Zoom in (+)">
             <ZoomIn className="w-4 h-4" />
           </IconButton>
           <IconButton onClick={resetZoom} disabled={zoomIdx === 0} title="Reset (0)">
@@ -245,11 +513,7 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
         </div>
       </div>
 
-      {/* Image stage — overflow-auto handles panning natively when zoomed */}
-      <div
-        className="flex-1 overflow-auto p-6"
-        onClick={onClose}
-      >
+      <div className="flex-1 overflow-auto p-6" onClick={onClose}>
         <div
           className="mx-auto"
           style={{
@@ -258,10 +522,7 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
             transformOrigin: 'top center',
             transition: 'transform 200ms ease-out',
           }}
-          onClick={(e) => {
-            e.stopPropagation();
-            cycleZoom();
-          }}
+          onClick={(e) => { e.stopPropagation(); cycleZoom(); }}
         >
           {mode === 'crop' ? (
             <div
@@ -276,6 +537,7 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
                 src={imageUrl}
                 alt="Hero crop"
                 className="absolute inset-0 w-full h-full object-cover select-none"
+                style={{ objectPosition: `${position.x}% ${position.y}%` }}
                 draggable={false}
               />
               {hasText && (
@@ -289,9 +551,7 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
                         </h2>
                       )}
                       {subtitle && (
-                        <p className="text-base md:text-xl text-white/95 drop-shadow-md">
-                          {subtitle}
-                        </p>
+                        <p className="text-base md:text-xl text-white/95 drop-shadow-md">{subtitle}</p>
                       )}
                     </div>
                   </div>
@@ -304,15 +564,12 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
               alt="Uploaded original"
               className="max-w-[90vw] max-h-[80vh] object-contain block select-none"
               draggable={false}
-              style={{
-                cursor: scale === ZOOM_STEPS[ZOOM_STEPS.length - 1] ? 'zoom-out' : 'zoom-in',
-              }}
+              style={{ cursor: scale === ZOOM_STEPS[ZOOM_STEPS.length - 1] ? 'zoom-out' : 'zoom-in' }}
             />
           )}
         </div>
       </div>
 
-      {/* Footer hint */}
       <div
         className="px-4 py-2 text-center text-xs text-white/60 border-t border-white/10"
         onClick={(e) => e.stopPropagation()}
@@ -359,10 +616,9 @@ const HeroBannersPage: React.FC = () => {
 
   const isSaving = isCreating || isUpdating;
 
-  // Sort banners by displayOrder for reliable up/down behavior
   const sortedBanners = useMemo(
     () => [...banners].sort((a, b) => a.displayOrder - b.displayOrder),
-    [banners]
+    [banners],
   );
 
   // ── Modal lifecycle ──────────────────────────────────────────────────────
@@ -371,7 +627,6 @@ const HeroBannersPage: React.FC = () => {
     setEditing(null);
     setForm({
       ...EMPTY_FORM,
-      // Suggest the next displayOrder based on existing banners
       displayOrder: (sortedBanners[sortedBanners.length - 1]?.displayOrder ?? 0) + 1,
     });
     setPreviewUrl(null);
@@ -388,8 +643,9 @@ const HeroBannersPage: React.FC = () => {
       title: banner.title ?? '',
       subtitle: banner.subtitle ?? '',
       isActive: banner.isActive,
+      objectPosition: DEFAULT_POSITION,
     });
-    setPreviewUrl(banner.imageUrl); // Existing image as initial preview
+    setPreviewUrl(banner.imageUrl);
     setErrors({});
     setShowModal(true);
   };
@@ -403,7 +659,6 @@ const HeroBannersPage: React.FC = () => {
     setErrors({});
   };
 
-  // Clean up blob URLs when component unmounts or preview changes
   useEffect(() => {
     return () => {
       if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
@@ -420,7 +675,6 @@ const HeroBannersPage: React.FC = () => {
       setErrors((e) => ({ ...e, file: undefined }));
       return;
     }
-
     if (!ALLOWED_TYPES.includes(file.type)) {
       setErrors((e) => ({ ...e, file: 'Only JPEG, PNG, GIF, and WebP are allowed' }));
       return;
@@ -429,11 +683,9 @@ const HeroBannersPage: React.FC = () => {
       setErrors((e) => ({ ...e, file: 'Image exceeds 10 MB size limit' }));
       return;
     }
-
     if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
-    const blobUrl = URL.createObjectURL(file);
-    setForm((f) => ({ ...f, file }));
-    setPreviewUrl(blobUrl);
+    setForm((f) => ({ ...f, file, objectPosition: DEFAULT_POSITION }));
+    setPreviewUrl(URL.createObjectURL(file));
     setErrors((e) => ({ ...e, file: undefined }));
   };
 
@@ -442,9 +694,8 @@ const HeroBannersPage: React.FC = () => {
   const validate = (): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
     if (!editing && !form.file) next.file = 'Image is required';
-    if (form.durationSec < 1 || form.durationSec > 60) {
+    if (form.durationSec < 1 || form.durationSec > 60)
       next.durationSec = 'Duration must be between 1 and 60 seconds';
-    }
     if (form.displayOrder < 0) next.displayOrder = 'Display order must be ≥ 0';
     if (form.title.length > 200) next.title = 'Title must be ≤ 200 characters';
     if (form.subtitle.length > 500) next.subtitle = 'Subtitle must be ≤ 500 characters';
@@ -458,7 +709,15 @@ const HeroBannersPage: React.FC = () => {
     if (!validate()) return;
 
     const fd = new FormData();
-    if (form.file) fd.append('file', form.file);
+    if (form.file) {
+  const croppedFile =
+    await generateCroppedImage(
+      form.file,
+      form.objectPosition
+    );
+
+  fd.append('file', croppedFile);
+}
     fd.append('displayOrder', String(form.displayOrder));
     fd.append('durationMs', String(form.durationSec * 1000));
     fd.append('title', form.title);
@@ -476,22 +735,18 @@ const HeroBannersPage: React.FC = () => {
       closeModal();
     } catch (err: any) {
       const msg =
-        err?.data?.error ??
-        err?.data?.errors?.[0]?.message ??
-        'Failed to save banner';
+        err?.data?.error ?? err?.data?.errors?.[0]?.message ?? 'Failed to save banner';
       toast.error(msg);
     }
   };
 
-  // ── Reorder (swap displayOrder with neighbour) ───────────────────────────
+  // ── Reorder ──────────────────────────────────────────────────────────────
 
   const swapOrder = async (idx: number, direction: 'up' | 'down') => {
     const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
     if (targetIdx < 0 || targetIdx >= sortedBanners.length) return;
-
     const current = sortedBanners[idx];
     const neighbour = sortedBanners[targetIdx];
-
     setReorderingId(current.id);
     try {
       await Promise.all([
@@ -548,7 +803,9 @@ const HeroBannersPage: React.FC = () => {
       ) : isError ? (
         <div className="flex items-center gap-2 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
           <AlertCircle className="w-5 h-5" /> Failed to load banners.
-          <button onClick={() => refetch()} className="ml-auto underline">Retry</button>
+          <button onClick={() => refetch()} className="ml-auto underline">
+            Retry
+          </button>
         </div>
       ) : sortedBanners.length === 0 ? (
         <div className="text-center py-20 border-2 border-dashed border-gray-300 rounded-xl">
@@ -568,7 +825,6 @@ const HeroBannersPage: React.FC = () => {
               key={banner.id}
               className="flex flex-col md:flex-row gap-4 bg-white rounded-xl border border-gray-200 p-4 shadow-sm"
             >
-              {/* Thumbnail */}
               <div className="relative w-full md:w-48 aspect-video rounded-lg overflow-hidden bg-gray-100 shrink-0">
                 <img
                   src={banner.imageUrl}
@@ -582,7 +838,6 @@ const HeroBannersPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Meta */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
                   <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -609,7 +864,6 @@ const HeroBannersPage: React.FC = () => {
                 )}
               </div>
 
-              {/* Actions */}
               <div className="flex md:flex-col items-center gap-1 shrink-0">
                 <button
                   onClick={() => swapOrder(idx, 'up')}
@@ -651,12 +905,14 @@ const HeroBannersPage: React.FC = () => {
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
-            {/* Modal header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
               <h2 className="text-xl font-bold text-gray-900">
                 {editing ? 'Edit banner' : 'New banner'}
               </h2>
-              <button onClick={closeModal} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+              <button
+                onClick={closeModal}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -667,11 +923,16 @@ const HeroBannersPage: React.FC = () => {
                 <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-gray-700">
                   <Eye className="w-4 h-4" /> Live preview (matches user side)
                 </div>
-                <SlidePreview imageUrl={previewUrl} title={form.title} subtitle={form.subtitle} />
+                <SlidePreview
+                  imageUrl={previewUrl}
+                  title={form.title}
+                  subtitle={form.subtitle}
+                  position={form.objectPosition}
+                  onPositionChange={(pos) => setForm((f) => ({ ...f, objectPosition: pos }))}
+                />
                 <p className="text-xs text-gray-500 mt-3">
-                  This preview mirrors how the slide will render in the homepage hero, including the
-                  title/subtitle overlay. The "search bar overlaps here" indicator shows where the
-                  search bar will visually cut into the bottom of the banner on the live site.
+                  Drag the image in the crop preview to set the focal point. The position is saved
+                  with the banner so it renders consistently on the homepage hero.
                 </p>
               </div>
 
@@ -694,7 +955,8 @@ const HeroBannersPage: React.FC = () => {
                     </p>
                   )}
                   <p className="text-xs text-gray-500 mt-1">
-                    JPEG, PNG, GIF, or WebP — max 10 MB. Recommended ~1920×1080 for full-width display.
+                    JPEG, PNG, GIF, or WebP — max 10 MB. Recommended ~1920×1080 for full-width
+                    display.
                   </p>
                 </div>
 
@@ -790,7 +1052,6 @@ const HeroBannersPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Modal footer */}
             <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center justify-end gap-3 rounded-b-2xl">
               <button
                 onClick={closeModal}
@@ -804,7 +1065,11 @@ const HeroBannersPage: React.FC = () => {
                 disabled={isSaving}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-medium disabled:opacity-50"
               >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
                 {editing ? 'Save changes' : 'Create banner'}
               </button>
             </div>
@@ -841,7 +1106,11 @@ const HeroBannersPage: React.FC = () => {
                 disabled={isDeleting}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium disabled:opacity-50"
               >
-                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {isDeleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
                 Delete
               </button>
             </div>

@@ -6,9 +6,17 @@ export interface HeroBanner {
   imageUrl: string;
   displayOrder: number;
   durationMs: number;
+
   title: string | null;
   subtitle: string | null;
+
   isActive: boolean;
+
+  objectPosition?: {
+    x: number;
+    y: number;
+  };
+
   createdAt: string;
   updatedAt: string;
 }
