@@ -26,6 +26,8 @@ export default function BookNow() {
   const startTimeParam = searchParams.get('startTime');
   const endDateParam = searchParams.get('endDate');
   const endTimeParam = searchParams.get('endTime');
+  const packagePriceParam = searchParams.get('packagePrice');
+  const packageLabelParam = searchParams.get('packageLabel');
 
   const [bookingDates, setBookingDates] = useState({
     startDate: startDateParam || '',
@@ -40,6 +42,29 @@ export default function BookNow() {
   const [selectedPickup, setSelectedPickup] = useState<string>('');
   const [includeSecondHelmet, setIncludeSecondHelmet] = useState(false);
   const [bookingError, setBookingError] = useState<string>('');
+  
+  // Package pricing state - reset when user changes dates
+  const [activePackagePrice, setActivePackagePrice] = useState<number | null>(
+    packagePriceParam ? parseInt(packagePriceParam) : null
+  );
+  const [activePackageLabel, setActivePackageLabel] = useState<string | null>(
+    packageLabelParam || null
+  );
+
+  // Handler to clear package pricing when user changes dates
+  const handleDateChange = (newDates: typeof bookingDates) => {
+    // If dates are different from original URL params, clear package pricing
+    if (
+      newDates.startDate !== startDateParam ||
+      newDates.endDate !== endDateParam ||
+      newDates.startTime !== startTimeParam ||
+      newDates.endTime !== endTimeParam
+    ) {
+      setActivePackagePrice(null);
+      setActivePackageLabel(null);
+    }
+    setBookingDates(newDates);
+  };
 
   const { data: vehicleData, isLoading: vehicleLoading, error: vehicleError } =
     useGetVehicleByIdQuery(parseInt(id || '0'));
@@ -253,7 +278,7 @@ export default function BookNow() {
                         type="date"
                         value={bookingDates.startDate}
                         onChange={(e) =>
-                          setBookingDates({ ...bookingDates, startDate: e.target.value })
+                          handleDateChange({ ...bookingDates, startDate: e.target.value })
                         }
                         min={new Date().toISOString().split('T')[0]}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
@@ -262,7 +287,7 @@ export default function BookNow() {
                         type="time"
                         value={bookingDates.startTime}
                         onChange={(e) =>
-                          setBookingDates({ ...bookingDates, startTime: e.target.value })
+                          handleDateChange({ ...bookingDates, startTime: e.target.value })
                         }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                       />
@@ -280,7 +305,7 @@ export default function BookNow() {
                         type="date"
                         value={bookingDates.endDate}
                         onChange={(e) =>
-                          setBookingDates({ ...bookingDates, endDate: e.target.value })
+                          handleDateChange({ ...bookingDates, endDate: e.target.value })
                         }
                         min={bookingDates.startDate || new Date().toISOString().split('T')[0]}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
@@ -289,7 +314,7 @@ export default function BookNow() {
                         type="time"
                         value={bookingDates.endTime}
                         onChange={(e) =>
-                          setBookingDates({ ...bookingDates, endTime: e.target.value })
+                          handleDateChange({ ...bookingDates, endTime: e.target.value })
                         }
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                       />
@@ -327,6 +352,8 @@ export default function BookNow() {
                 onSecondHelmetChange={setIncludeSecondHelmet}
                 cityId={vehicleData.cityId}
                 userId={user?.id}
+                packagePrice={activePackagePrice}
+                packageLabel={activePackageLabel}
               />
 
               {/* Login notice shown below PriceCalculator when not logged in */}
