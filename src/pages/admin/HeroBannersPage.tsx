@@ -359,6 +359,19 @@ const HeroBannersPage: React.FC = () => {
 
   const isSaving = isCreating || isUpdating;
 
+  const isEditDirty = useMemo(() => {
+    if (!editing) return true; // create mode: allow save (validation still applies)
+    const durationMs = form.durationSec * 1000;
+    return (
+      !!form.file ||
+      form.displayOrder !== editing.displayOrder ||
+      durationMs !== editing.durationMs ||
+      form.title !== (editing.title ?? '') ||
+      form.subtitle !== (editing.subtitle ?? '') ||
+      form.isActive !== editing.isActive
+    );
+  }, [editing, form]);
+
   // Sort banners by displayOrder for reliable up/down behavior
   const sortedBanners = useMemo(
     () => [...banners].sort((a, b) => a.displayOrder - b.displayOrder),
@@ -439,6 +452,9 @@ const HeroBannersPage: React.FC = () => {
 
   // ── Validation ───────────────────────────────────────────────────────────
 
+  const findOrderConflict = (displayOrder: number) =>
+    sortedBanners.find((b) => b.displayOrder === displayOrder && b.id !== editing?.id);
+
   const validate = (): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
     if (!editing && !form.file) next.file = 'Image is required';
@@ -446,6 +462,12 @@ const HeroBannersPage: React.FC = () => {
       next.durationSec = 'Duration must be between 1 and 60 seconds';
     }
     if (form.displayOrder < 0) next.displayOrder = 'Display order must be ≥ 0';
+    if (!next.displayOrder) {
+      const conflict = findOrderConflict(form.displayOrder);
+      if (conflict) {
+        next.displayOrder = `Order ${form.displayOrder} is already used. Please choose a unique order.`;
+      }
+    }
     if (form.title.length > 200) next.title = 'Title must be ≤ 200 characters';
     if (form.subtitle.length > 500) next.subtitle = 'Subtitle must be ≤ 500 characters';
     setErrors(next);
@@ -455,6 +477,7 @@ const HeroBannersPage: React.FC = () => {
   // ── Submit ───────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
+    if (editing && !isEditDirty) return;
     if (!validate()) return;
 
     const fd = new FormData();
@@ -467,6 +490,12 @@ const HeroBannersPage: React.FC = () => {
 
     try {
       if (editing) {
+        // If the admin changed displayOrder to an already-used value, swap orders first
+        // to preserve uniqueness and avoid backend unique-constraint failures.
+        const conflict = findOrderConflict(form.displayOrder);
+        if (conflict && conflict.displayOrder !== editing.displayOrder) {
+          await reorderBanner({ id: conflict.id, displayOrder: editing.displayOrder }).unwrap();
+        }
         await updateBanner({ id: editing.id, formData: fd }).unwrap();
         toast.success('Banner updated');
       } else {
@@ -801,7 +830,7 @@ const HeroBannersPage: React.FC = () => {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={isSaving}
+                disabled={isSaving || (editing ? !isEditDirty : false)}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white font-medium disabled:opacity-50"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
