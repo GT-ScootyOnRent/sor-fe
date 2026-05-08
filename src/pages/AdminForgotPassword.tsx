@@ -7,6 +7,7 @@ import {
   useAdminResetPasswordMutation,
 } from '../store/api/adminApi';
 import { toast } from 'sonner';
+import OtpInput from '../components/OtpInput';
 
 type Step = 'email' | 'otp' | 'newPassword';
 
@@ -158,10 +159,10 @@ const AdminForgotPassword: React.FC = () => {
             <React.Fragment key={s}>
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentStepIndex > i
-                    ? 'bg-primary-200 text-primary-700'
-                    : currentStepIndex === i
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-200 text-gray-500'
+                  ? 'bg-primary-200 text-primary-700'
+                  : currentStepIndex === i
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-200 text-gray-500'
                   }`}
               >
                 {currentStepIndex > i ? <CheckCircle className="w-4 h-4" /> : i + 1}
@@ -228,29 +229,20 @@ const AdminForgotPassword: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Enter OTP
                 </label>
-                <div className="relative">
-                  <KeyRound className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={otp}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                      setOtp(val);
-                    }}
-                    placeholder="6-digit OTP"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition tracking-widest text-center text-lg font-bold"
-                    maxLength={6}
-                    required
-                  />
-                </div>
+                <OtpInput
+                  value={otp}
+                  onChange={setOtp}
+                  length={6}
+                  disabled={isLoading}
+                  autoFocus
+                />
                 <p className="text-xs text-gray-400 mt-2 text-center">
                   Sent to <span className="font-medium text-gray-600">{email}</span>
                 </p>
               </div>
               <button
                 type="submit"
-                disabled={isLoading || otp.length < 4}
+                disabled={isLoading || otp.length < 6}
                 className="w-full bg-primary-600 hover:bg-primary-700 text-white py-3 rounded-xl font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {isLoading ? (

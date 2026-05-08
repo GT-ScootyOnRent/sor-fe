@@ -35,6 +35,40 @@ const VehicleDetailsPage: React.FC = () => {
     endTime,
   });
 
+  // Helper to get minimum allowed time (current time + 1 hour buffer)
+  const getMinTimeForToday = () => {
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  const getTodayDate = () => new Date().toISOString().split('T')[0];
+
+  // Handler with time validation
+  const handleDateChange = (newDates: typeof bookingDates) => {
+    const today = getTodayDate();
+    const minTimeToday = getMinTimeForToday();
+
+    // Validate and auto-correct start time if it's today and time is in the past
+    if (newDates.startDate === today && newDates.startTime && newDates.startTime < minTimeToday) {
+      newDates.startTime = minTimeToday;
+    }
+
+    // Validate and auto-correct end time if it's today
+    if (newDates.endDate === today && newDates.endTime) {
+      if (newDates.startDate === newDates.endDate && newDates.startTime) {
+        const minEndTime = newDates.startTime > minTimeToday ? newDates.startTime : minTimeToday;
+        if (newDates.endTime < minEndTime) {
+          newDates.endTime = minEndTime;
+        }
+      } else if (newDates.endTime < minTimeToday) {
+        newDates.endTime = minTimeToday;
+      }
+    }
+
+    setBookingDates(newDates);
+  };
+
   // Fetch vehicle details
   const { data: vehicleData, isLoading: vehicleLoading, error: vehicleError } = useGetVehicleByIdQuery(
     parseInt(id || '0')
@@ -352,14 +386,16 @@ const VehicleDetailsPage: React.FC = () => {
                     <input
                       type="date"
                       value={bookingDates.startDate || ''}
-                      onChange={(e) => setBookingDates({ ...bookingDates, startDate: e.target.value })}
+                      onChange={(e) => handleDateChange({ ...bookingDates, startDate: e.target.value })}
                       min={new Date().toISOString().split('T')[0]}
                       className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                     <input
                       type="time"
                       value={bookingDates.startTime || ''}
-                      onChange={(e) => setBookingDates({ ...bookingDates, startTime: e.target.value })}
+                      onChange={(e) => handleDateChange({ ...bookingDates, startTime: e.target.value })}
+                      min={bookingDates.startDate === new Date().toISOString().split('T')[0] ? (() => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; })() : '08:00'}
+                      max="22:00"
                       className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                   </div>
@@ -375,14 +411,28 @@ const VehicleDetailsPage: React.FC = () => {
                     <input
                       type="date"
                       value={bookingDates.endDate || ''}
-                      onChange={(e) => setBookingDates({ ...bookingDates, endDate: e.target.value })}
+                      onChange={(e) => handleDateChange({ ...bookingDates, endDate: e.target.value })}
                       min={bookingDates.startDate || new Date().toISOString().split('T')[0]}
                       className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                     <input
                       type="time"
                       value={bookingDates.endTime || ''}
-                      onChange={(e) => setBookingDates({ ...bookingDates, endTime: e.target.value })}
+                      onChange={(e) => handleDateChange({ ...bookingDates, endTime: e.target.value })}
+                      min={(() => {
+                        const today = new Date().toISOString().split('T')[0];
+                        const getMinForToday = () => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; };
+                        if (bookingDates.startDate === bookingDates.endDate && bookingDates.startTime) {
+                          if (bookingDates.endDate === today) {
+                            const minForToday = getMinForToday();
+                            return bookingDates.startTime > minForToday ? bookingDates.startTime : minForToday;
+                          }
+                          return bookingDates.startTime;
+                        }
+                        if (bookingDates.endDate === today) return getMinForToday();
+                        return '08:00';
+                      })()}
+                      max="22:00"
                       className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                   </div>

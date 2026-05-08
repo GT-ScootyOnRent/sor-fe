@@ -23,6 +23,28 @@ export default function DateTimePicker() {
   const DEFAULT_PICKUP_TIME = '08:00'; // 8 AM
   const DEFAULT_RETURN_TIME = '22:00'; // 10 PM
 
+  // Helper to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => new Date().toISOString().split('T')[0];
+
+  // Helper to get current time + 1 hour buffer in HH:MM format
+  const getMinTimeForToday = () => {
+    const now = new Date();
+    now.setHours(now.getHours() + 1); // Add 1 hour buffer
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const bufferedTime = `${hours}:${minutes}`;
+    // Return the greater of buffered time or MIN_TIME
+    return bufferedTime > MIN_TIME ? bufferedTime : MIN_TIME;
+  };
+
+  // Get min pickup time - if today, use current time + 1 hour
+  const getMinPickupTime = () => {
+    if (pickupDate === getTodayDate()) {
+      return getMinTimeForToday();
+    }
+    return MIN_TIME;
+  };
+
   // Helper to validate time is within operating hours
   const isValidTime = (time: string) => {
     if (!time) return true; // Empty is handled separately
@@ -32,7 +54,12 @@ export default function DateTimePicker() {
   // Auto-fill times when dates are selected
   useEffect(() => {
     if (pickupDate && !pickupTime && !touched.pickupTime) {
-      setPickupTime(DEFAULT_PICKUP_TIME);
+      // If today, use current time + 1 hour, otherwise default
+      if (pickupDate === getTodayDate()) {
+        setPickupTime(getMinTimeForToday());
+      } else {
+        setPickupTime(DEFAULT_PICKUP_TIME);
+      }
     }
   }, [pickupDate, pickupTime, touched.pickupTime]);
 
@@ -119,12 +146,25 @@ export default function DateTimePicker() {
     }
   };
 
-  // Calculate min return time when same day
+  // Calculate min return time when same day or when return date is today
   const getMinReturnTime = () => {
+    const today = getTodayDate();
+    
     if (pickupDate && returnDate && pickupDate === returnDate && pickupTime) {
       // Return time must be after pickup time on same day
+      // Also consider if it's today, use the greater of pickup time or current time + 1hr
+      if (returnDate === today) {
+        const minForToday = getMinTimeForToday();
+        return pickupTime > minForToday ? pickupTime : minForToday;
+      }
       return pickupTime;
     }
+    
+    // If return date is today (but pickup was earlier), enforce current time + 1hr
+    if (returnDate === today) {
+      return getMinTimeForToday();
+    }
+    
     return MIN_TIME;
   };
 
@@ -232,11 +272,16 @@ export default function DateTimePicker() {
               type="time"
               value={pickupTime}
               onChange={(e) => {
-                setPickupTime(e.target.value);
+                let newTime = e.target.value;
+                // Auto-correct if today and time is in the past
+                if (pickupDate === getTodayDate() && newTime < getMinTimeForToday()) {
+                  newTime = getMinTimeForToday();
+                }
+                setPickupTime(newTime);
                 setTouched((prev) => ({ ...prev, pickupTime: true }));
               }}
               onBlur={() => handleBlur('pickupTime')}
-              min={MIN_TIME}
+              min={getMinPickupTime()}
               max={MAX_TIME}
               className={inputClass}
               placeholder="Select time"
@@ -275,7 +320,13 @@ export default function DateTimePicker() {
               type="time"
               value={returnTime}
               onChange={(e) => {
-                setReturnTime(e.target.value);
+                let newTime = e.target.value;
+                const minReturn = getMinReturnTime();
+                // Auto-correct if time is before minimum
+                if (newTime < minReturn) {
+                  newTime = minReturn;
+                }
+                setReturnTime(newTime);
                 setTouched((prev) => ({ ...prev, returnTime: true }));
               }}
               onBlur={() => handleBlur('returnTime')}

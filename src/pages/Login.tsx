@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
+import OtpInput from '../components/OtpInput';
 import { useSendOtpMutation, useVerifyOtpMutation } from '../store/api/authApi';
 import { useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
@@ -152,13 +153,13 @@ export default function Login() {
         // Priority 3: react-router location.state.from (standard protected route redirect)
         const from = (location.state as any)?.from;
 
-if (from?.pathname && from.pathname !== '/login' && from.pathname !== '/auth') {
-  navigate(
-    `${from.pathname}${from.search || ''}${from.hash || ''}`,
-    { replace: true }
-  );
-  return;
-}
+        if (from?.pathname && from.pathname !== '/login' && from.pathname !== '/auth') {
+          navigate(
+            `${from.pathname}${from.search || ''}${from.hash || ''}`,
+            { replace: true }
+          );
+          return;
+        }
 
         // Default: go to dashboard
         setTimeout(() => navigate('/profile', { replace: true }), 300);
@@ -284,19 +285,13 @@ if (from?.pathname && from.pathname !== '/login' && from.pathname !== '/auth') {
                   <Label htmlFor="otp" className="mb-2 block">
                     Enter OTP
                   </Label>
-                  <Input
-                    id="otp"
-                    type="text"
-                    placeholder="Enter 6-digit OTP"
+                  <OtpInput
                     value={otp}
-                    onChange={(e) =>
-                      setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))
-                    }
-                    className="text-center text-2xl tracking-widest font-semibold"
-                    maxLength={6}
+                    onChange={setOtp}
+                    length={6}
                     disabled={isVerifying}
                     autoFocus
-                    onKeyDown={(e) => e.key === 'Enter' && handleVerifyOTP()}
+                    onComplete={handleVerifyOTP}
                   />
                   <p className="text-sm text-gray-500 mt-2">OTP expires in 10 minutes</p>
                 </div>
@@ -322,8 +317,8 @@ if (from?.pathname && from.pathname !== '/login' && from.pathname !== '/auth') {
                     onClick={handleResendOTP}
                     disabled={countdown > 0 || isSending}
                     className={`text-sm ${countdown > 0
-                        ? 'text-gray-400 cursor-not-allowed'
-                        : 'text-primary-500 hover:text-primary-600'
+                      ? 'text-gray-400 cursor-not-allowed'
+                      : 'text-primary-500 hover:text-primary-600'
                       }`}
                   >
                     {countdown > 0 ? `Resend OTP in ${countdown}s` : 'Resend OTP'}
