@@ -55,7 +55,14 @@ export const adminRoutes: RouteObject[] = [
       { path: 'offline-booking', element: <OfflineBookingPage /> },
       { path: 'promo-codes', element: <PromoCodesPage /> },
       { path: 'pickup-points', element: <AdminPickupPointsPage /> },
-      { path: 'partner-inquiries', element: <PartnerInquiriesPage /> },
+      {
+  path: 'partner-inquiries',
+  element: (
+    <ProtectedRoute allowedRoles={['superadmin']}>
+      <PartnerInquiriesPage />
+    </ProtectedRoute>
+  ),
+},
       { path: 'contacts', element: <ContactsPage /> },
       { path: 'hero-banners', element: <HeroBannersPage /> },
       {

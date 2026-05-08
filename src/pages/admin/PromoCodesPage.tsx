@@ -94,9 +94,9 @@ const PromoCodesPage: React.FC = () => {
     if (!form.validFrom) { setFormError('Valid from date is required'); return; }
 
     // Prepare the payload - ensure validUntil is null if empty, not empty string
-    const payload = {
+     const payload = {
       ...form,
-      validUntil: form.validUntil ? form.validUntil : null,
+      ...(form.validUntil ? { validUntil: form.validUntil } : {}),
     };
 
     try {
