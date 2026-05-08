@@ -18,7 +18,7 @@ import {
   ZoomOut,
   RefreshCw,
   Move,
-  RotateCcw,
+  UploadCloud,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -30,6 +30,7 @@ import {
   type HeroBanner,
 } from '../../store/api/heroBannerApi';
 import { generateCroppedImage } from '../../utils/cropImage';
+import { stripLeadingZeros } from '../../utils/numberInput';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,9 +71,8 @@ interface CropPositionerProps {
   position: ObjectPosition;
   onPositionChange: (pos: ObjectPosition) => void;
   onOpenLightbox: () => void;
+  onFileSelect: (file: File) => void;
 }
-
-const NUDGE_PX = 2; // percentage nudge per arrow click
 
 const CropPositioner: React.FC<CropPositionerProps> = ({
   imageUrl,
@@ -81,8 +81,11 @@ const CropPositioner: React.FC<CropPositionerProps> = ({
   position,
   onPositionChange,
   onOpenLightbox,
+  onFileSelect,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragState = useRef<{
     active: boolean;
     startX: number;
@@ -91,7 +94,30 @@ const CropPositioner: React.FC<CropPositionerProps> = ({
   }>({ active: false, startX: 0, startY: 0, startPos: DEFAULT_POSITION });
 
   const hasText = !!(title || subtitle);
-  const isDirty = position.x !== 50 || position.y !== 50;
+
+  // ── File drop handlers (work whether or not an image is loaded) ─────────
+
+  const onContainerDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDraggingFile(true);
+  };
+
+  const onContainerDragLeave = (e: React.DragEvent) => {
+    // Only clear when leaving the actual container (not its children)
+    if (e.currentTarget === e.target) setIsDraggingFile(false);
+  };
+
+  const onContainerDrop = (e: React.DragEvent) => {
+    if (!e.dataTransfer.files?.length) return;
+    e.preventDefault();
+    setIsDraggingFile(false);
+    const file = e.dataTransfer.files[0];
+    onFileSelect(file);
+  };
+
+  const triggerFileBrowser = () => fileInputRef.current?.click();
 
   // ── Pointer drag ────────────────────────────────────────────────────────
 
@@ -132,230 +158,157 @@ const CropPositioner: React.FC<CropPositionerProps> = ({
     dragState.current.active = false;
   }, []);
 
-  // ── Keyboard nudge ──────────────────────────────────────────────────────
-
-  const nudge = (axis: 'x' | 'y', dir: 1 | -1) => {
-    onPositionChange({
-      ...position,
-      [axis]: Math.min(100, Math.max(0, Math.round((position[axis] + dir * NUDGE_PX) * 10) / 10)),
-    });
-  };
-
   const objectPositionCSS = `${position.x}% ${position.y}%`;
 
   return (
-    <div className="space-y-3 pb-10 ">
-      {/* Crop canvas */}
+    <div className="flex flex-col h-full">
+      {/* Hidden file input — opened by the "Choose file" button or click-to-browse */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ALLOWED_TYPES.join(',')}
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFileSelect(f);
+          // Reset so re-selecting the same file fires onChange again
+          e.target.value = '';
+        }}
+      />
+
+      {/* Outer drop zone — fills the entire column height all the way down */}
       <div
-        ref={containerRef}
-        className="relative aspect-[3/1] w-full rounded-xl overflow-visible bg-gray-200 border-2 border-dashed border-gray-300 shadow-sm select-none"
-        style={{ borderColor: imageUrl ? 'rgb(99 102 241 / 0.5)' : undefined }}
+        onDragOver={onContainerDragOver}
+        onDragLeave={onContainerDragLeave}
+        onDrop={onContainerDrop}
+        onClick={!imageUrl ? triggerFileBrowser : undefined}
+        className={`relative w-full flex-1 min-h-[480px] rounded-xl overflow-visible shadow-sm select-none transition-colors ${
+          isDraggingFile
+            ? 'bg-primary-50 border-2 border-dashed border-primary-500'
+            : imageUrl
+            ? 'bg-white border-2 border-dashed'
+            : 'bg-gray-50 border-2 border-dashed border-gray-300 hover:bg-gray-100 hover:border-gray-400 cursor-pointer'
+        }`}
+        style={{ borderColor: !isDraggingFile && imageUrl ? 'rgb(99 102 241 / 0.5)' : undefined }}
       >
         {imageUrl ? (
           <>
-            {/* Draggable image */}
-            <img
-              src={imageUrl}
-              alt="Hero crop"
-              className="absolute inset-0 w-full h-full object-cover transition-none"
-              style={{ objectPosition: objectPositionCSS, cursor: 'grab' }}
-              draggable={false}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerLeave={onPointerUp}
-            />
+            {/* Image fills the WHOLE drop zone — no more empty space below */}
+            <div
+              ref={containerRef}
+              className="absolute inset-0 overflow-hidden rounded-[10px]"
+            >
+              <img
+                src={imageUrl}
+                alt="Hero crop"
+                className="absolute inset-0 w-full h-full object-cover transition-none"
+                style={{ objectPosition: objectPositionCSS, cursor: 'grab' }}
+                draggable={false}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerLeave={onPointerUp}
+              />
 
-            {/* Text overlay */}
-            {hasText && (
-              <>
-                <div className="absolute inset-0 bg-black/35 pointer-events-none" />
-                <div className="absolute inset-0 flex items-center justify-center px-4 text-center pointer-events-none">
-                  <div className="max-w-xl">
-                    {title && (
-                      <h2 className="text-xl md:text-3xl font-bold text-white mb-1.5 leading-tight drop-shadow-lg">
-                        {title}
-                      </h2>
-                    )}
-                    {subtitle && (
-                      <p className="text-xs md:text-base text-white/95 drop-shadow-md">{subtitle}</p>
-                    )}
+              {/* Text overlay — covers the whole image */}
+              {hasText && (
+                <>
+                  <div className="absolute inset-0 bg-black/35 pointer-events-none" />
+                  <div className="absolute inset-0 flex items-center justify-center px-4 text-center pointer-events-none">
+                    <div className="max-w-xl">
+                      {title && (
+                        <h2 className="text-xl md:text-3xl font-bold text-white mb-1.5 leading-tight drop-shadow-lg">
+                          {title}
+                        </h2>
+                      )}
+                      {subtitle && (
+                        <p className="text-xs md:text-base text-white/95 drop-shadow-md">{subtitle}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </>
-            )}
+                </>
+              )}
+            </div>
 
-            {/* Drag hint badge */}
-            <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] pointer-events-none">
+            {/* Drag hint badge — sits on top-left of the filled image */}
+            <div className="absolute top-2 left-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] pointer-events-none z-10">
               <Move className="w-3 h-3" />
               Drag to reposition
             </div>
 
-            {/* Open full preview */}
+            {/* Open full-image preview in lightbox */}
             <button
               type="button"
               onClick={onOpenLightbox}
-              className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] hover:bg-black/80 transition-colors"
+              className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] hover:bg-black/80 transition-colors z-10"
             >
               <Maximize2 className="w-3 h-3" />
               Preview
             </button>
+
+            {/* Homepage booking/search section preview — half on image, half below border (matches user side) */}
+            <div className="absolute left-1/2 -translate-x-1/2 -bottom-4 w-[78%] z-20 pointer-events-none">
+              <div className="overflow-hidden rounded-[20px] bg-white shadow-xl border border-gray-200">
+                <div className="grid grid-cols-5 divide-x divide-gray-200">
+                  <div className="px-2 py-1.5 bg-white">
+                    <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">Location</p>
+                    <p className="mt-1 text-[9px] font-semibold text-gray-900 truncate leading-none">Udaipur</p>
+                  </div>
+                  <div className="px-2 py-1.5 bg-white">
+                    <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">Pickup</p>
+                    <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">dd-mm</p>
+                  </div>
+                  <div className="px-2 py-1.5 bg-white">
+                    <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">Time</p>
+                    <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">10:00</p>
+                  </div>
+                  <div className="px-2 py-1.5 bg-white">
+                    <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">Return</p>
+                    <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">dd-mm</p>
+                  </div>
+                  <div className="bg-gradient-to-r from-teal-500 to-cyan-600 flex items-center justify-center px-2">
+                    <span className="w-full h-full flex items-center justify-center py-1.5 text-white font-semibold text-[9px] tracking-wide">
+                      Ride Now
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </>
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-            <ImageIcon className="w-12 h-12 mb-2" />
-            <p className="text-sm">Upload an image to preview</p>
+          /* Empty state — fills the FULL outer drop zone (not just the 3:1 area) */
+          <div
+            className={`absolute inset-0 flex flex-col items-center justify-center px-6 text-center transition-colors ${
+              isDraggingFile ? 'text-primary-700' : 'text-gray-500'
+            }`}
+          >
+            <UploadCloud
+              className={`w-14 h-14 mb-3 ${isDraggingFile ? 'text-primary-600' : 'text-gray-400'}`}
+            />
+            <p className="text-base font-semibold">
+              {isDraggingFile ? 'Drop image to upload' : 'Drag & drop image here'}
+            </p>
+            {!isDraggingFile && (
+              <>
+                <p className="text-xs text-gray-400 my-2">or</p>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerFileBrowser();
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition-colors"
+                >
+                  Choose file
+                </button>
+                <p className="text-[11px] text-gray-400 mt-4">
+                  JPG, PNG, GIF or WebP &middot; Max 10 MB &middot; 1920×1080 (16:9) recommended
+                </p>
+              </>
+            )}
           </div>
         )}
-
-{/* Real homepage booking/search section preview */}
-<div className="absolute left-1/2 -translate-x-1/2 -bottom-5 w-[72%] z-20 pointer-events-none">
-  <div className="overflow-hidden rounded-[18px] bg-white shadow-lg border border-gray-200">
-    <div className="grid grid-cols-5 divide-x divide-gray-200">
-
-      {/* Location */}
-      <div className="px-2 py-1.5 bg-white">
-        <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">
-          Location
-        </p>
-
-        <p className="mt-1 text-[9px] font-semibold text-gray-900 truncate leading-none">
-          Udaipur
-        </p>
       </div>
-
-      {/* Pickup date */}
-      <div className="px-2 py-1.5 bg-white">
-        <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">
-          Pickup
-        </p>
-
-        <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">
-          dd-mm
-        </p>
-      </div>
-
-      {/* Pickup time */}
-      <div className="px-2 py-1.5 bg-white">
-        <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">
-          Time
-        </p>
-
-        <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">
-          10:00
-        </p>
-      </div>
-
-      {/* Return date */}
-      <div className="px-2 py-1.5 bg-white">
-        <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">
-          Return
-        </p>
-
-        <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">
-          dd-mm
-        </p>
-      </div>
-
-      {/* CTA */}
-      <div className="bg-[#F4A261] flex items-center justify-center px-2">
-        <button
-          type="button"
-          className="w-full h-full py-1.5 text-white font-semibold text-[9px]"
-        >
-          Ride
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-      </div>  
-
-      {/* Position controls */}
-      {imageUrl && (
-        <div className="mt-5 flex items-center gap-3 flex-wrap">
-          {/* Arrow nudge pad */}
-          <div className="flex flex-col items-center gap-0.5">
-            <button
-              type="button"
-              onClick={() => nudge('y', -1)}
-              title="Shift image up"
-              className="p-1.5 rounded-md hover:bg-indigo-50 text-indigo-600 border border-gray-200 transition-colors"
-            >
-              <ArrowUp className="w-3.5 h-3.5" />
-            </button>
-            <div className="flex gap-0.5">
-              <button
-                type="button"
-                onClick={() => nudge('x', -1)}
-                title="Shift image left"
-                className="p-1.5 rounded-md hover:bg-indigo-50 text-indigo-600 border border-gray-200 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 4L6 8l4 4"/></svg>
-              </button>
-              <button
-                type="button"
-                onClick={() => onPositionChange(DEFAULT_POSITION)}
-                title="Reset to center"
-                disabled={!isDirty}
-                className="p-1.5 rounded-md hover:bg-red-50 text-red-400 border border-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => nudge('x', 1)}
-                title="Shift image right"
-                className="p-1.5 rounded-md hover:bg-indigo-50 text-indigo-600 border border-gray-200 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4l4 4-4 4"/></svg>
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => nudge('y', 1)}
-              title="Shift image down"
-              className="p-1.5 rounded-md hover:bg-indigo-50 text-indigo-600 border border-gray-200 transition-colors"
-            >
-              <ArrowDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Position readout + quick-set presets */}
-          <div className="flex flex-col gap-1.5 text-xs">
-            <span className="font-mono bg-gray-100 px-2 py-1 rounded text-gray-600">
-              {position.x.toFixed(0)}% / {position.y.toFixed(0)}%
-              {isDirty && (
-                <span className="ml-1.5 text-indigo-500 font-semibold">● custom</span>
-              )}
-            </span>
-            <div className="flex gap-1">
-              {([
-                { label: 'Top', x: 50, y: 0 },
-                { label: 'Center', x: 50, y: 50 },
-                { label: 'Bottom', x: 50, y: 100 },
-              ] as Array<{ label: string } & ObjectPosition>).map((p) => (
-                <button
-                  key={p.label}
-                  type="button"
-                  onClick={() => onPositionChange({ x: p.x, y: p.y })}
-                  className={`px-2 py-0.5 rounded border text-[11px] font-medium transition-colors ${
-                    Math.round(position.x) === p.x && Math.round(position.y) === p.y
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-gray-600 border-gray-300 hover:bg-indigo-50'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <p className="text-[11px] text-gray-400 italic ml-auto hidden sm:block">
-            Drag the image or use arrows to set focal point
-          </p>
-        </div>
-      )}
     </div>
   );
 };
@@ -368,9 +321,10 @@ interface SlidePreviewProps {
   subtitle: string;
   position: ObjectPosition;
   onPositionChange: (pos: ObjectPosition) => void;
+  onFileSelect: (file: File) => void;
 }
 
-type LightboxMode = 'crop' | 'full';
+type LightboxMode = 'crop';
 
 const SlidePreview: React.FC<SlidePreviewProps> = ({
   imageUrl,
@@ -378,12 +332,13 @@ const SlidePreview: React.FC<SlidePreviewProps> = ({
   subtitle,
   position,
   onPositionChange,
+  onFileSelect,
 }) => {
   const [lightbox, setLightbox] = useState<LightboxMode | null>(null);
 
   return (
     <div className="space-y-4">
-      {/* ── Crop canvas with repositioning */}
+      {/* Crop canvas with drag-to-reposition AND drag-and-drop upload */}
       <div>
         <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5 font-semibold">
           What users see (desktop hero crop)
@@ -395,33 +350,9 @@ const SlidePreview: React.FC<SlidePreviewProps> = ({
           position={position}
           onPositionChange={onPositionChange}
           onOpenLightbox={() => imageUrl && setLightbox('crop')}
+          onFileSelect={onFileSelect}
         />
       </div>
-
-      {/* ── Full-image preview */}
-      {imageUrl && (
-        <div>
-          <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1.5 font-semibold">
-            Your uploaded image (full, uncropped)
-          </p>
-          <button
-            type="button"
-            onClick={() => setLightbox('full')}
-            className="group relative w-full max-h-72 rounded-xl overflow-hidden border border-gray-200 bg-[linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%),linear-gradient(45deg,#f3f4f6_25%,transparent_25%,transparent_75%,#f3f4f6_75%)] bg-[length:16px_16px] bg-[position:0_0,8px_8px] flex items-center justify-center cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-primary-500"
-            aria-label="Open full image preview"
-          >
-            <img
-              src={imageUrl}
-              alt="Uploaded original"
-              className="block max-w-full max-h-72 object-contain"
-            />
-            <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 text-white text-[11px] opacity-0 group-hover:opacity-100 transition-opacity">
-              <Maximize2 className="w-3 h-3" />
-              Open
-            </span>
-          </button>
-        </div>
-      )}
 
       {lightbox && imageUrl && (
         <ImageLightbox
@@ -452,7 +383,6 @@ const ZOOM_STEPS = [1, 1.5, 2, 3] as const;
 
 const ImageLightbox: React.FC<ImageLightboxProps> = ({
   imageUrl,
-  mode,
   title,
   subtitle,
   position,
@@ -495,7 +425,7 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <span className="text-sm font-medium uppercase tracking-wide opacity-90">
-          {mode === 'crop' ? 'Hero crop preview' : 'Original image'} · {Math.round(scale * 100)}%
+          Image preview · {Math.round(scale * 100)}%
         </span>
         <div className="flex items-center gap-1">
           <IconButton onClick={zoomOut} disabled={zoomIdx === 0} title="Zoom out (−)">
@@ -524,49 +454,37 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
           }}
           onClick={(e) => { e.stopPropagation(); cycleZoom(); }}
         >
-          {mode === 'crop' ? (
-            <div
-              className="relative bg-black"
-              style={{
-                width: 'min(90vw, 1280px)',
-                aspectRatio: '3 / 1',
-                cursor: scale === ZOOM_STEPS[ZOOM_STEPS.length - 1] ? 'zoom-out' : 'zoom-in',
-              }}
-            >
-              <img
-                src={imageUrl}
-                alt="Hero crop"
-                className="absolute inset-0 w-full h-full object-cover select-none"
-                style={{ objectPosition: `${position.x}% ${position.y}%` }}
-                draggable={false}
-              />
-              {hasText && (
-                <>
-                  <div className="absolute inset-0 bg-black/35" />
-                  <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
-                    <div className="max-w-3xl">
-                      {title && (
-                        <h2 className="text-3xl md:text-5xl font-bold text-white mb-3 leading-tight drop-shadow-lg">
-                          {title}
-                        </h2>
-                      )}
-                      {subtitle && (
-                        <p className="text-base md:text-xl text-white/95 drop-shadow-md">{subtitle}</p>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : (
+          <div
+            className="relative inline-block bg-black"
+            style={{
+              cursor: scale === ZOOM_STEPS[ZOOM_STEPS.length - 1] ? 'zoom-out' : 'zoom-in',
+            }}
+          >
+            {/* Full image — fits naturally in viewport, no aspect-ratio cropping */}
             <img
               src={imageUrl}
-              alt="Uploaded original"
-              className="max-w-[90vw] max-h-[80vh] object-contain block select-none"
+              alt="Uploaded banner"
+              className="block max-w-[min(90vw,1280px)] max-h-[78vh] w-auto h-auto select-none"
               draggable={false}
-              style={{ cursor: scale === ZOOM_STEPS[ZOOM_STEPS.length - 1] ? 'zoom-out' : 'zoom-in' }}
             />
-          )}
+            {hasText && (
+              <>
+                <div className="absolute inset-0 bg-black/35" />
+                <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+                  <div className="max-w-3xl">
+                    {title && (
+                      <h2 className="text-3xl md:text-5xl font-bold text-white mb-3 leading-tight drop-shadow-lg">
+                        {title}
+                      </h2>
+                    )}
+                    {subtitle && (
+                      <p className="text-base md:text-xl text-white/95 drop-shadow-md">{subtitle}</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -959,36 +877,44 @@ const HeroBannersPage: React.FC = () => {
                   subtitle={form.subtitle}
                   position={form.objectPosition}
                   onPositionChange={(pos) => setForm((f) => ({ ...f, objectPosition: pos }))}
+                  onFileSelect={(f) => handleFileChange(f)}
                 />
+
+                {/* File status + Remove — sits right under the preview where it's visible */}
+                {(form.file || editing) && (
+                  <div className="mt-3 flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-gray-50 border border-gray-200">
+                    <ImageIcon className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                    <span className="text-gray-700 truncate flex-1">
+                      {form.file
+                        ? `${form.file.name} · ${(form.file.size / 1024 / 1024).toFixed(1)} MB`
+                        : 'Existing image (drag a new file onto the preview to replace)'}
+                    </span>
+                    {form.file && (
+                      <button
+                        type="button"
+                        onClick={() => handleFileChange(null)}
+                        className="text-red-600 hover:text-red-700 hover:underline font-semibold shrink-0"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <p className="text-xs text-gray-500 mt-3">
-                  Drag the image in the crop preview to set the focal point. The position is saved
-                  with the banner so it renders consistently on the homepage hero.
+                  {previewUrl
+                    ? 'Drag the image in the preview to set the focal point. Click "Preview 3:1" to see exactly how the homepage hero will crop it.'
+                    : 'Drag a file onto the area above, or click it to browse.'}
                 </p>
+                {errors.file && (
+                  <p className="text-xs text-red-600 mt-2 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> {errors.file}
+                  </p>
+                )}
               </div>
 
               {/* Form */}
               <div className="space-y-4">
-                {/* File upload */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Image {editing ? '(leave empty to keep existing)' : '*'}
-                  </label>
-                  <input
-                    type="file"
-                    accept={ALLOWED_TYPES.join(',')}
-                    onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-                    className="block w-full text-sm text-gray-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer"
-                  />
-                  {errors.file && (
-                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> {errors.file}
-                    </p>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">
-                    JPEG, PNG, GIF, or WebP — max 10 MB. Recommended ~1920×1080 for full-width
-                    display.
-                  </p>
-                </div>
 
                 {/* Display order + Duration */}
                 <div className="grid grid-cols-2 gap-3">
@@ -1000,9 +926,14 @@ const HeroBannersPage: React.FC = () => {
                       type="number"
                       min={0}
                       value={form.displayOrder}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, displayOrder: Number(e.target.value) || 0 }))
-                      }
+                      onChange={(e) => {
+                        const stripped = stripLeadingZeros(e.target.value);
+                        if (stripped !== e.target.value) e.target.value = stripped;
+                        setForm((f) => ({
+                          ...f,
+                          displayOrder: stripped === '' ? 0 : Number(stripped),
+                        }));
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                     {errors.displayOrder && (
@@ -1018,9 +949,14 @@ const HeroBannersPage: React.FC = () => {
                       min={1}
                       max={60}
                       value={form.durationSec}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, durationSec: Number(e.target.value) || 0 }))
-                      }
+                      onChange={(e) => {
+                        const stripped = stripLeadingZeros(e.target.value);
+                        if (stripped !== e.target.value) e.target.value = stripped;
+                        setForm((f) => ({
+                          ...f,
+                          durationSec: stripped === '' ? 0 : Number(stripped),
+                        }));
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                     {errors.durationSec && (

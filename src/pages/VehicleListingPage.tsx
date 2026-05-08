@@ -9,6 +9,7 @@ import { useGetCitiesQuery } from '../store/api/cityApi';
 import { useAppSelector } from '../store/hooks';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
 import { Slider } from '../components/ui/slider';
+import { stripLeadingZeros } from '../utils/numberInput';
 import {
   AlertCircle,
   Filter,
@@ -507,16 +508,64 @@ const VehicleListingPage: React.FC = () => {
                       <span>₹0</span>
                       <span>₹500</span>
                     </div>
-                    <div className="mt-3 flex gap-2">
-                      <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center">
-                        <p className="text-xs text-gray-400 leading-none mb-0.5">Min</p>
-                        <p className="text-sm font-bold text-gray-900">₹{priceRange[0]}</p>
-                      </div>
+                    <div className="mt-3 flex gap-2 items-stretch">
+                      <label className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent transition cursor-text">
+                        <span className="block text-xs text-gray-400 leading-none mb-0.5">Min</span>
+                        <span className="flex items-center gap-1">
+                          <span className="text-sm font-bold text-gray-900">₹</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={500}
+                            inputMode="numeric"
+                            value={priceRange[0]}
+                            onChange={(e) => {
+                              const stripped = stripLeadingZeros(e.target.value);
+                              if (stripped !== e.target.value) e.target.value = stripped;
+                              const n = stripped === '' ? 0 : Number(stripped);
+                              if (Number.isNaN(n)) return;
+                              const clamped = Math.max(0, Math.min(500, n));
+                              setPriceRange([clamped, priceRange[1]]);
+                            }}
+                            onBlur={() => {
+                              if (priceRange[0] > priceRange[1]) {
+                                setPriceRange([priceRange[1], priceRange[0]]);
+                              }
+                            }}
+                            className="w-full text-sm font-bold text-gray-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            aria-label="Minimum price"
+                          />
+                        </span>
+                      </label>
                       <div className="flex items-center text-gray-300 text-lg">—</div>
-                      <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center">
-                        <p className="text-xs text-gray-400 leading-none mb-0.5">Max</p>
-                        <p className="text-sm font-bold text-gray-900">₹{priceRange[1]}</p>
-                      </div>
+                      <label className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent transition cursor-text">
+                        <span className="block text-xs text-gray-400 leading-none mb-0.5">Max</span>
+                        <span className="flex items-center gap-1">
+                          <span className="text-sm font-bold text-gray-900">₹</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={500}
+                            inputMode="numeric"
+                            value={priceRange[1]}
+                            onChange={(e) => {
+                              const stripped = stripLeadingZeros(e.target.value);
+                              if (stripped !== e.target.value) e.target.value = stripped;
+                              const n = stripped === '' ? 0 : Number(stripped);
+                              if (Number.isNaN(n)) return;
+                              const clamped = Math.max(0, Math.min(500, n));
+                              setPriceRange([priceRange[0], clamped]);
+                            }}
+                            onBlur={() => {
+                              if (priceRange[0] > priceRange[1]) {
+                                setPriceRange([priceRange[1], priceRange[0]]);
+                              }
+                            }}
+                            className="w-full text-sm font-bold text-gray-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            aria-label="Maximum price"
+                          />
+                        </span>
+                      </label>
                     </div>
                   </div>
 

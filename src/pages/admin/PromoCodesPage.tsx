@@ -11,6 +11,7 @@ import {
   type PromoCodeDto,
 } from '../../store/api/promoCodeApi';
 import { useGetCitiesQuery } from '../../store/api/cityApi';
+import { handleNumberInputChange, stripLeadingZeros } from '../../utils/numberInput';
 import { useAppSelector } from '../../store/hooks';
 import { toast } from 'sonner';
 
@@ -414,7 +415,10 @@ const PromoCodesPage: React.FC = () => {
                   <input
                     type="number"
                     value={form.discountValue}
-                    onChange={(e) => setForm({ ...form, discountValue: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const next = handleNumberInputChange(e);
+                      if (next !== null) setForm({ ...form, discountValue: next });
+                    }}
                     placeholder={form.discountType === 'percentage' ? '10' : '50'}
                     min={0}
                     max={form.discountType === 'percentage' ? 100 : undefined}
@@ -433,7 +437,15 @@ const PromoCodesPage: React.FC = () => {
                   <input
                     type="number"
                     value={form.maxDiscountAmount ?? ''}
-                    onChange={(e) => setForm({ ...form, maxDiscountAmount: e.target.value ? Number(e.target.value) : undefined })}
+                    onChange={(e) => {
+                      // Optional field — empty stays undefined
+                      const stripped = stripLeadingZeros(e.target.value);
+                      if (stripped !== e.target.value) e.target.value = stripped;
+                      setForm({
+                        ...form,
+                        maxDiscountAmount: stripped === '' ? undefined : Number(stripped),
+                      });
+                    }}
                     placeholder="e.g. 200"
                     min={0}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 outline-none transition"
@@ -444,7 +456,10 @@ const PromoCodesPage: React.FC = () => {
                   <input
                     type="number"
                     value={form.minOrderAmount}
-                    onChange={(e) => setForm({ ...form, minOrderAmount: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const next = handleNumberInputChange(e);
+                      if (next !== null) setForm({ ...form, minOrderAmount: next });
+                    }}
                     placeholder="0"
                     min={0}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 outline-none transition"
@@ -461,7 +476,15 @@ const PromoCodesPage: React.FC = () => {
                 <input
                   type="number"
                   value={form.maxUses ?? ''}
-                  onChange={(e) => setForm({ ...form, maxUses: e.target.value ? Number(e.target.value) : undefined })}
+                  onChange={(e) => {
+                    // Optional field — empty stays undefined (= "unlimited")
+                    const stripped = stripLeadingZeros(e.target.value);
+                    if (stripped !== e.target.value) e.target.value = stripped;
+                    setForm({
+                      ...form,
+                      maxUses: stripped === '' ? undefined : Number(stripped),
+                    });
+                  }}
                   placeholder="Unlimited"
                   min={1}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 outline-none transition"

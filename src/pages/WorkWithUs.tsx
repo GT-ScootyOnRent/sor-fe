@@ -321,10 +321,9 @@ export default function WorkWithUs() {
                     onChange={(e) => setField('name', e.target.value)}
                     maxLength={120}
                     disabled={isLoading}
-                    className={`mt-3 border-0 border-b rounded-none px-0 py-3 shadow-none focus-visible:ring-0 bg-transparent text-base sm:text-lg ${
-                      errors.name
-                        ? 'border-red-400'
-                        : 'border-gray-300 focus:border-primary-500'
+                    placeholder="Enter your full name"
+                    className={`mt-3 h-12 w-full rounded-xl border bg-white px-4 text-base shadow-none outline-none transition focus-visible:ring-2 focus-visible:ring-primary-100 focus-visible:border-primary-500 ${
+                      errors.name ? 'border-red-400' : 'border-gray-300'
                     }`}
                   />
 
@@ -377,10 +376,9 @@ export default function WorkWithUs() {
                       value={form.email}
                       onChange={(e) => setField('email', e.target.value)}
                       disabled={isLoading}
-                      className={`mt-3 border-0 border-b rounded-none px-0 py-3 shadow-none focus-visible:ring-0 bg-transparent text-base sm:text-lg ${
-                        errors.email
-                          ? 'border-red-400'
-                          : 'border-gray-300 focus:border-primary-500'
+                      placeholder="name@email.com"
+                      className={`mt-3 h-12 w-full rounded-xl border bg-white px-4 text-base shadow-none outline-none transition focus-visible:ring-2 focus-visible:ring-primary-100 focus-visible:border-primary-500 ${
+                        errors.email ? 'border-red-400' : 'border-gray-300'
                       }`}
                     />
 
@@ -468,10 +466,8 @@ export default function WorkWithUs() {
                       )
                     }
                     disabled={isLoading}
-                    className={`mt-3 w-full border-0 border-b bg-transparent px-0 py-3 outline-none text-base sm:text-lg ${
-                      errors.investmentAmount
-                        ? 'border-red-400'
-                        : 'border-gray-300 focus:border-primary-500'
+                    className={`mt-3 h-12 w-full rounded-xl border bg-white px-4 text-base outline-none transition focus:ring-2 focus:ring-primary-100 focus:border-primary-500 ${
+                      errors.investmentAmount ? 'border-red-400' : 'border-gray-300'
                     }`}
                   >
                     <option value="">Select an option</option>
@@ -542,10 +538,9 @@ export default function WorkWithUs() {
           onChange={(e) =>
             setField('vehicleCount', e.target.value)
           }
-          className={`mt-3 border-0 border-b rounded-none px-0 py-3 shadow-none focus-visible:ring-0 bg-transparent text-base sm:text-lg ${
-            errors.vehicleCount
-              ? 'border-red-400'
-              : 'border-gray-300 focus:border-primary-500'
+          placeholder="e.g. 5"
+          className={`mt-3 h-12 w-full rounded-xl border bg-white px-4 text-base shadow-none outline-none transition focus-visible:ring-2 focus-visible:ring-primary-100 focus-visible:border-primary-500 ${
+            errors.vehicleCount ? 'border-red-400' : 'border-gray-300'
           }`}
         />
 
