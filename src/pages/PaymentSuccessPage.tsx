@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, Calendar, MapPin, CreditCard, ClipboardList, Car } from 'lucide-react';
+import { CheckCircle, Calendar, MapPin, CreditCard, Receipt, ClipboardList } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import Header from '../components/Header';
 import { useGetBookingByIdQuery } from '../store/api/bookingApi';
@@ -47,25 +47,15 @@ export default function PaymentSuccessPage() {
           </div>
 
           <div className="p-6 space-y-4">
-            {/* IDs */}
-            <div className="grid grid-cols-2 gap-4">
-              {(booking as any)?.vehicleRegistrationNumber && (
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Car className="w-4 h-4 text-gray-500" />
-                    <p className="text-xs text-gray-400">Vehicle No</p>
-                  </div>
-                  <p className="font-bold text-gray-900 text-lg">
-                    {(booking as any).vehicleRegistrationNumber}
-                  </p>
-                </div>
-              )}
-              <div className={`bg-gray-50 rounded-xl p-4 ${!(booking as any)?.vehicleRegistrationNumber ? 'col-span-2' : ''}`}>
-                <p className="text-xs text-gray-400 mb-1">Transaction ID</p>
-                <p className="font-semibold text-gray-900 text-sm break-all">
-                  {(booking as any)?.transactionId || txnId || '—'}
-                </p>
+            {/* Transaction ID */}
+            <div className="bg-gray-50 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Receipt className="w-4 h-4 text-gray-500" />
+                <p className="text-xs text-gray-400">Transaction ID</p>
               </div>
+              <p className="font-semibold text-gray-900 text-sm break-all">
+                {(booking as any)?.transactionId || txnId || '—'}
+              </p>
             </div>
 
             {/* Vehicle */}

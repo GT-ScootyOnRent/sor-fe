@@ -51,7 +51,7 @@ export default function BookNow() {
   const defaultStartDate = startDateParam || new Date().toISOString().split('T')[0];
   const defaultStartTime = startTimeParam || getDefaultPickupTime();
   const defaultEndDate = endDateParam || ''; // Let user fill return date
-  const defaultEndTime = endTimeParam || '22:00'; // Default 10:00 PM
+  const defaultEndTime = endTimeParam || '23:30'; // Default 11:30 PM
 
   const [bookingDates, setBookingDates] = useState({
     startDate: defaultStartDate,
@@ -386,8 +386,8 @@ export default function BookNow() {
                       onChange={(e) =>
                         handleDateChange({ ...bookingDates, startTime: e.target.value }, 'startTime')
                       }
-                      min={bookingDates.startDate === new Date().toISOString().split('T')[0] ? (() => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; })() : '08:00'}
-                      max="22:00"
+                      min={bookingDates.startDate === new Date().toISOString().split('T')[0] ? (() => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; })() : '06:00'}
+                      max="23:30"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                   </div>
@@ -428,9 +428,9 @@ export default function BookNow() {
                           return bookingDates.startTime;
                         }
                         if (bookingDates.endDate === today) return getMinForToday();
-                        return '08:00';
+                        return '06:00';
                       })()}
-                      max="22:00"
+                      max="23:30"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                   </div>

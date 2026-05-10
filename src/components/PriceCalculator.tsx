@@ -276,13 +276,13 @@ export default function PriceCalculator({
                 value={promoCode}
                 onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
                 placeholder="Enter promo code"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3A6F9B] focus:border-transparent uppercase"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-transparent uppercase"
                 disabled={validatingPromo}
               />
               <Button
                 onClick={handleApplyManualPromo}
                 disabled={!promoCode.trim() || validatingPromo || !cityId}
-                className="px-4 bg-[#3A6F9B] hover:bg-[#2d5777] text-white text-sm disabled:opacity-50"
+                className="px-4 bg-primary-600 hover:bg-primary-700 text-white text-sm disabled:opacity-50"
               >
                 {validatingPromo ? 'Applying...' : 'Apply'}
               </Button>
@@ -292,7 +292,7 @@ export default function PriceCalculator({
             {cityId && (
               <button
                 onClick={() => setShowPromoModal(true)}
-                className="mt-2 text-sm text-[#3A6F9B] font-medium underline underline-offset-2 hover:text-[#2d5777] transition-all hover:underline-offset-4"
+                className="mt-2 text-sm text-primary-600 font-medium underline underline-offset-2 hover:text-primary-700 transition-all hover:underline-offset-4"
               >
                 View Promocodes
               </button>

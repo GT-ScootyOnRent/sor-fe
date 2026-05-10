@@ -8,24 +8,26 @@
 
 /* 
   Primary Color Theme - Change these values to update the entire site's color scheme
-  Current: Mid Blue Denim (#3A6F9B)
+  Current: Vibrant Blue (#017cee)
   To change: Replace the hex values below with your desired color palette
 */
 @theme {
-    --color-primary-50: #f0f5f9;
-    --color-primary-100: #dae6f0;
-    --color-primary-200: #b8cfe3;
-    --color-primary-300: #8bb3d1;
-    --color-primary-400: #5e94bc;
-    --color-primary-500: #4a80ab;
-    --color-primary-600: #3A6F9B;
-    --color-primary-700: #315d82;
-    --color-primary-800: #294d6b;
-    --color-primary-900: #243f57;
+    --color-primary-50: #e6f3ff;
+    --color-primary-100: #cce7ff;
+    --color-primary-200: #99cfff;
+    --color-primary-300: #66b7ff;
+    --color-primary-400: #339fff;
+    --color-primary-500: #0087ff;
+    --color-primary-600: #017cee;
+    --color-primary-700: #0163be;
+    --color-primary-800: #014a8f;
+    --color-primary-900: #01315f;
 }
 
 @keyframes orbit-spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .animate-orbit {
@@ -34,8 +36,15 @@
 
 /* Hero slideshow text overlay entrance */
 @keyframes hero-text-in {
-    0%   { opacity: 0; transform: translateY(12px); }
-    100% { opacity: 1; transform: translateY(0); }
+    0% {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .animate-hero-text {
@@ -44,14 +53,14 @@
 
 /* Nav: Booking/Vehicles — animated “snake” border (theme: primary blues) */
 .btn-snake {
-    --btn-snake-glow: #8bb3d1;
-    --btn-snake-core: #4a80ab;
+    --btn-snake-glow: #66b7ff;
+    --btn-snake-core: #017cee;
     position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     background: transparent;
-    color: #3a6f9b;
+    color: #017cee;
     padding: 0.5rem 1.25rem;
     border: none;
     border-radius: 8px;
@@ -80,14 +89,12 @@
     position: absolute;
     width: 100%;
     height: 2px;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        var(--btn-snake-glow),
-        var(--btn-snake-core),
-        var(--btn-snake-glow),
-        transparent
-    );
+    background: linear-gradient(90deg,
+            transparent,
+            var(--btn-snake-glow),
+            var(--btn-snake-core),
+            var(--btn-snake-glow),
+            transparent);
     pointer-events: none;
 }
 
@@ -109,14 +116,12 @@
     position: absolute;
     width: 2px;
     height: 100%;
-    background: linear-gradient(
-        180deg,
-        transparent,
-        var(--btn-snake-glow),
-        var(--btn-snake-core),
-        var(--btn-snake-glow),
-        transparent
-    );
+    background: linear-gradient(180deg,
+            transparent,
+            var(--btn-snake-glow),
+            var(--btn-snake-core),
+            var(--btn-snake-glow),
+            transparent);
 }
 
 .btn-snake .btn-snake-sides::before {
@@ -171,6 +176,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+
     .btn-snake::before,
     .btn-snake::after,
     .btn-snake .btn-snake-sides::before,

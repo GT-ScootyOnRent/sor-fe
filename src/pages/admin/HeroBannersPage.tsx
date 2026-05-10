@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Move,
   UploadCloud,
+  Globe,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -29,6 +30,8 @@ import {
   useDeleteHeroBannerMutation,
   type HeroBanner,
 } from '../../store/api/heroBannerApi';
+import { useGetCitiesQuery } from '../../store/api/cityApi';
+import { useGetAdminProfileQuery } from '../../store/api/adminApi';
 import { generateCroppedImage } from '../../utils/cropImage';
 import { stripLeadingZeros } from '../../utils/numberInput';
 
@@ -44,6 +47,8 @@ type FormState = {
   subtitle: string;
   isActive: boolean;
   objectPosition: ObjectPosition;
+  cityIds: number[]; // specific cities selected
+  useAllCitiesMode: boolean; // true = "All Cities" checked, false = individual cities
 };
 
 const DEFAULT_POSITION: ObjectPosition = { x: 50, y: 50 };
@@ -56,6 +61,8 @@ const EMPTY_FORM: FormState = {
   subtitle: '',
   isActive: true,
   objectPosition: DEFAULT_POSITION,
+  cityIds: [],
+  useAllCitiesMode: true, // default to "All" mode
 };
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -182,13 +189,12 @@ const CropPositioner: React.FC<CropPositionerProps> = ({
         onDragLeave={onContainerDragLeave}
         onDrop={onContainerDrop}
         onClick={!imageUrl ? triggerFileBrowser : undefined}
-        className={`relative w-full flex-1 min-h-[480px] rounded-xl overflow-visible shadow-sm select-none transition-colors ${
-          isDraggingFile
+        className={`relative w-full flex-1 min-h-[480px] rounded-xl overflow-visible shadow-sm select-none transition-colors ${isDraggingFile
             ? 'bg-primary-50 border-2 border-dashed border-primary-500'
             : imageUrl
-            ? 'bg-white border-2 border-dashed'
-            : 'bg-gray-50 border-2 border-dashed border-gray-300 hover:bg-gray-100 hover:border-gray-400 cursor-pointer'
-        }`}
+              ? 'bg-white border-2 border-dashed'
+              : 'bg-gray-50 border-2 border-dashed border-gray-300 hover:bg-gray-100 hover:border-gray-400 cursor-pointer'
+          }`}
         style={{ borderColor: !isDraggingFile && imageUrl ? 'rgb(99 102 241 / 0.5)' : undefined }}
       >
         {imageUrl ? (
@@ -266,7 +272,7 @@ const CropPositioner: React.FC<CropPositionerProps> = ({
                     <p className="text-[7px] font-semibold uppercase tracking-wide text-gray-400 leading-none">Return</p>
                     <p className="mt-1 text-[9px] font-semibold text-gray-700 leading-none">dd-mm</p>
                   </div>
-                  <div className="bg-gradient-to-r from-teal-500 to-cyan-600 flex items-center justify-center px-2">
+                  <div className="bg-gradient-to-r from-primary-500 to-primary-600 flex items-center justify-center px-2">
                     <span className="w-full h-full flex items-center justify-center py-1.5 text-white font-semibold text-[9px] tracking-wide">
                       Ride Now
                     </span>
@@ -278,9 +284,8 @@ const CropPositioner: React.FC<CropPositionerProps> = ({
         ) : (
           /* Empty state — fills the FULL outer drop zone (not just the 3:1 area) */
           <div
-            className={`absolute inset-0 flex flex-col items-center justify-center px-6 text-center transition-colors ${
-              isDraggingFile ? 'text-primary-700' : 'text-gray-500'
-            }`}
+            className={`absolute inset-0 flex flex-col items-center justify-center px-6 text-center transition-colors ${isDraggingFile ? 'text-primary-700' : 'text-gray-500'
+              }`}
           >
             <UploadCloud
               className={`w-14 h-14 mb-3 ${isDraggingFile ? 'text-primary-600' : 'text-gray-400'}`}
@@ -516,10 +521,21 @@ const IconButton: React.FC<{
 
 const HeroBannersPage: React.FC = () => {
   const { data: banners = [], isLoading, isError, refetch } = useGetAdminHeroBannersQuery();
+  const { data: allCities = [], isLoading: citiesLoading } = useGetCitiesQuery({ page: 1, size: 100 });
+  const { data: adminProfile } = useGetAdminProfileQuery();
   const [createBanner, { isLoading: isCreating }] = useCreateHeroBannerMutation();
   const [updateBanner, { isLoading: isUpdating }] = useUpdateHeroBannerMutation();
   const [reorderBanner] = useReorderHeroBannerMutation();
   const [deleteBanner, { isLoading: isDeleting }] = useDeleteHeroBannerMutation();
+
+  // Filter cities based on admin's access - SuperAdmin (role=2) can see all
+  const isSuperAdmin = adminProfile?.role === 2;
+  const adminCityIds = adminProfile?.cityIds ?? [];
+  const cities = useMemo(() => {
+    if (isSuperAdmin) return allCities;
+    if (adminCityIds.length === 0) return allCities; // No restriction = show all
+    return allCities.filter(city => adminCityIds.includes(city.id));
+  }, [allCities, adminCityIds, isSuperAdmin]);
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<HeroBanner | null>(null);
@@ -534,21 +550,38 @@ const HeroBannersPage: React.FC = () => {
   const isEditDirty = useMemo(() => {
     if (!editing) return true; // create mode: allow save (validation still applies)
     const durationMs = form.durationSec * 1000;
+
+    // Check if city selection changed
+    const originalIsAllMode = isSuperAdmin
+      ? editing.cityIds.length === 0
+      : editing.cityIds.length === 0 || (editing.cityIds.length === cities.length && cities.every(c => editing.cityIds.includes(c.id)));
+    const cityChanged = form.useAllCitiesMode !== originalIsAllMode ||
+      (!form.useAllCitiesMode && (
+        form.cityIds.length !== editing.cityIds.length ||
+        !form.cityIds.every(id => editing.cityIds.includes(id))
+      ));
+
     return (
       !!form.file ||
       form.displayOrder !== editing.displayOrder ||
       durationMs !== editing.durationMs ||
       form.title !== (editing.title ?? '') ||
       form.subtitle !== (editing.subtitle ?? '') ||
-      form.isActive !== editing.isActive
+      form.isActive !== editing.isActive ||
+      cityChanged
     );
-  }, [editing, form]);
+  }, [editing, form, isSuperAdmin, cities]);
 
   // Sort banners by displayOrder for reliable up/down behavior
-  const sortedBanners = useMemo(
-    () => [...banners].sort((a, b) => a.displayOrder - b.displayOrder),
-    [banners],
-  );
+  // Filter to show only banners the admin has access to (SuperAdmin sees all)
+  const sortedBanners = useMemo(() => {
+    let filtered = banners;
+    if (!isSuperAdmin && adminCityIds.length > 0) {
+      // Admin can see: global banners (cityIds empty) OR banners for their cities
+      filtered = banners.filter(b => b.cityIds.length === 0 || b.cityIds.some(id => adminCityIds.includes(id)));
+    }
+    return [...filtered].sort((a, b) => a.displayOrder - b.displayOrder);
+  }, [banners, isSuperAdmin, adminCityIds]);
 
   // ── Modal lifecycle ──────────────────────────────────────────────────────
 
@@ -557,6 +590,8 @@ const HeroBannersPage: React.FC = () => {
     setForm({
       ...EMPTY_FORM,
       displayOrder: (sortedBanners[sortedBanners.length - 1]?.displayOrder ?? 0) + 1,
+      cityIds: [],
+      useAllCitiesMode: true, // Start with "All" mode
     });
     setPreviewUrl(null);
     setErrors({});
@@ -565,6 +600,13 @@ const HeroBannersPage: React.FC = () => {
 
   const openEdit = (banner: HeroBanner) => {
     setEditing(banner);
+    // Determine if this was saved in "All" mode:
+    // - SuperAdmin: cityIds = [] means global
+    // - Admin: cityIds = [] OR cityIds contains all their cities = "All My Cities"
+    const isAllMode = isSuperAdmin
+      ? banner.cityIds.length === 0
+      : banner.cityIds.length === 0 || (banner.cityIds.length === cities.length && cities.every(c => banner.cityIds.includes(c.id)));
+
     setForm({
       file: null,
       displayOrder: banner.displayOrder,
@@ -573,6 +615,8 @@ const HeroBannersPage: React.FC = () => {
       subtitle: banner.subtitle ?? '',
       isActive: banner.isActive,
       objectPosition: DEFAULT_POSITION,
+      cityIds: isAllMode ? [] : banner.cityIds,
+      useAllCitiesMode: isAllMode,
     });
     setPreviewUrl(banner.imageUrl);
     setErrors({});
@@ -649,19 +693,31 @@ const HeroBannersPage: React.FC = () => {
 
     const fd = new FormData();
     if (form.file) {
-  const croppedFile =
-    await generateCroppedImage(
-      form.file,
-      form.objectPosition
-    );
+      const croppedFile =
+        await generateCroppedImage(
+          form.file,
+          form.objectPosition
+        );
 
-  fd.append('file', croppedFile);
-}
+      fd.append('file', croppedFile);
+    }
     fd.append('displayOrder', String(form.displayOrder));
     fd.append('durationMs', String(form.durationSec * 1000));
     fd.append('title', form.title);
     fd.append('subtitle', form.subtitle);
     fd.append('isActive', String(form.isActive));
+
+    // Determine cityIds to send:
+    // - SuperAdmin with "All Cities": empty string (global)
+    // - Admin with "All My Cities": all their assigned city IDs
+    // - Otherwise: selected city IDs
+    let cityIdsToSend: number[];
+    if (form.useAllCitiesMode) {
+      cityIdsToSend = isSuperAdmin ? [] : cities.map(c => c.id);
+    } else {
+      cityIdsToSend = form.cityIds;
+    }
+    fd.append('cityIds', cityIdsToSend.join(','));
 
     try {
       if (editing) {
@@ -800,6 +856,10 @@ const HeroBannersPage: React.FC = () => {
                       <XCircle className="w-3 h-3" /> Inactive
                     </span>
                   )}
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                    <Globe className="w-3 h-3" />
+                    {banner.cityIds.length > 0 ? banner.cityNames.join(', ') : 'All Cities'}
+                  </span>
                 </div>
                 <h3 className="text-base font-semibold text-gray-900 truncate">
                   {banner.title || <span className="italic text-gray-400">No title</span>}
@@ -1012,6 +1072,127 @@ const HeroBannersPage: React.FC = () => {
                     Active <span className="text-gray-500">(visible on the user homepage)</span>
                   </span>
                 </label>
+
+                {/* City Selection - Multi-select checkboxes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Target Cities
+                  </label>
+                  <div className="border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto space-y-2">
+                    {citiesLoading ? (
+                      <div className="flex items-center gap-2 text-gray-500 text-sm p-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading cities...
+                      </div>
+                    ) : cities.length === 0 ? (
+                      <div className="text-gray-500 text-sm p-2">
+                        No cities available
+                      </div>
+                    ) : (
+                      <>
+                        {/* "All" option - SuperAdmin: All Cities (Global), Admin: All My Cities */}
+                        {(isSuperAdmin || cities.length > 1) && (
+                          <label className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer border-b border-gray-100 pb-2 mb-1">
+                            <input
+                              type="checkbox"
+                              checked={form.useAllCitiesMode}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setForm((f) => ({ ...f, useAllCitiesMode: true, cityIds: [] }));
+                                }
+                              }}
+                              className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                            />
+                            <Globe className="w-4 h-4 text-gray-400" />
+                            <span className="text-sm text-gray-700 font-medium">
+                              {isSuperAdmin ? 'All Cities (Global)' : 'All My Cities'}
+                            </span>
+                          </label>
+                        )}
+                        {/* Individual city checkboxes */}
+                        {cities.map((city) => {
+                          const isOnlyCity = !isSuperAdmin && cities.length === 1;
+
+                          return (
+                            <label
+                              key={city.id}
+                              className={`flex items-center gap-2 p-2 rounded hover:bg-gray-50 ${isOnlyCity ? 'cursor-default' : 'cursor-pointer'}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isOnlyCity || (!form.useAllCitiesMode && form.cityIds.includes(city.id))}
+                                disabled={isOnlyCity}
+                                onChange={(e) => {
+                                  if (isOnlyCity) return;
+
+                                  setForm((f) => {
+                                    if (e.target.checked) {
+                                      // Checking a city - turn off "All" mode, add to selection
+                                      return {
+                                        ...f,
+                                        useAllCitiesMode: false,
+                                        cityIds: [...f.cityIds, city.id],
+                                      };
+                                    } else {
+                                      // Unchecking a city
+                                      const newCityIds = f.cityIds.filter((id) => id !== city.id);
+                                      // If no cities left, revert to "All" mode
+                                      if (newCityIds.length === 0) {
+                                        return { ...f, useAllCitiesMode: true, cityIds: [] };
+                                      }
+                                      return { ...f, cityIds: newCityIds };
+                                    }
+                                  });
+                                }}
+                                className="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500 disabled:opacity-60"
+                              />
+                              <span className={`text-sm ${isOnlyCity ? 'text-gray-500' : 'text-gray-700'}`}>{city.name}</span>
+                            </label>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {isSuperAdmin
+                      ? 'Select "All Cities" for a global banner, or pick specific cities.'
+                      : cities.length === 1
+                        ? 'This banner will be shown in your assigned city.'
+                        : 'Select "All My Cities" or pick specific cities from your assigned locations.'}
+                  </p>
+                  {/* Show selected city tags only when specific cities are selected (not "All" mode) */}
+                  {!form.useAllCitiesMode && form.cityIds.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {form.cityIds.map((id) => {
+                        const city = cities.find((c) => c.id === id);
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-primary-50 text-primary-700"
+                          >
+                            {city?.name ?? `City #${id}`}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setForm((f) => {
+                                  const newCityIds = f.cityIds.filter((cid) => cid !== id);
+                                  // If no cities left, revert to "All" mode
+                                  if (newCityIds.length === 0) {
+                                    return { ...f, useAllCitiesMode: true, cityIds: [] };
+                                  }
+                                  return { ...f, cityIds: newCityIds };
+                                });
+                              }}
+                              className="hover:text-primary-900"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

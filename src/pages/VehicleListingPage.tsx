@@ -82,7 +82,7 @@ const VehicleListingPage: React.FC = () => {
   // ── Sidebar filter state ──
   const [selectedType, setSelectedType] = useState<string>('');
   const [selectedFuel, setSelectedFuel] = useState<string>('');
-  const [priceRange, setPriceRange] = useState<number[]>([0, 500]);
+  const [priceRange, setPriceRange] = useState<number[] | null>(null); // Will be initialized from vehicles
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Debounced search for performance
@@ -121,6 +121,27 @@ const VehicleListingPage: React.FC = () => {
     cityId: selectedCityId,
   });
 
+  // ── Calculate dynamic price bounds from vehicles ──
+  const priceBounds = useMemo(() => {
+    if (!vehicles || vehicles.length === 0) return { min: 0, max: 500 };
+    const prices = vehicles.map((v) => v.pricePerHour).filter((p) => p > 0);
+    if (prices.length === 0) return { min: 0, max: 500 };
+    return {
+      min: Math.floor(Math.min(...prices)),
+      max: Math.ceil(Math.max(...prices)),
+    };
+  }, [vehicles]);
+
+  // Initialize priceRange when vehicles load
+  useEffect(() => {
+    if (vehicles && vehicles.length > 0 && priceRange === null) {
+      setPriceRange([priceBounds.min, priceBounds.max]);
+    }
+  }, [vehicles, priceBounds, priceRange]);
+
+  // Use effective price range (default to bounds if not set)
+  const effectivePriceRange = priceRange ?? [priceBounds.min, priceBounds.max];
+
   // ── Filter + sort pipeline ──
   const filteredVehicles = useMemo(() => {
     if (!vehicles) return [];
@@ -135,7 +156,7 @@ const VehicleListingPage: React.FC = () => {
       }
       if (selectedType && v.vehicleType !== selectedType) return false;
       if (selectedFuel && v.fuelType !== selectedFuel) return false;
-      if (v.pricePerHour < priceRange[0] || v.pricePerHour > priceRange[1]) return false;
+      if (v.pricePerHour < effectivePriceRange[0] || v.pricePerHour > effectivePriceRange[1]) return false;
       return true;
     });
 
@@ -158,29 +179,29 @@ const VehicleListingPage: React.FC = () => {
     });
 
     return result;
-  }, [vehicles, debouncedSearch, selectedType, selectedFuel, priceRange, sortBy]);
+  }, [vehicles, debouncedSearch, selectedType, selectedFuel, effectivePriceRange, sortBy]);
 
   // ── Active filter tracking ──
   const hasActiveSidebarFilters =
     !!selectedType ||
     !!selectedFuel ||
-    priceRange[0] > 0 ||
-    priceRange[1] < 500;
+    effectivePriceRange[0] > priceBounds.min ||
+    effectivePriceRange[1] < priceBounds.max;
 
   const sidebarFilterCount = [
     selectedType,
     selectedFuel,
-    priceRange[0] > 0 || priceRange[1] < 500,
+    effectivePriceRange[0] > priceBounds.min || effectivePriceRange[1] < priceBounds.max,
   ].filter(Boolean).length;
 
   const clearFilters = useCallback(() => {
     setSelectedType('');
     setSelectedFuel('');
-    setPriceRange([0, 500]);
+    setPriceRange([priceBounds.min, priceBounds.max]);
     setSearchQuery('');
     setSortBy('price_asc');
     setSelectedCityId(selectedCity?.id);
-  }, [selectedCity]);
+  }, [selectedCity, priceBounds]);
 
   // ── Selected city label ──
   const selectedCityLabel = useMemo(() => {
@@ -361,8 +382,8 @@ const VehicleListingPage: React.FC = () => {
                           const newParams = new URLSearchParams(searchParams);
                           newParams.set('startDate', editStartDate);
                           newParams.set('endDate', editEndDate);
-                          if (!newParams.get('startTime')) newParams.set('startTime', '08:00');
-                          if (!newParams.get('endTime')) newParams.set('endTime', '22:00');
+                          if (!newParams.get('startTime')) newParams.set('startTime', '06:00');
+                          if (!newParams.get('endTime')) newParams.set('endTime', '23:30');
                           setSearchParams(newParams);
                         }
                         setShowDatePicker(false);
@@ -491,22 +512,22 @@ const VehicleListingPage: React.FC = () => {
                         Price / Hour
                       </h4>
                       <span className="text-sm font-bold text-primary-600">
-                        ₹{priceRange[0]} – ₹{priceRange[1]}
+                        ₹{effectivePriceRange[0]} – ₹{effectivePriceRange[1]}
                       </span>
                     </div>
                     <div className="px-1">
                       <Slider
-                        min={0}
-                        max={500}
-                        step={10}
-                        value={priceRange}
+                        min={priceBounds.min}
+                        max={priceBounds.max}
+                        step={1}
+                        value={effectivePriceRange}
                         onValueChange={(value) => setPriceRange(value)}
                         className="mb-3"
                       />
                     </div>
                     <div className="flex justify-between text-xs text-gray-400 px-1">
-                      <span>₹0</span>
-                      <span>₹500</span>
+                      <span>₹{priceBounds.min}</span>
+                      <span>₹{priceBounds.max}</span>
                     </div>
                     <div className="mt-3 flex gap-2 items-stretch">
                       <label className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-primary-500 focus-within:border-transparent transition cursor-text">
@@ -515,21 +536,21 @@ const VehicleListingPage: React.FC = () => {
                           <span className="text-sm font-bold text-gray-900">₹</span>
                           <input
                             type="number"
-                            min={0}
-                            max={500}
+                            min={priceBounds.min}
+                            max={priceBounds.max}
                             inputMode="numeric"
-                            value={priceRange[0]}
+                            value={effectivePriceRange[0]}
                             onChange={(e) => {
                               const stripped = stripLeadingZeros(e.target.value);
                               if (stripped !== e.target.value) e.target.value = stripped;
-                              const n = stripped === '' ? 0 : Number(stripped);
+                              const n = stripped === '' ? priceBounds.min : Number(stripped);
                               if (Number.isNaN(n)) return;
-                              const clamped = Math.max(0, Math.min(500, n));
-                              setPriceRange([clamped, priceRange[1]]);
+                              const clamped = Math.max(priceBounds.min, Math.min(priceBounds.max, n));
+                              setPriceRange([clamped, effectivePriceRange[1]]);
                             }}
                             onBlur={() => {
-                              if (priceRange[0] > priceRange[1]) {
-                                setPriceRange([priceRange[1], priceRange[0]]);
+                              if (effectivePriceRange[0] > effectivePriceRange[1]) {
+                                setPriceRange([effectivePriceRange[1], effectivePriceRange[0]]);
                               }
                             }}
                             className="w-full text-sm font-bold text-gray-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -544,21 +565,21 @@ const VehicleListingPage: React.FC = () => {
                           <span className="text-sm font-bold text-gray-900">₹</span>
                           <input
                             type="number"
-                            min={0}
-                            max={500}
+                            min={priceBounds.min}
+                            max={priceBounds.max}
                             inputMode="numeric"
-                            value={priceRange[1]}
+                            value={effectivePriceRange[1]}
                             onChange={(e) => {
                               const stripped = stripLeadingZeros(e.target.value);
                               if (stripped !== e.target.value) e.target.value = stripped;
-                              const n = stripped === '' ? 0 : Number(stripped);
+                              const n = stripped === '' ? priceBounds.min : Number(stripped);
                               if (Number.isNaN(n)) return;
-                              const clamped = Math.max(0, Math.min(500, n));
-                              setPriceRange([priceRange[0], clamped]);
+                              const clamped = Math.max(priceBounds.min, Math.min(priceBounds.max, n));
+                              setPriceRange([effectivePriceRange[0], clamped]);
                             }}
                             onBlur={() => {
-                              if (priceRange[0] > priceRange[1]) {
-                                setPriceRange([priceRange[1], priceRange[0]]);
+                              if (effectivePriceRange[0] > effectivePriceRange[1]) {
+                                setPriceRange([effectivePriceRange[1], effectivePriceRange[0]]);
                               }
                             }}
                             className="w-full text-sm font-bold text-gray-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
