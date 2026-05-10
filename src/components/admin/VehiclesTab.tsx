@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Plus, Edit, Trash2, Search, CheckCircle, XCircle,
-  Image, MapPin, X, Save, Loader2, Star,
+  Image, MapPin, X, Save, Loader2, Star, Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -46,6 +46,7 @@ const VehiclesTab: React.FC = () => {
   const [vehicleModalTab, setVehicleModalTab] = useState<VehicleModalTab>('details');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [trackingVehicle, setTrackingVehicle] = useState<VehicleDto | null>(null);
+  const [previewVehicle, setPreviewVehicle] = useState<VehicleDto | null>(null);
 
   // ── API Calls ──────────────────────────────────────────────────────────
   const { data: vehicles = [], isLoading: vehiclesLoading, refetch: refetchVehicles } = useGetVehiclesQuery(undefined);
@@ -239,13 +240,22 @@ const VehiclesTab: React.FC = () => {
                         >
                           <Edit className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => { handleOpenEditVehicle(vehicle); setVehicleModalTab('images'); }}
-                          className="p-1.5 lg:p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
-                          title="Manage images"
-                        >
-                          <Image className="w-4 h-4" />
-                        </button>
+                        {(vehicle.imageCount ?? 0) > 0 && (
+                          <button
+                            onClick={() => { handleOpenEditVehicle(vehicle); setVehicleModalTab('images'); }}
+                            className="p-1.5 lg:p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition relative group"
+                            title="Manage images"
+                          >
+                            <Image className="w-4 h-4" />
+                            <span
+                              onClick={(e) => { e.stopPropagation(); setPreviewVehicle(vehicle); }}
+                              className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition cursor-pointer"
+                              title="View images"
+                            >
+                              <Eye className="w-2.5 h-2.5" />
+                            </span>
+                          </button>
+                        )}
                         {vehicle.gpsDeviceId && (
                           <button
                             onClick={() => setTrackingVehicle(vehicle)}
@@ -471,6 +481,9 @@ const VehiclesTab: React.FC = () => {
                             </div>
                           )}
                           <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
+                            <button onClick={() => setPreviewVehicle(editingVehicle)} className="flex items-center gap-1 px-2 py-1.5 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 transition">
+                              <Eye className="w-3 h-3" /> View
+                            </button>
                             {!image.isPrimary && (
                               <button onClick={() => handleSetPrimaryImage(image)} className="flex items-center gap-1 px-2 py-1.5 bg-green-500 text-white text-xs rounded-lg hover:bg-green-600 transition">
                                 <Star className="w-3 h-3" /> Set Primary
@@ -528,6 +541,91 @@ const VehiclesTab: React.FC = () => {
           onClose={() => setTrackingVehicle(null)}
         />
       )}
+
+      {/* ════ IMAGE PREVIEW MODAL ════ */}
+      {previewVehicle && (
+        <ImagePreviewModal
+          vehicleId={previewVehicle.id}
+          vehicleName={previewVehicle.name}
+          onClose={() => setPreviewVehicle(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+// ── Image Preview Modal Component ──────────────────────────────────────────
+interface ImagePreviewModalProps {
+  vehicleId: number;
+  vehicleName: string;
+  onClose: () => void;
+}
+
+const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ vehicleId, vehicleName, onClose }) => {
+  const { data: images = [], isLoading } = useGetVehicleImagesByVehicleIdQuery(vehicleId);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const sortedImages = [...images].sort((a, b) => a.displayOrder - b.displayOrder);
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">{vehicleName} - Images</h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+            </div>
+          ) : sortedImages.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">No images available</div>
+          ) : (
+            <>
+              {/* Main Image */}
+              <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden mb-4">
+                <img
+                  src={sortedImages[currentIndex]?.imageUrl}
+                  alt={`${vehicleName} - Image ${currentIndex + 1}`}
+                  className="w-full h-full object-contain"
+                />
+                {sortedImages[currentIndex]?.isPrimary && (
+                  <span className="absolute top-3 left-3 bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                    <Star className="w-3 h-3" /> Primary
+                  </span>
+                )}
+              </div>
+
+              {/* Thumbnails */}
+              {sortedImages.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {sortedImages.map((img, idx) => (
+                    <button
+                      key={img.id}
+                      onClick={() => setCurrentIndex(idx)}
+                      className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition ${idx === currentIndex ? 'border-primary-500' : 'border-transparent hover:border-gray-300'
+                        }`}
+                    >
+                      <img src={img.imageUrl} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Image Counter */}
+              <div className="text-center text-sm text-gray-500 mt-2">
+                {currentIndex + 1} of {sortedImages.length}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

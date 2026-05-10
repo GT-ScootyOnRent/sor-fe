@@ -43,6 +43,7 @@ export interface VehicleDto {
   insuranceDetails?: string;
   kmTravelled: number;
   gpsDeviceId?: string;
+  imageCount?: number;
   packages?: VehiclePackagesDto;
   specs?: VehicleSpecsDto;
 }

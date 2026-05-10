@@ -12,7 +12,8 @@ const baseQuery = fetchBaseQuery({
     baseUrl: API_CONFIG.BASE_URL,
     credentials: 'include',
     prepareHeaders: (headers, { getState, endpoint }) => {
-        const token = (getState() as RootState).auth.token;
+        // Try Redux state first, then localStorage fallback for fresh login scenarios
+        const token = (getState() as RootState).auth.token || localStorage.getItem('token');
         if (token) {
             headers.set('Authorization', `Bearer ${token}`);
         }

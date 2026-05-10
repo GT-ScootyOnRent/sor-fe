@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useGetHeroBannersQuery } from '../store/api/heroBannerApi';
+import { useAppSelector } from '../store/hooks';
 
 const FALLBACK_GRADIENT =
   'bg-[linear-gradient(135deg,#ffb87a,#ff7ac8,#7feaff,#80ffbf)]';
@@ -10,7 +11,8 @@ const VERTICAL_LINES_OVERLAY: React.CSSProperties = {
 };
 
 export default function HeroSlideshow() {
-  const { data: banners = [], isLoading, isError } = useGetHeroBannersQuery();
+  const selectedCity = useAppSelector((state) => state.city.selectedCity);
+  const { data: banners = [], isLoading, isError } = useGetHeroBannersQuery(selectedCity?.id);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   // Reset to first slide whenever the banner set changes
@@ -73,11 +75,10 @@ export default function HeroSlideshow() {
         return (
           <div
             key={banner.id}
-            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-              isActive
+            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${isActive
                 ? 'opacity-100 z-0'
                 : 'opacity-0 z-0 pointer-events-none'
-            }`}
+              }`}
             aria-hidden={!isActive}
           >
             <img
@@ -125,11 +126,10 @@ export default function HeroSlideshow() {
               type="button"
               onClick={() => setCurrentIndex(idx)}
               aria-label={`Go to slide ${idx + 1}`}
-              className={`h-2 rounded-full transition-all ${
-                idx === currentIndex
+              className={`h-2 rounded-full transition-all ${idx === currentIndex
                   ? 'w-8 bg-white'
                   : 'w-2 bg-white/60 hover:bg-white/80'
-              }`}
+                }`}
             />
           ))}
         </div>

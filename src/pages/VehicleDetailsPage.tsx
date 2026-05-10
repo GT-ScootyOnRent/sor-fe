@@ -9,6 +9,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { calculateTotalPrice, calculateDuration } from '../utils/vehicleUtils';
 import { toast } from 'sonner';
+import LoginModal from '../components/LoginModal';
 
 const VehicleDetailsPage: React.FC = () => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -16,6 +17,7 @@ const VehicleDetailsPage: React.FC = () => {
   const [selectedDrop, setSelectedDrop] = useState('');
   const [bookingError] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
@@ -118,11 +120,22 @@ const VehicleDetailsPage: React.FC = () => {
     const userId = localStorage.getItem('userId');
 
     if (!token || !userId) {
-      toast.error('Please login to continue', {
-        description: 'You need to be logged in to make a booking',
-      });
-      // Redirect to auth page with return URL
-      navigate('/auth', { state: { from: { pathname: `/vehicles/${id}` } } });
+      // Show login modal instead of redirecting - preserves state
+      setShowLoginModal(true);
+      return;
+    }
+
+    // Continue with actual payment process
+    await proceedWithPayment();
+  };
+
+  // Called after successful login or if already logged in
+  const proceedWithPayment = async () => {
+    const userId = localStorage.getItem('userId');
+
+    if (!userId) {
+      toast.error('Please login to continue');
+      setShowLoginModal(true);
       return;
     }
 
@@ -202,6 +215,15 @@ const VehicleDetailsPage: React.FC = () => {
     } finally {
       setBookingLoading(false);
     }
+  };
+
+  // Handle successful login - continue with payment
+  const handleLoginSuccess = () => {
+    setShowLoginModal(false);
+    // Small delay to ensure auth state is fully updated
+    setTimeout(() => {
+      proceedWithPayment();
+    }, 300);
   };
 
   if (vehicleLoading) return <LoadingSpinner fullScreen message="Loading vehicle details..." />;
@@ -394,8 +416,8 @@ const VehicleDetailsPage: React.FC = () => {
                       type="time"
                       value={bookingDates.startTime || ''}
                       onChange={(e) => handleDateChange({ ...bookingDates, startTime: e.target.value })}
-                      min={bookingDates.startDate === new Date().toISOString().split('T')[0] ? (() => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; })() : '08:00'}
-                      max="22:00"
+                      min={bookingDates.startDate === new Date().toISOString().split('T')[0] ? (() => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; })() : '06:00'}
+                      max="23:30"
                       className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                   </div>
@@ -430,9 +452,9 @@ const VehicleDetailsPage: React.FC = () => {
                           return bookingDates.startTime;
                         }
                         if (bookingDates.endDate === today) return getMinForToday();
-                        return '08:00';
+                        return '06:00';
                       })()}
-                      max="22:00"
+                      max="23:30"
                       className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                   </div>
@@ -520,6 +542,13 @@ const VehicleDetailsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSuccess={handleLoginSuccess}
+      />
     </div>
   );
 };

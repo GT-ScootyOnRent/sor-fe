@@ -95,7 +95,7 @@ const PromoCodesPage: React.FC = () => {
     if (!form.validFrom) { setFormError('Valid from date is required'); return; }
 
     // Prepare the payload - ensure validUntil is null if empty, not empty string
-     const payload = {
+    const payload = {
       ...form,
       ...(form.validUntil ? { validUntil: form.validUntil } : {}),
     };
@@ -374,11 +374,7 @@ const PromoCodesPage: React.FC = () => {
                   onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
                   placeholder="e.g. SAVE20"
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition font-mono tracking-widest uppercase"
-                  disabled={!!editingPromo} // code cannot be changed after creation
                 />
-                {editingPromo && (
-                  <p className="text-xs text-gray-400 mt-1">Promo code cannot be changed after creation.</p>
-                )}
               </div>
 
               {/* Description */}

@@ -48,7 +48,7 @@ function PromoCard({
         <div className={`bg-white border rounded-lg overflow-hidden ${!isApplicable ? 'opacity-60' : 'border-gray-200'}`}>
             <div className="flex">
                 {/* Left colored badge */}
-                <div className="w-20 flex-shrink-0 bg-[#3A6F9B] flex flex-col items-center justify-center text-white py-4">
+                <div className="w-20 flex-shrink-0 bg-primary-600 flex flex-col items-center justify-center text-white py-4">
                     <span className="text-xl font-bold">{formatDiscount()}</span>
                     <span className="text-xs font-medium">OFF</span>
                 </div>
@@ -59,7 +59,7 @@ function PromoCard({
                         <div className="flex-1">
                             <h3 className="font-bold text-gray-900">{promo.code}</h3>
                             {isApplicable && currentOrderAmount > 0 ? (
-                                <p className="text-[#3A6F9B] text-sm font-semibold">
+                                <p className="text-primary-600 text-sm font-semibold">
                                     Save ₹{Math.round(savings)} on this order
                                 </p>
                             ) : (
@@ -74,8 +74,8 @@ function PromoCard({
                             onClick={onApply}
                             disabled={!isApplicable || isApplying}
                             className={`px-4 py-1 text-sm font-bold transition-colors ${isApplicable
-                                    ? 'text-[#3A6F9B] hover:text-[#2d5777]'
-                                    : 'text-gray-400 cursor-not-allowed'
+                                ? 'text-primary-600 hover:text-primary-700'
+                                : 'text-gray-400 cursor-not-allowed'
                                 }`}
                         >
                             APPLY
@@ -167,7 +167,7 @@ export default function PromoCodeModal({
                 <div className="flex-1 overflow-y-auto p-4">
                     {showLoader ? (
                         <div className="flex flex-col items-center justify-center py-16">
-                            <div className="w-10 h-10 border-3 border-[#3A6F9B] border-t-transparent rounded-full animate-spin mb-3" />
+                            <div className="w-10 h-10 border-3 border-primary-600 border-t-transparent rounded-full animate-spin mb-3" />
                             <p className="text-sm text-gray-500">Loading coupons...</p>
                         </div>
                     ) : promoCodes.length === 0 ? (

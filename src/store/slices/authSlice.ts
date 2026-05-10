@@ -45,6 +45,10 @@ const authSlice = createSlice({
       // Store user info for UI persistence (tokens in HttpOnly cookies)
       localStorage.setItem('user', JSON.stringify(action.payload.user));
       localStorage.setItem('userId', action.payload.user.id.toString());
+      // Also store token for immediate API calls after fresh login
+      if (action.payload.token) {
+        localStorage.setItem('token', action.payload.token);
+      }
       if (action.payload.user.name) {
         localStorage.setItem('userName', action.payload.user.name);
       }
