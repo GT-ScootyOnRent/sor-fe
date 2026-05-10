@@ -133,6 +133,12 @@ const VehicleDetailsPage: React.FC = () => {
   const proceedWithPayment = async () => {
     const userId = localStorage.getItem('userId');
 
+    if (!userId) {
+      toast.error('Please login to continue');
+      setShowLoginModal(true);
+      return;
+    }
+
     // Validate all required fields
     if (!selectedPickup || !selectedDrop) {
       toast.error('Please select pickup and drop locations');

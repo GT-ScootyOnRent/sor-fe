@@ -467,7 +467,7 @@ const VehiclesTab: React.FC = () => {
 
                   {!imagesLoading && vehicleImages.length > 0 && (
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {vehicleImages.map((image, idx) => (
+                      {vehicleImages.map((image) => (
                         <div key={image.id} className="relative group rounded-xl overflow-hidden border-2 border-gray-200 hover:border-primary-400 transition">
                           <img
                             src={image.imageUrl}
