@@ -11,6 +11,8 @@ export interface HeroBanner {
   subtitle: string | null;
 
   isActive: boolean;
+  cityIds: number[]; // empty = global (all cities)
+  cityNames: string[];
 
   objectPosition?: {
     x: number;
@@ -21,31 +23,41 @@ export interface HeroBanner {
   updatedAt: string;
 }
 
+// Normalize response to handle both old (cityId) and new (cityIds) API formats
+const normalizeHeroBanner = (b: any): HeroBanner => ({
+  ...b,
+  cityIds: b.cityIds ?? (b.cityId != null ? [b.cityId] : []),
+  cityNames: b.cityNames ?? (b.cityName ? [b.cityName] : []),
+});
+
 export const heroBannerApi = createApi({
   reducerPath: 'heroBannerApi',
   baseQuery: baseQueryWithReauth,
   tagTypes: ['HeroBanner', 'PublicHeroBanner'],
   endpoints: (builder) => ({
     // ── Public ─────────────────────────────────────────────────────────
-    getHeroBanners: builder.query<HeroBanner[], void>({
-      query: () => 'hero-banners',
+    getHeroBanners: builder.query<HeroBanner[], number | void>({
+      query: (cityId) => cityId ? `hero-banners?cityId=${cityId}` : 'hero-banners',
+      transformResponse: (response: any[]) => response.map(normalizeHeroBanner),
       providesTags: [{ type: 'PublicHeroBanner', id: 'LIST' }],
     }),
 
     // ── Admin ──────────────────────────────────────────────────────────
     getAdminHeroBanners: builder.query<HeroBanner[], void>({
       query: () => 'admin/hero-banners',
+      transformResponse: (response: any[]) => response.map(normalizeHeroBanner),
       providesTags: (result) =>
         result
           ? [
-              ...result.map((b) => ({ type: 'HeroBanner' as const, id: b.id })),
-              { type: 'HeroBanner' as const, id: 'LIST' },
-            ]
+            ...result.map((b) => ({ type: 'HeroBanner' as const, id: b.id })),
+            { type: 'HeroBanner' as const, id: 'LIST' },
+          ]
           : [{ type: 'HeroBanner' as const, id: 'LIST' }],
     }),
 
     getAdminHeroBanner: builder.query<HeroBanner, number>({
       query: (id) => `admin/hero-banners/${id}`,
+      transformResponse: normalizeHeroBanner,
       providesTags: (_r, _e, id) => [{ type: 'HeroBanner', id }],
     }),
 
@@ -56,6 +68,7 @@ export const heroBannerApi = createApi({
         body: formData,
         formData: true,
       }),
+      transformResponse: normalizeHeroBanner,
       invalidatesTags: [
         { type: 'HeroBanner', id: 'LIST' },
         { type: 'PublicHeroBanner', id: 'LIST' },
@@ -69,6 +82,7 @@ export const heroBannerApi = createApi({
         body: formData,
         formData: true,
       }),
+      transformResponse: normalizeHeroBanner,
       invalidatesTags: (_r, _e, { id }) => [
         { type: 'HeroBanner', id },
         { type: 'HeroBanner', id: 'LIST' },

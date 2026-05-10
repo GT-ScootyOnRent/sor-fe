@@ -8,19 +8,26 @@ import { toast } from 'sonner';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const MIN_TIME = '08:00'; // 8 AM
-const MAX_TIME = '22:00'; // 10 PM
-const RETURN_DEFAULT_TIME = '08:00'; // returns default to 8 AM next day
+const MIN_TIME = '06:00'; // 6 AM
+const MAX_TIME = '23:30'; // 11:30 PM
+const RETURN_DEFAULT_TIME = '23:30'; // returns default to 11:30 PM
 
-// 30-min slots between 8:00 AM and 10:00 PM, inclusive (29 slots)
+// 30-min slots between 6:00 AM and 11:30 PM
 const TIME_SLOTS: string[] = (() => {
   const out: string[] = [];
-  for (let h = 8; h <= 22; h++) {
+  for (let h = 6; h <= 23; h++) {
     out.push(`${String(h).padStart(2, '0')}:00`);
-    if (h < 22) out.push(`${String(h).padStart(2, '0')}:30`);
+    out.push(`${String(h).padStart(2, '0')}:30`);
   }
   return out;
 })();
+
+// Helper to compare times, treating '00:00' as end of day (after 23:59)
+const compareTime = (a: string, b: string): number => {
+  const aVal = a === '00:00' ? '24:00' : a;
+  const bVal = b === '00:00' ? '24:00' : b;
+  return aVal.localeCompare(bVal);
+};
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -66,11 +73,12 @@ const computeDefaults = () => {
 
   let pickupTime = hm(candidate);
 
-  if (pickupTime < MIN_TIME) {
+  if (compareTime(pickupTime, MIN_TIME) < 0) {
     pickupTime = MIN_TIME;
   }
 
-  if (pickupTime > MAX_TIME) {
+  // If calculated time is past midnight (next day territory), move to next day
+  if (compareTime(pickupTime, MAX_TIME) > 0) {
     pickupDateObj.setDate(pickupDateObj.getDate() + 1);
     pickupTime = MIN_TIME;
   }
@@ -84,6 +92,22 @@ const computeDefaults = () => {
     returnDate: ymd(returnDateObj),
     returnTime: RETURN_DEFAULT_TIME,
   };
+};
+
+// Helper to get smart pickup time for a given date
+const getSmartPickupTime = (selectedDate: string): string => {
+  const today = ymd(new Date());
+  if (selectedDate === today) {
+    // Today: current time + 1 hour, rounded to 30 mins
+    const now = new Date();
+    const candidate = roundUpTo30Min(new Date(now.getTime() + 60 * 60 * 1000));
+    let time = hm(candidate);
+    if (compareTime(time, MIN_TIME) < 0) time = MIN_TIME;
+    if (compareTime(time, MAX_TIME) > 0) time = MIN_TIME; // Past midnight, fallback
+    return time;
+  }
+  // Future date: default to 6 AM
+  return MIN_TIME;
 };
 
 // ── TimeSelect — custom dropdown with icon trigger ──────────────────────────
@@ -144,7 +168,7 @@ const TimeSelect: React.FC<TimeSelectProps> = ({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
-        className="w-full flex items-center gap-3 text-left text-base font-semibold text-gray-900 cursor-pointer outline-none"
+        className="w-full flex items-center gap-3 text-left text-base font-bold text-primary-600 cursor-pointer outline-none"
       >
         <span className="flex-1 truncate">{value ? formatTime12(value) : '--:--'}</span>
         {icon}
@@ -157,8 +181,8 @@ const TimeSelect: React.FC<TimeSelectProps> = ({
         >
           {TIME_SLOTS.map((slot) => {
             const disabled =
-              (minTime !== undefined && slot < minTime) ||
-              (maxTime !== undefined && slot > maxTime);
+              (minTime !== undefined && compareTime(slot, minTime) < 0) ||
+              (maxTime !== undefined && compareTime(slot, maxTime) > 0);
             const selected = slot === value;
             return (
               <button
@@ -172,13 +196,12 @@ const TimeSelect: React.FC<TimeSelectProps> = ({
                   onChange(slot);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                  disabled
-                    ? 'text-gray-300 cursor-not-allowed'
-                    : selected
+                className={`w-full text-left px-4 py-2 text-sm transition-colors ${disabled
+                  ? 'text-gray-300 cursor-not-allowed'
+                  : selected
                     ? 'bg-primary-50 font-semibold text-primary-700'
                     : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                  }`}
               >
                 {formatTime12(slot)}
               </button>
@@ -211,23 +234,23 @@ export default function DateTimePicker() {
   const minPickupTimeForToday = useMemo(() => {
     const now = new Date();
     const c = hm(roundUpTo30Min(new Date(now.getTime() + 60 * 60 * 1000)));
-    return c < MIN_TIME ? MIN_TIME : c;
+    return compareTime(c, MIN_TIME) < 0 ? MIN_TIME : c;
   }, []);
 
   const pickupMinTime = pickupDate === today ? minPickupTimeForToday : MIN_TIME;
   const returnMinTime =
     returnDate && pickupDate === returnDate && pickupTime
       ? (() => {
-          const idx = TIME_SLOTS.indexOf(pickupTime);
-          return idx >= 0 && idx < TIME_SLOTS.length - 1
-            ? TIME_SLOTS[idx + 1]
-            : pickupTime;
-        })()
+        const idx = TIME_SLOTS.indexOf(pickupTime);
+        return idx >= 0 && idx < TIME_SLOTS.length - 1
+          ? TIME_SLOTS[idx + 1]
+          : pickupTime;
+      })()
       : MIN_TIME;
 
   // Same-day: keep return > pickup
   useEffect(() => {
-    if (pickupDate === returnDate && returnTime <= pickupTime) {
+    if (pickupDate === returnDate && compareTime(returnTime, pickupTime) <= 0) {
       const idx = TIME_SLOTS.indexOf(pickupTime);
       const next = idx >= 0 && idx < TIME_SLOTS.length - 1 ? TIME_SLOTS[idx + 1] : '';
       if (next) setReturnTime(next);
@@ -256,6 +279,8 @@ export default function DateTimePicker() {
   const handlePickupDateChange = (value: string) => {
     if (!value) return;
     setPickupDate(value);
+    // Auto-set pickup time based on selected date
+    setPickupTime(getSmartPickupTime(value));
     setTimeout(() => openPicker(returnDateRef), 100);
   };
 
@@ -294,9 +319,9 @@ export default function DateTimePicker() {
   const cellClass =
     'flex-1 flex items-center gap-3 px-6 py-6 cursor-pointer transition-colors duration-200 hover:bg-gray-50';
 
-  const iconClass = 'w-5 h-5 text-gray-700 shrink-0';
+  const iconClass = 'w-5 h-5 text-primary-600 shrink-0';
 
-  const valueClass = 'text-base font-semibold text-gray-900 truncate';
+  const valueClass = 'text-base font-bold text-primary-600 truncate';
 
   // sr-only style for the hidden native date input — keeps it accessible &
   // showPicker()-callable while removing it from the visual flow.
@@ -400,17 +425,17 @@ export default function DateTimePicker() {
             px-8 py-5 md:px-12 md:py-0 md:h-auto
             text-base
             rounded-2xl md:rounded-l-none md:rounded-r-2xl
-            bg-gradient-to-r from-teal-500 to-cyan-600
-            text-white font-semibold tracking-wide
-            shadow-[0_10px_30px_rgba(20,184,166,0.35)]
+            bg-gradient-to-r from-primary-500 to-primary-600
+            text-white font-bold tracking-wide
+            shadow-[0_10px_30px_rgba(1,124,238,0.35)]
             transition-all duration-300
             hover:-translate-y-[2px]
-            hover:shadow-[0_18px_40px_rgba(20,184,166,0.45)]
-            hover:from-teal-600 hover:to-cyan-700
+            hover:shadow-[0_18px_40px_rgba(1,124,238,0.45)]
+            hover:from-primary-600 hover:to-primary-700
             active:scale-[0.98]
-            focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300/60
+            focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-300/60
             disabled:opacity-50 disabled:cursor-not-allowed
-            disabled:hover:translate-y-0 disabled:hover:shadow-[0_10px_30px_rgba(20,184,166,0.35)]
+            disabled:hover:translate-y-0 disabled:hover:shadow-[0_10px_30px_rgba(1,124,238,0.35)]
             inline-flex items-center justify-center
           "
         >

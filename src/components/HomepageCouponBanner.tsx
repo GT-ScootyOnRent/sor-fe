@@ -68,12 +68,12 @@ export default function HomepageCouponBanner() {
                 style={{ maxWidth: '340px' }}
             >
                 {/* Left side - Primary COUPON sidebar */}
-                <div 
+                <div
                     className="w-12 flex items-center justify-center rounded-l-lg relative"
                     style={{
                         background: `
-                            radial-gradient(circle at 100% 0%, transparent 10px, #3A6F9B 10px),
-                            radial-gradient(circle at 100% 100%, transparent 10px, #3A6F9B 10px)
+                            radial-gradient(circle at 100% 0%, transparent 10px, #017cee 10px),
+                            radial-gradient(circle at 100% 100%, transparent 10px, #017cee 10px)
                         `,
                         backgroundSize: '100% 51%',
                         backgroundPosition: 'top, bottom',
@@ -87,7 +87,7 @@ export default function HomepageCouponBanner() {
                 </div>
 
                 {/* Right side - White content */}
-                <div 
+                <div
                     className="flex-1 flex flex-col items-center justify-center py-4 px-5 rounded-r-lg relative"
                     style={{
                         background: `

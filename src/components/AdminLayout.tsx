@@ -37,13 +37,13 @@ const navItems: NavItem[] = [
   { id: 'staff', path: 'staff', icon: UserCog, label: 'Staff' },
   { id: 'promo-codes', path: 'promo-codes', icon: Tag, label: 'Promo Codes' },
   { id: 'pickup-points', path: 'pickup-points', icon: MapPin, label: 'Pickup Points' },
- {
-  id: 'partner-inquiries',
-  path: 'partner-inquiries',
-  icon: Briefcase,
-  label: 'Partner Inquiries',
-  roles: ['superadmin'],
-},
+  {
+    id: 'partner-inquiries',
+    path: 'partner-inquiries',
+    icon: Briefcase,
+    label: 'Partner Inquiries',
+    roles: ['superadmin'],
+  },
   { id: 'contacts', path: 'contacts', icon: Phone, label: 'Contacts' },
   { id: 'hero-banners', path: 'hero-banners', icon: ImageIcon, label: 'Hero Banners' },
   { id: 'states', path: 'states', icon: MapPin, label: 'States', roles: ['superadmin'] },
@@ -145,8 +145,8 @@ const AdminLayout: React.FC = () => {
             <button
               key={id}
               onClick={() => handleNavClick(path)}
-              className={`w-full flex items-center px-3 lg:px-4 py-2.5 lg:py-3 rounded-lg transition text-sm lg:text-base ${isActive(path)
-                ? 'bg-primary-50 text-primary-600 font-semibold'
+              className={`w-full flex items-center px-3 lg:px-4 py-2.5 lg:py-3 rounded-lg transition text-sm lg:text-base font-semibold ${isActive(path)
+                ? 'bg-primary-50 text-primary-600'
                 : 'text-gray-700 hover:bg-gray-50'
                 }`}
             >
@@ -161,8 +161,8 @@ const AdminLayout: React.FC = () => {
           <div className="bg-gray-100 rounded-xl p-2 lg:p-3">
             <button
               onClick={() => handleNavClick('profile')}
-              className={`w-full flex items-center px-3 lg:px-4 py-2.5 lg:py-3 rounded-lg transition text-sm lg:text-base ${isActive('profile')
-                ? 'bg-white text-primary-600 font-semibold shadow-sm'
+              className={`w-full flex items-center px-3 lg:px-4 py-2.5 lg:py-3 rounded-lg transition text-sm lg:text-base font-semibold ${isActive('profile')
+                ? 'bg-white text-primary-600 shadow-sm'
                 : 'text-gray-700 hover:bg-white hover:shadow-sm'
                 }`}
             >
@@ -171,7 +171,7 @@ const AdminLayout: React.FC = () => {
             </button>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center px-3 lg:px-4 py-2.5 lg:py-3 rounded-lg text-red-600 hover:bg-white hover:shadow-sm transition text-sm lg:text-base"
+              className="w-full flex items-center px-3 lg:px-4 py-2.5 lg:py-3 rounded-lg text-red-600 hover:bg-white hover:shadow-sm transition text-sm lg:text-base font-semibold"
             >
               <LogOut className="w-4 h-4 lg:w-5 lg:h-5 mr-2 lg:mr-3" />
               Logout

@@ -2,14 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Phone, ArrowRight, Loader2, AlertCircle, User, Mail, CheckCircle } from 'lucide-react';
-import { useSendOtpMutation, useVerifyOtpMutation, useSendEmailOtpMutation, useVerifyEmailOtpMutation, useUpdateProfileMutation } from '../store/api/authApi';
+import { useSendOtpMutation, useVerifyOtpMutation, useUpdateProfileMutation } from '../store/api/authApi';
 import { useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
 import { toast } from 'sonner';
 import OtpInput from './OtpInput';
 import { executeRecaptcha } from '../utils/recaptcha';
 
-type Step = 'phone' | 'otp' | 'details' | 'emailOtp';
+type Step = 'phone' | 'otp' | 'details';
 
 interface LoginModalProps {
     isOpen: boolean;
@@ -25,22 +25,17 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
     const [otp, setOtp] = useState('');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
-    const [emailOtp, setEmailOtp] = useState('');
     const [emailError, setEmailError] = useState('');
-    const [emailOtpError, setEmailOtpError] = useState('');
 
     const [isSendingOtp, setIsSendingOtp] = useState(false);
     const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
-    const [isSendingEmailOtp, setIsSendingEmailOtp] = useState(false);
-    const [isVerifyingEmailOtp, setIsVerifyingEmailOtp] = useState(false);
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
 
     // Holds the full verifyOtp response for new users while they complete profile
     const [pendingAuthResponse, setPendingAuthResponse] = useState<any>(null);
 
     const [sendOtp] = useSendOtpMutation();
     const [verifyOtp] = useVerifyOtpMutation();
-    const [sendEmailOtp] = useSendEmailOtpMutation();
-    const [verifyEmailOtp] = useVerifyEmailOtpMutation();
     const [updateProfile] = useUpdateProfileMutation();
 
     const phoneInputRef = useRef<HTMLInputElement>(null);
@@ -60,9 +55,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
             setOtp('');
             setName('');
             setEmail('');
-            setEmailOtp('');
             setEmailError('');
-            setEmailOtpError('');
             setPendingAuthResponse(null);
         }
     }, [isOpen]);
@@ -129,74 +122,38 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
 
     const validateEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
 
-    const handleSendEmailOtp = async (e: FormEvent) => {
+    const handleCompleteProfile = async (e: FormEvent) => {
         e.preventDefault();
         setEmailError('');
         if (!name.trim() || name.trim().length < 2) {
             toast.error('Please enter your full name (at least 2 characters)');
             return;
         }
-        if (!email.trim()) {
-            setEmailError('Email address is required');
-            return;
-        }
-        if (!validateEmail(email.trim())) {
+        if (email.trim() && !validateEmail(email.trim())) {
             setEmailError('Please enter a valid email address');
             return;
         }
-        setIsSendingEmailOtp(true);
+        setIsSavingProfile(true);
         try {
-            const response = await sendEmailOtp({ email: email.trim() }).unwrap();
-            if (response.success) {
-                setStep('emailOtp');
-                toast.success('OTP sent to your email address');
-            } else {
-                setEmailError(response.message || 'Failed to send email OTP');
-            }
-        } catch (err: any) {
-            setEmailError(err?.data?.message ?? 'Failed to send email OTP. Please try again.');
-        } finally {
-            setIsSendingEmailOtp(false);
-        }
-    };
-
-    const handleVerifyEmailOtpAndComplete = async (e: FormEvent) => {
-        e.preventDefault();
-        setEmailOtpError('');
-        if (emailOtp.length !== 6) {
-            setEmailOtpError('Please enter the 6-digit OTP');
-            return;
-        }
-        setIsVerifyingEmailOtp(true);
-        try {
-            // Step 1: verify email OTP
-            const verifyRes = await verifyEmailOtp({ email: email.trim(), otp: emailOtp }).unwrap();
-            if (!verifyRes.success) {
-                setEmailOtpError(verifyRes.message || 'Invalid OTP. Please try again.');
-                setIsVerifyingEmailOtp(false);
-                return;
-            }
-
-            // Step 2: update the already-created user's name + email using the token we already have
             const userId = pendingAuthResponse?.user?.id;
             const token = pendingAuthResponse?.token;
             if (!userId || !token) {
                 toast.error('Session expired. Please start again.');
                 setStep('phone');
-                setIsVerifyingEmailOtp(false);
+                setIsSavingProfile(false);
                 return;
             }
 
             const updateRes = await updateProfile({
                 userId,
                 name: name.trim(),
-                email: email.trim(),
+                email: email.trim() || undefined,
                 token,
             }).unwrap();
 
             if (!updateRes.success) {
                 toast.error('Failed to save profile', { description: updateRes.message });
-                setIsVerifyingEmailOtp(false);
+                setIsSavingProfile(false);
                 return;
             }
 
@@ -206,15 +163,15 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
                 user: {
                     ...pendingAuthResponse.user,
                     name: name.trim(),
-                    email: email.trim(),
+                    email: email.trim() || undefined,
                 },
                 isNewUser: true,
             };
             completeLogin(finalResponse);
         } catch (err: any) {
-            setEmailOtpError(err?.data?.message ?? 'Verification failed. Please try again.');
+            toast.error('Failed to save profile', { description: err?.data?.message ?? 'Please try again.' });
         } finally {
-            setIsVerifyingEmailOtp(false);
+            setIsSavingProfile(false);
         }
     };
 
@@ -233,24 +190,6 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
             toast.error('Failed to resend OTP');
         } finally {
             setIsSendingOtp(false);
-        }
-    };
-
-    const handleResendEmailOtp = async () => {
-        setEmailOtp('');
-        setEmailOtpError('');
-        setIsSendingEmailOtp(true);
-        try {
-            const response = await sendEmailOtp({ email: email.trim() }).unwrap();
-            if (response.success) {
-                toast.success('OTP resent to your email address');
-            } else {
-                toast.error('Failed to resend OTP', { description: response.message });
-            }
-        } catch {
-            toast.error('Failed to resend OTP');
-        } finally {
-            setIsSendingEmailOtp(false);
         }
     };
 
@@ -303,8 +242,6 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
                 return 'Verify your number';
             case 'details':
                 return 'Complete your profile';
-            case 'emailOtp':
-                return 'Verify your email';
         }
     };
 
@@ -316,8 +253,6 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
                 return `We sent a 6-digit OTP to +91 ${phoneNumber}`;
             case 'details':
                 return 'Please provide your details to complete signup';
-            case 'emailOtp':
-                return `We sent a 6-digit OTP to ${email}`;
         }
     };
 
@@ -450,10 +385,10 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
 
                                 {/* Details Step (New Users) */}
                                 {step === 'details' && (
-                                    <form onSubmit={handleSendEmailOtp}>
+                                    <form onSubmit={handleCompleteProfile}>
                                         <div className="space-y-4">
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
                                                 <div className="relative">
                                                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                                     <input
@@ -467,7 +402,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Email Address <span className="text-gray-400 text-xs">(Optional)</span></label>
                                                 <div className="relative">
                                                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                                     <input
@@ -492,75 +427,20 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
                                         </div>
                                         <button
                                             type="submit"
-                                            disabled={!name.trim() || !email.trim() || isSendingEmailOtp}
+                                            disabled={!name.trim() || isSavingProfile}
                                             className="w-full mt-4 py-3 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors"
                                         >
-                                            {isSendingEmailOtp ? (
+                                            {isSavingProfile ? (
                                                 <>
                                                     <Loader2 className="w-5 h-5 animate-spin" />
-                                                    Sending OTP...
+                                                    Saving...
                                                 </>
                                             ) : (
                                                 <>
-                                                    Verify Email
-                                                    <ArrowRight className="w-5 h-5" />
-                                                </>
-                                            )}
-                                        </button>
-                                    </form>
-                                )}
-
-                                {/* Email OTP Step */}
-                                {step === 'emailOtp' && (
-                                    <form onSubmit={handleVerifyEmailOtpAndComplete}>
-                                        <OtpInput
-                                            value={emailOtp}
-                                            onChange={setEmailOtp}
-                                            autoFocus
-                                        />
-                                        {emailOtpError && (
-                                            <p className="mt-2 text-sm text-red-500 flex items-center gap-1">
-                                                <AlertCircle className="w-3 h-3" />
-                                                {emailOtpError}
-                                            </p>
-                                        )}
-                                        <button
-                                            type="submit"
-                                            disabled={emailOtp.length !== 6 || isVerifyingEmailOtp}
-                                            className="w-full mt-4 py-3 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl flex items-center justify-center gap-2 transition-colors"
-                                        >
-                                            {isVerifyingEmailOtp ? (
-                                                <>
-                                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                                    Verifying...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    Complete Signup
+                                                    Complete Profile
                                                     <CheckCircle className="w-5 h-5" />
                                                 </>
                                             )}
-                                        </button>
-                                        <div className="mt-4 text-center">
-                                            <button
-                                                type="button"
-                                                onClick={handleResendEmailOtp}
-                                                disabled={isSendingEmailOtp}
-                                                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-                                            >
-                                                {isSendingEmailOtp ? 'Sending...' : "Didn't receive OTP? Resend"}
-                                            </button>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setStep('details');
-                                                setEmailOtp('');
-                                                setEmailOtpError('');
-                                            }}
-                                            className="w-full mt-2 text-sm text-gray-500 hover:text-gray-700"
-                                        >
-                                            ← Change email
                                         </button>
                                     </form>
                                 )}

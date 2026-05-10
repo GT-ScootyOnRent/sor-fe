@@ -8,14 +8,11 @@ import { AnimatePresence } from "framer-motion";
 import SplashScreen from "./components/SplashScreen";
 import { isMainApp } from "./utils/appType";
 
-const SESSION_KEY = "splash_seen";
-
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(false);
 
   const handleSplashComplete = () => {
     setShowSplash(false);
-    sessionStorage.setItem(SESSION_KEY, "true");
   };
 
   useEffect(() => {
@@ -26,18 +23,15 @@ const App: React.FC = () => {
       return;
     }
 
-    const alreadySeen = sessionStorage.getItem(SESSION_KEY);
+    // Show splash on every page load/refresh
+    setShowSplash(true);
 
-    if (!alreadySeen) {
-      setShowSplash(true);
+    // Auto-complete after animation finishes (4 seconds)
+    const timer = setTimeout(() => {
+      handleSplashComplete();
+    }, 4000);
 
-      // Auto-complete after animation finishes (4 seconds)
-      const timer = setTimeout(() => {
-        handleSplashComplete();
-      }, 4000);
-
-      return () => clearTimeout(timer);
-    }
+    return () => clearTimeout(timer);
   }, []);
 
   return (

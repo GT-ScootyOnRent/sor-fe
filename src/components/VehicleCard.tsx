@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Fuel, Gauge, Check } from 'lucide-react';
+import { Fuel, Check } from 'lucide-react';
 import { Button } from './ui/button';
 import type { VehicleWithImagesDto } from '../store/api/vehicleApi';
 import { useAppSelector } from '../store/hooks';
@@ -19,8 +19,6 @@ interface PackageOption {
   days: number;
   color: string;
   hoverColor: string;
-  tag?: string;
-  tagColor?: string;
 }
 
 function formatNextAvailableFrom(value: string): string {
@@ -61,33 +59,29 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
         label: '3 Days',
         price: vehicle.packages.threeDays,
         days: 3,
-        color: 'from-blue-50 to-indigo-100',
-        hoverColor: 'hover:from-blue-100 hover:to-indigo-200',
+        color: 'from-white to-white',
+        hoverColor: 'hover:from-primary-50 hover:to-primary-100',
       },
       {
         label: '7 Days',
         price: vehicle.packages.sevenDays,
         days: 7,
-        color: 'from-green-50 to-emerald-100',
-        hoverColor: 'hover:from-green-100 hover:to-emerald-200',
-        tag: 'POPULAR',
-        tagColor: 'bg-green-500',
+        color: 'from-white to-white',
+        hoverColor: 'hover:from-primary-50 hover:to-primary-100',
       },
       {
         label: '15 Days',
         price: vehicle.packages.fifteenDays,
         days: 15,
-        color: 'from-purple-50 to-violet-100',
-        hoverColor: 'hover:from-purple-100 hover:to-violet-200',
+        color: 'from-white to-white',
+        hoverColor: 'hover:from-primary-50 hover:to-primary-100',
       },
       {
         label: '1 Month',
         price: vehicle.packages.monthly,
         days: 30,
-        color: 'from-amber-50 to-orange-100',
-        hoverColor: 'hover:from-amber-100 hover:to-orange-200',
-        tag: 'BEST VALUE',
-        tagColor: 'bg-orange-500',
+        color: 'from-white to-white',
+        hoverColor: 'hover:from-primary-50 hover:to-primary-100',
       },
     ].filter((item) => item.price > 0)
     : [];
@@ -129,14 +123,14 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
         start.setDate(start.getDate() + selectedPkg.days);
         endDate = start.toISOString().split('T')[0];
 
-        // If no end time, use default return time 10:00 PM
+        // If no end time, use default return time 11:30 PM
         if (!endTime) {
-          endTime = '22:00';
+          endTime = '23:30';
         }
 
-        // If no start time set, use default 8:00 AM
+        // If no start time set, use default 6:00 AM
         if (!startTime) {
-          startTime = '08:00';
+          startTime = '06:00';
         }
 
         // Pass package price and label
@@ -223,7 +217,7 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
         />
 
         {showAvailabilityBadge && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-white/85 text-gray-900 text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-blue-600 text-white text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate cursor-default transition-all duration-300 hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] hover:bg-blue-500">
             {availableFromLabel}
           </div>
         )}
@@ -245,7 +239,7 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
             className="absolute -bottom-[18px] left-0 right-0 z-10 flex items-center justify-center group"
           >
             <div className="h-px flex-1 bg-gray-400 mr-[-1px]" />
-            <div className="relative w-[120px] h-[36px] hover:drop-shadow-[0_0_8px_rgba(58,111,155,0.6)] transition-all duration-300">
+            <div className="relative w-[120px] h-[36px] hover:drop-shadow-[0_0_8px_rgba(1,124,238,0.6)] transition-all duration-300">
               <svg viewBox="0 0 120 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
                 <path
                   d="M12 1 L108 1 L119 18 L108 35 L12 35 L1 18 Z"
@@ -292,11 +286,6 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
             {/* SPECS */}
             <div className="flex items-center gap-5 mb-5 text-base text-gray-600">
               <div className="flex items-center gap-1.5">
-                <Gauge className="w-5 h-5" />
-                <span>{vehicle.kmTravelled?.toLocaleString() || '0'} km</span>
-              </div>
-
-              <div className="flex items-center gap-1.5">
                 <Fuel className="w-5 h-5" />
                 <span>{vehicle.fuelType || 'Petrol'}</span>
               </div>
@@ -341,9 +330,9 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
                   key={index}
                   type="button"
                   onClick={() => setSelectedPackage(index)}
-                  className={`relative bg-gradient-to-br ${pkg.color} ${pkg.hoverColor} border-2 rounded-xl p-3 cursor-pointer text-center transition-all ${selectedPackage === index
+                  className={`relative bg-gradient-to-br ${pkg.color} ${pkg.hoverColor} border-2 rounded-xl p-3 cursor-pointer text-center transition-all shadow-sm ${selectedPackage === index
                     ? 'border-primary-500 ring-2 ring-primary-200'
-                    : 'border-transparent'
+                    : 'border-gray-200 hover:border-primary-300'
                     }`}
                 >
                   {/* Checkmark */}
@@ -353,17 +342,8 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
                     </div>
                   )}
 
-                  {/* Tag Badge */}
-                  {pkg.tag && (
-                    <span
-                      className={`absolute -top-2 -right-2 ${pkg.tagColor} text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold shadow-sm`}
-                    >
-                      {pkg.tag}
-                    </span>
-                  )}
-
-                  <p className="text-lg font-bold text-gray-900">₹{pkg.price}</p>
-                  <p className="text-xs text-gray-600">{pkg.label}</p>
+                  <p className="text-lg font-bold text-primary-600">₹{pkg.price}</p>
+                  <p className="text-xs text-primary-500">{pkg.label}</p>
                 </button>
               ))}
             </div>
