@@ -145,10 +145,10 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
             }
 
             const updateRes = await updateProfile({
-                userId,
+                userId: parseInt(userId as string),
                 name: name.trim(),
-                email: email.trim() || undefined,
-                token,
+                email: email.trim() || '',
+                token: token as string,
             }).unwrap();
 
             if (!updateRes.success) {
