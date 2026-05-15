@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Loader2, AlertCircle, User } from 'lucide-react';
+import { X, Loader2, AlertCircle, User, Package, Megaphone } from 'lucide-react';
 import { useUpdateAdminMutation, type AdminDto } from '../../store/api/adminApi';
 import { useGetCitiesQuery } from '../../store/api/cityApi';
 import { toast } from 'sonner';
@@ -20,6 +20,8 @@ const EditAdminModal: React.FC<Props> = ({ admin, onClose, onSuccess }) => {
     cityIds: admin.cityIds ?? (admin.cityId ? [admin.cityId] : []),
     role: admin.role,
     isActive: admin.isActive,
+    canManagePackages: admin.canManagePackages ?? false,
+    canManageAnnouncements: admin.canManageAnnouncements ?? false,
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +64,8 @@ const EditAdminModal: React.FC<Props> = ({ admin, onClose, onSuccess }) => {
           cityIds: form.cityIds,
           role: form.role,
           isActive: form.isActive,
+          canManagePackages: form.role === 1 ? form.canManagePackages : false,
+          canManageAnnouncements: form.role === 1 ? form.canManageAnnouncements : false,
         },
       }).unwrap();
 
@@ -199,6 +203,48 @@ const EditAdminModal: React.FC<Props> = ({ admin, onClose, onSuccess }) => {
               <option value={2}>SuperAdmin</option>
             </select>
           </div>
+
+          {/* Package Management Permission (only for Admins, SuperAdmins have it by default) */}
+          {form.role === 1 && (
+            <label className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-100 rounded-xl cursor-pointer hover:bg-purple-100 transition">
+              <input
+                type="checkbox"
+                checked={form.canManagePackages}
+                onChange={(e) => handleChange('canManagePackages', e.target.checked)}
+                className="accent-purple-600 w-4 h-4"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-gray-700">Can Manage Packages</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Allow this admin to create, edit, and delete vehicle packages
+                </p>
+              </div>
+            </label>
+          )}
+
+          {/* Announcement Banners Permission (only for Admins, SuperAdmins have it by default) */}
+          {form.role === 1 && (
+            <label className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-100 rounded-xl cursor-pointer hover:bg-purple-100 transition">
+              <input
+                type="checkbox"
+                checked={form.canManageAnnouncements}
+                onChange={(e) => handleChange('canManageAnnouncements', e.target.checked)}
+                className="accent-purple-600 w-4 h-4"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Megaphone className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-gray-700">Can Manage Announcements</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Allow this admin to create, edit, and delete announcement banners
+                </p>
+              </div>
+            </label>
+          )}
 
           {/* Active toggle */}
           <label className="flex items-center gap-3 cursor-pointer">

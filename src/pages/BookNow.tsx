@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Calendar, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -16,7 +16,8 @@ import { useCreateBookingMutation } from '../store/api/bookingApi';
 import { useGetPickupLocationByIdQuery } from '../store/api/pickupLocationApi';
 import type { PickupLocationDto } from '../store/api/pickupLocationApi';
 import { useAppSelector } from '../store/hooks';
-import { calculateTotalPrice, calculateDuration } from '../utils/vehicleUtils';
+import { calculateDuration } from '../utils/vehicleUtils';
+import { calculateDurationPrice } from '../store/api/vehiclePackageApi';
 import { toast } from 'sonner';
 
 export default function BookNow() {
@@ -31,27 +32,113 @@ export default function BookNow() {
   const startTimeParam = searchParams.get('startTime');
   const endDateParam = searchParams.get('endDate');
   const endTimeParam = searchParams.get('endTime');
-  const packagePriceParam = searchParams.get('packagePrice');
-  const packageLabelParam = searchParams.get('packageLabel');
   const pickupLocationIdParam = searchParams.get('pickupLocationId');
   const cityIdParam = searchParams.get('cityId');
 
-  // Refs for auto-focus
+  // Refs for auto-focus (date pickers only - time is now dropdown)
+  const startDateRef = useRef<HTMLInputElement>(null);
   const returnDateRef = useRef<HTMLInputElement>(null);
-  const returnTimeRef = useRef<HTMLInputElement>(null);
 
-  // Helper to get default pickup time (current time + 1 hour)
-  const getDefaultPickupTime = () => {
-    const now = new Date();
-    now.setHours(now.getHours() + 1);
-    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  // Business hours: 6:00 AM to 11:30 PM
+  const MIN_BUSINESS_TIME = '06:00';
+  const MAX_BUSINESS_TIME = '23:30';
+
+  // Generate 30-minute time slots within business hours
+  const TIME_SLOTS: string[] = [];
+  for (let h = 6; h <= 23; h++) {
+    TIME_SLOTS.push(`${h.toString().padStart(2, '0')}:00`);
+    if (h < 23 || (h === 23 && true)) {
+      TIME_SLOTS.push(`${h.toString().padStart(2, '0')}:30`);
+    }
+  }
+  // TIME_SLOTS = ['06:00', '06:30', '07:00', ..., '23:00', '23:30']
+
+  // Round time up to next 30-minute slot
+  const roundToNext30Min = (time: string): string => {
+    const [hours, minutes] = time.split(':').map(Number);
+    let newMinutes = minutes <= 0 ? 0 : minutes <= 30 ? 30 : 0;
+    let newHours = minutes > 30 ? hours + 1 : hours;
+    
+    // If after max business time, return min business time (caller handles date change)
+    if (newHours > 23 || (newHours === 23 && newMinutes > 30)) {
+      return MIN_BUSINESS_TIME;
+    }
+    if (newHours < 6) {
+      return MIN_BUSINESS_TIME;
+    }
+    
+    return `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
   };
 
-  // Default dates: if no URL params, pre-fill pickup with today + 1 hour buffer
-  const defaultStartDate = startDateParam || new Date().toISOString().split('T')[0];
-  const defaultStartTime = startTimeParam || getDefaultPickupTime();
-  const defaultEndDate = endDateParam || ''; // Let user fill return date
-  const defaultEndTime = endTimeParam || '23:30'; // Default 11:30 PM
+  // Format time for display (e.g., "06:00" -> "06:00 AM")
+  const formatTimeDisplay = (time: string): string => {
+    const [hours, minutes] = time.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    return `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${period}`;
+  };
+
+  // Helper to clamp time to business hours
+  const clampToBusinessHours = (time: string): string => {
+    if (time < MIN_BUSINESS_TIME) return MIN_BUSINESS_TIME;
+    if (time > MAX_BUSINESS_TIME) return MAX_BUSINESS_TIME;
+    return time;
+  };
+
+  // Get today's date
+  const getTodayDate = () => new Date().toISOString().split('T')[0];
+
+  // Get tomorrow's date
+  const getTomorrowDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
+  // Helper to get default pickup date and time
+  const getDefaultPickupDateTime = () => {
+    const now = new Date();
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const today = getTodayDate();
+
+    // If before business hours (e.g., 3:59 AM), default to today 6 AM
+    if (currentTime < MIN_BUSINESS_TIME) {
+      return { date: today, time: MIN_BUSINESS_TIME };
+    }
+
+    // Calculate time + 1 hour, then round up to next 30-min slot
+    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+    const oneHourLaterTime = `${oneHourLater.getHours().toString().padStart(2, '0')}:${oneHourLater.getMinutes().toString().padStart(2, '0')}`;
+    const roundedTime = roundToNext30Min(oneHourLaterTime);
+
+    // If rounded time is back to 6 AM (means it exceeded 23:30), use tomorrow
+    if (roundedTime === MIN_BUSINESS_TIME && oneHourLaterTime > MAX_BUSINESS_TIME) {
+      return { date: getTomorrowDate(), time: MIN_BUSINESS_TIME };
+    }
+
+    // If current time + 1 hour rounded is after business hours, set to tomorrow 6 AM
+    if (roundedTime > MAX_BUSINESS_TIME) {
+      return { date: getTomorrowDate(), time: MIN_BUSINESS_TIME };
+    }
+
+    // Within business hours - set to current time + 1 hour (rounded)
+    return { date: today, time: roundedTime };
+  };
+
+  // Get default values
+  const defaultPickup = getDefaultPickupDateTime();
+  const today = getTodayDate();
+
+  // Validate URL params - reject past dates
+  const isStartDateValid = startDateParam && startDateParam >= today;
+  const isEndDateValid = endDateParam && endDateParam >= today;
+  const hadPastDatesInUrl = (startDateParam && startDateParam < today) || (endDateParam && endDateParam < today);
+
+  const defaultStartDate = isStartDateValid ? startDateParam : defaultPickup.date;
+  const defaultStartTime = startTimeParam && isStartDateValid ? roundToNext30Min(clampToBusinessHours(startTimeParam)) : defaultPickup.time;
+  // Default end date is same as start, end time is 11:30 PM
+  const defaultEndDate = isEndDateValid ? endDateParam : defaultStartDate;
+  const defaultEndTime = endTimeParam && isEndDateValid ? roundToNext30Min(clampToBusinessHours(endTimeParam)) : MAX_BUSINESS_TIME;
 
   const [bookingDates, setBookingDates] = useState({
     startDate: defaultStartDate,
@@ -69,69 +156,92 @@ export default function BookNow() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingBookingAmount, setPendingBookingAmount] = useState<number | null>(null);
 
-  // Package pricing state - reset when user changes dates
-  const [activePackagePrice, setActivePackagePrice] = useState<number | null>(
-    packagePriceParam ? parseInt(packagePriceParam) : null
-  );
-  const [activePackageLabel, setActivePackageLabel] = useState<string | null>(
-    packageLabelParam || null
-  );
+  // Show toast if past dates were in URL params
+  useEffect(() => {
+    if (hadPastDatesInUrl) {
+      toast.warning('Selected dates have passed, showing updated times');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Helper to get minimum allowed time (current time + 1 hour buffer)
+  // Helper to get minimum allowed time (current time + 1 hour buffer, rounded to next 30-min slot)
   const getMinTimeForToday = () => {
     const now = new Date();
     now.setHours(now.getHours() + 1);
-    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    return roundToNext30Min(clampToBusinessHours(time));
   };
 
-  const getTodayDate = () => new Date().toISOString().split('T')[0];
+  // Get available time slots for a given date (filters out past times if today)
+  const getAvailableTimeSlots = (date: string, isStartTime: boolean = true, startTime?: string) => {
+    const isToday = date === getTodayDate();
+    const minTime = isToday ? getMinTimeForToday() : MIN_BUSINESS_TIME;
+    
+    return TIME_SLOTS.filter(slot => {
+      // For today, filter out times before minimum
+      if (isToday && slot < minTime) return false;
+      
+      // For return time on same day as start, filter out times <= start time
+      if (!isStartTime && startTime && date === bookingDates.startDate && slot <= startTime) {
+        return false;
+      }
+      
+      return true;
+    });
+  };
 
   // Handler to clear package pricing when user changes dates
-  const handleDateChange = (newDates: typeof bookingDates, fieldChanged?: string) => {
+  const handleDateChange = (newDates: typeof bookingDates) => {
     const today = getTodayDate();
     const minTimeToday = getMinTimeForToday();
+
+    // Always round times to 30-min slots and clamp to business hours
+    if (newDates.startTime) {
+      newDates.startTime = roundToNext30Min(clampToBusinessHours(newDates.startTime));
+    }
+    if (newDates.endTime) {
+      newDates.endTime = roundToNext30Min(clampToBusinessHours(newDates.endTime));
+    }
+
+    // Ensure start date is not in the past
+    if (newDates.startDate < today) {
+      newDates.startDate = today;
+    }
+
+    // Ensure end date is not before start date
+    if (newDates.endDate && newDates.startDate && newDates.endDate < newDates.startDate) {
+      newDates.endDate = newDates.startDate;
+    }
 
     // Validate and auto-correct start time if it's today and time is in the past
     if (newDates.startDate === today && newDates.startTime && newDates.startTime < minTimeToday) {
       newDates.startTime = minTimeToday;
     }
 
-    // Validate and auto-correct end time if it's today
-    if (newDates.endDate === today && newDates.endTime) {
-      // If same day as start, end time must be after start time
-      if (newDates.startDate === newDates.endDate && newDates.startTime) {
-        const minEndTime = newDates.startTime > minTimeToday ? newDates.startTime : minTimeToday;
-        if (newDates.endTime < minEndTime) {
-          newDates.endTime = minEndTime;
+    // Validate and auto-correct end time
+    if (newDates.startDate === newDates.endDate && newDates.startTime && newDates.endTime) {
+      // Same day: end time must be after start time
+      if (newDates.endTime <= newDates.startTime) {
+        // Set end time to start time + 30 mins (rounded to next slot)
+        const [h, m] = newDates.startTime.split(':').map(Number);
+        const newMinutes = m === 0 ? 30 : 0;
+        const newHours = m === 0 ? h : h + 1;
+        const candidateEndTime = `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+        
+        // If would exceed business hours, push to next day
+        if (candidateEndTime > MAX_BUSINESS_TIME) {
+          newDates.endDate = getTomorrowDate();
+          newDates.endTime = MIN_BUSINESS_TIME;
+        } else {
+          newDates.endTime = candidateEndTime;
         }
-      } else if (newDates.endTime < minTimeToday) {
-        newDates.endTime = minTimeToday;
       }
     }
 
-    // Auto-focus: pickup date → return date, pickup time → return time
-    if (fieldChanged === 'startDate' && newDates.startDate) {
-      setTimeout(() => {
-        returnDateRef.current?.showPicker?.();
-        returnDateRef.current?.focus();
-      }, 100);
-    } else if (fieldChanged === 'startTime' && newDates.startTime) {
-      setTimeout(() => {
-        returnTimeRef.current?.showPicker?.();
-        returnTimeRef.current?.focus();
-      }, 100);
+    // If end date is today, apply minTimeForToday constraint
+    if (newDates.endDate === today && newDates.endTime && newDates.endTime < minTimeToday) {
+      newDates.endTime = minTimeToday;
     }
 
-    // If dates are different from original URL params, clear package pricing
-    if (
-      newDates.startDate !== startDateParam ||
-      newDates.endDate !== endDateParam ||
-      newDates.startTime !== startTimeParam ||
-      newDates.endTime !== endTimeParam
-    ) {
-      setActivePackagePrice(null);
-      setActivePackageLabel(null);
-    }
     setBookingDates(newDates);
   };
 
@@ -181,13 +291,19 @@ export default function BookNow() {
       !bookingDates.endTime
     )
       return 0;
-    return calculateTotalPrice(
-      vehicleData.pricePerHour,
+
+    const hours = calculateDuration(
       bookingDates.startDate,
       bookingDates.startTime,
       bookingDates.endDate,
       bookingDates.endTime
     );
+
+    // Use linkedPackage pricing if available
+    const pricePerHour = vehicleData.linkedPackage?.pricePerHour || vehicleData.pricePerHour;
+    const freeHoursPerDay = vehicleData.linkedPackage?.freeHoursPerDay || 6;
+
+    return calculateDurationPrice(hours, pricePerHour, freeHoursPerDay);
   };
 
   // Called by PriceCalculator with the final discounted+GST amount
@@ -333,18 +449,29 @@ export default function BookNow() {
             {/* Vehicle Details Card */}
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="flex gap-4">
-                <img
-                  src={vehicleData.primaryImageUrl || vehicleData.images?.[0]?.imageUrl || '/placeholder.jpg'}
-                  alt={vehicleData.name}
-                  className="w-32 h-32 object-cover rounded-lg"
-                />
+                <div className="w-32 h-24 bg-gray-50 rounded-lg flex items-center justify-center p-2">
+                  <img
+                    src={vehicleData.primaryImageUrl || vehicleData.images?.[0]?.imageUrl || '/placeholder.jpg'}
+                    alt={vehicleData.name}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
                 <div className="flex-1">
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">{vehicleData.name}</h3>
                   <p className="text-gray-600 mb-3">{vehicleData.make} {vehicleData.model}</p>
-                  <div className="flex gap-4 text-sm">
-                    <span className="text-primary-600 font-bold text-xl">₹{vehicleData.pricePerHour}/hr</span>
-                    <span className="text-gray-500 self-end">Min: {vehicleData.minBookingHours}h</span>
-                  </div>
+                  {vehicleData.linkedPackage ? (
+                    <span className="text-primary-600 font-bold text-xl">
+                      ₹{calculateDurationPrice(
+                        vehicleData.linkedPackage.selectedDurations[0],
+                        vehicleData.linkedPackage.pricePerHour,
+                        vehicleData.linkedPackage.freeHoursPerDay
+                      )}/-
+                    </span>
+                  ) : (
+                    <span className="text-primary-600 font-bold text-xl">
+                      ₹{vehicleData.pricePerHour * (vehicleData.minBookingHours || 4)}/-
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -372,24 +499,29 @@ export default function BookNow() {
                   </label>
                   <div className="space-y-2">
                     <input
+                      ref={startDateRef}
                       type="date"
                       value={bookingDates.startDate}
                       onChange={(e) =>
-                        handleDateChange({ ...bookingDates, startDate: e.target.value }, 'startDate')
+                        handleDateChange({ ...bookingDates, startDate: e.target.value })
                       }
-                      min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                      onClick={() => startDateRef.current?.showPicker?.()}
+                      min={getTodayDate()}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none cursor-pointer"
                     />
-                    <input
-                      type="time"
+                    <select
                       value={bookingDates.startTime}
                       onChange={(e) =>
-                        handleDateChange({ ...bookingDates, startTime: e.target.value }, 'startTime')
+                        handleDateChange({ ...bookingDates, startTime: e.target.value })
                       }
-                      min={bookingDates.startDate === new Date().toISOString().split('T')[0] ? (() => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; })() : '06:00'}
-                      max="23:30"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                    />
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none cursor-pointer"
+                    >
+                      {getAvailableTimeSlots(bookingDates.startDate, true).map((slot) => (
+                        <option key={slot} value={slot}>
+                          {formatTimeDisplay(slot)}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -405,34 +537,25 @@ export default function BookNow() {
                       type="date"
                       value={bookingDates.endDate}
                       onChange={(e) =>
-                        handleDateChange({ ...bookingDates, endDate: e.target.value }, 'endDate')
+                        handleDateChange({ ...bookingDates, endDate: e.target.value })
                       }
-                      min={bookingDates.startDate || new Date().toISOString().split('T')[0]}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                      onClick={() => returnDateRef.current?.showPicker?.()}
+                      min={bookingDates.startDate || getTodayDate()}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none cursor-pointer"
                     />
-                    <input
-                      ref={returnTimeRef}
-                      type="time"
+                    <select
                       value={bookingDates.endTime}
                       onChange={(e) =>
-                        handleDateChange({ ...bookingDates, endTime: e.target.value }, 'endTime')
+                        handleDateChange({ ...bookingDates, endTime: e.target.value })
                       }
-                      min={(() => {
-                        const today = new Date().toISOString().split('T')[0];
-                        const getMinForToday = () => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; };
-                        if (bookingDates.startDate === bookingDates.endDate && bookingDates.startTime) {
-                          if (bookingDates.endDate === today) {
-                            const minForToday = getMinForToday();
-                            return bookingDates.startTime > minForToday ? bookingDates.startTime : minForToday;
-                          }
-                          return bookingDates.startTime;
-                        }
-                        if (bookingDates.endDate === today) return getMinForToday();
-                        return '06:00';
-                      })()}
-                      max="23:30"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                    />
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none cursor-pointer"
+                    >
+                      {getAvailableTimeSlots(bookingDates.endDate, false, bookingDates.startTime).map((slot) => (
+                        <option key={slot} value={slot}>
+                          {formatTimeDisplay(slot)}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -442,11 +565,12 @@ export default function BookNow() {
                 <div className="mt-4 p-3 bg-primary-50 rounded-lg">
                   <p className="text-sm text-blue-800">
                     Total Duration: <strong>{totalHours} hours</strong>
-                    {vehicleData.minBookingHours && totalHours < vehicleData.minBookingHours && (
-                      <span className="text-red-600 ml-2">
-                        (Minimum {vehicleData.minBookingHours}h required)
-                      </span>
-                    )}
+                    {(vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours) &&
+                      totalHours < (vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours) && (
+                        <span className="text-red-600 ml-2">
+                          (Minimum {vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours}h required)
+                        </span>
+                      )}
                   </p>
                 </div>
               )}
@@ -454,19 +578,20 @@ export default function BookNow() {
 
             {/* Booking Summary - Price Calculator */}
             <PriceCalculator
-              basePrice={vehicleData.pricePerHour}
               hours={totalHours}
               vehicleName={vehicleData.name}
               onProceedToPayment={handleBooking}
               isLoading={bookingLoading}
               isLoggedIn={!!user}
-              minBookingHours={vehicleData.minBookingHours}
+              minBookingHours={vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours}
               includeSecondHelmet={includeSecondHelmet}
               onSecondHelmetChange={setIncludeSecondHelmet}
               cityId={vehicleData.cityId}
               userId={user?.id}
-              packagePrice={activePackagePrice}
-              packageLabel={activePackageLabel}
+              selectedDurations={vehicleData.linkedPackage?.selectedDurations || []}
+              priceOverrides={vehicleData.linkedPackage?.priceOverrides || {}}
+              pricePerHour={vehicleData.linkedPackage?.pricePerHour || vehicleData.pricePerHour}
+              freeHoursPerDay={vehicleData.linkedPackage?.freeHoursPerDay}
             />
           </div>
         </div>

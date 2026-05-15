@@ -7,6 +7,7 @@ import { ErrorMessage } from '../components/ErrorMessage';
 import { useSearchAvailableVehiclesQuery } from '../store/api/vehicleApi';
 import { useGetCitiesQuery } from '../store/api/cityApi';
 import { useAppSelector } from '../store/hooks';
+import { calculateDurationPrice } from '../store/api/vehiclePackageApi';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
 import { Slider } from '../components/ui/slider';
 import { stripLeadingZeros } from '../utils/numberInput';
@@ -121,14 +122,27 @@ const VehicleListingPage: React.FC = () => {
     cityId: selectedCityId,
   });
 
-  // ── Calculate dynamic price bounds from vehicles ──
+  // ── Calculate dynamic price bounds from vehicles (based on first package price) ──
   const priceBounds = useMemo(() => {
-    if (!vehicles || vehicles.length === 0) return { min: 0, max: 500 };
-    const prices = vehicles.map((v) => v.pricePerHour).filter((p) => p > 0);
-    if (prices.length === 0) return { min: 0, max: 500 };
+    if (!vehicles || vehicles.length === 0) return { min: 0, max: 15000 };
+    
+    // Calculate first package price for each vehicle (e.g., 12 Hours package)
+    const firstPkgPrices = vehicles.map((v) => {
+      if (v.linkedPackage && v.linkedPackage.selectedDurations.length > 0) {
+        const firstHours = v.linkedPackage.selectedDurations[0];
+        const override = v.linkedPackage.priceOverrides?.[firstHours.toString()];
+        return override && override > 0
+          ? override
+          : calculateDurationPrice(firstHours, v.linkedPackage.pricePerHour, v.linkedPackage.freeHoursPerDay);
+      }
+      // Fallback: pricePerHour * minBookingHours
+      return v.pricePerHour > 0 ? v.pricePerHour * (v.minBookingHours || 4) : 0;
+    }).filter((p) => p > 0);
+    
+    if (firstPkgPrices.length === 0) return { min: 0, max: 15000 };
     return {
-      min: Math.floor(Math.min(...prices)),
-      max: Math.ceil(Math.max(...prices)),
+      min: Math.floor(Math.min(...firstPkgPrices)),
+      max: Math.ceil(Math.max(...firstPkgPrices)),
     };
   }, [vehicles]);
 
@@ -156,7 +170,20 @@ const VehicleListingPage: React.FC = () => {
       }
       if (selectedType && v.vehicleType !== selectedType) return false;
       if (selectedFuel && v.fuelType !== selectedFuel) return false;
-      if (v.pricePerHour < effectivePriceRange[0] || v.pricePerHour > effectivePriceRange[1]) return false;
+      
+      // Calculate first package price for this vehicle
+      let firstPkgPrice = 0;
+      if (v.linkedPackage && v.linkedPackage.selectedDurations.length > 0) {
+        const firstHours = v.linkedPackage.selectedDurations[0];
+        const override = v.linkedPackage.priceOverrides?.[firstHours.toString()];
+        firstPkgPrice = override && override > 0
+          ? override
+          : calculateDurationPrice(firstHours, v.linkedPackage.pricePerHour, v.linkedPackage.freeHoursPerDay);
+      } else {
+        firstPkgPrice = v.pricePerHour > 0 ? v.pricePerHour * (v.minBookingHours || 4) : 0;
+      }
+      
+      if (firstPkgPrice < effectivePriceRange[0] || firstPkgPrice > effectivePriceRange[1]) return false;
       return true;
     });
 
@@ -168,10 +195,22 @@ const VehicleListingPage: React.FC = () => {
       if (aUnavailable && !bUnavailable) return 1;
       if (!aUnavailable && bUnavailable) return -1;
 
+      // Calculate first package prices for sorting
+      const getFirstPkgPrice = (v: typeof a) => {
+        if (v.linkedPackage && v.linkedPackage.selectedDurations.length > 0) {
+          const firstHours = v.linkedPackage.selectedDurations[0];
+          const override = v.linkedPackage.priceOverrides?.[firstHours.toString()];
+          return override && override > 0
+            ? override
+            : calculateDurationPrice(firstHours, v.linkedPackage.pricePerHour, v.linkedPackage.freeHoursPerDay);
+        }
+        return v.pricePerHour > 0 ? v.pricePerHour * (v.minBookingHours || 4) : 0;
+      };
+
       // Then apply user-selected sort
       switch (sortBy) {
-        case 'price_asc': return a.pricePerHour - b.pricePerHour;
-        case 'price_desc': return b.pricePerHour - a.pricePerHour;
+        case 'price_asc': return getFirstPkgPrice(a) - getFirstPkgPrice(b);
+        case 'price_desc': return getFirstPkgPrice(b) - getFirstPkgPrice(a);
         case 'name_asc': return (a.name || '').localeCompare(b.name || '');
         case 'name_desc': return (b.name || '').localeCompare(a.name || '');
         default: return 0;
@@ -509,7 +548,7 @@ const VehicleListingPage: React.FC = () => {
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wide">
-                        Price / Hour
+                        Price Range
                       </h4>
                       <span className="text-sm font-bold text-primary-600">
                         ₹{effectivePriceRange[0]} – ₹{effectivePriceRange[1]}

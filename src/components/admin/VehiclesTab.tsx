@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Plus, Edit, Trash2, Search, CheckCircle, XCircle,
-  Image, MapPin, X, Save, Loader2, Star, Eye,
+  Image, MapPin, X, Save, Loader2, Star, Eye, Package, FileText,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -19,6 +19,10 @@ import {
   useUpdateVehicleImageMutation,
   useDeleteVehicleImageMutation,
 } from '../../store/api/vehicleImageApi';
+import {
+  useGetVehiclePackagesQuery,
+  DURATION_OPTIONS,
+} from '../../store/api/vehiclePackageApi';
 import { uploadVehicleImage } from '../../lib/supabase';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { TrackingModal } from './Trackingmodal';
@@ -32,11 +36,21 @@ const EMPTY_VEHICLE: Omit<VehicleDto, 'id'> = {
   kmLimit: 100, excessKmCharge: 5, lateReturnCharge: 80,
   rating: 0, fuelType: 'Petrol', vehicleType: 'Scooter',
   kmTravelled: 0, gpsDeviceId: '',
+  packageId: undefined,
   packages: { fourHours: 0, oneDay: 0, threeDays: 0, sevenDays: 0, fifteenDays: 0, monthly: 0 },
   specs: { mileage: '', engineCapacity: '', topSpeed: '', weight: '' },
 };
 
 type VehicleModalTab = 'details' | 'images';
+
+const VEHICLE_DRAFTS_KEY = 'vehicle_drafts';
+
+interface VehicleDraft {
+  id: string;
+  label: string;
+  data: Omit<VehicleDto, 'id'>;
+  savedAt: string;
+}
 
 const VehiclesTab: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,10 +61,84 @@ const VehiclesTab: React.FC = () => {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [trackingVehicle, setTrackingVehicle] = useState<VehicleDto | null>(null);
   const [previewVehicle, setPreviewVehicle] = useState<VehicleDto | null>(null);
+  const [drafts, setDrafts] = useState<VehicleDraft[]>([]);
+  const [showDraftDropdown, setShowDraftDropdown] = useState(false);
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const [originalDraftData, setOriginalDraftData] = useState<string | null>(null);
+
+  // Load drafts from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(VEHICLE_DRAFTS_KEY);
+    if (stored) {
+      try {
+        setDrafts(JSON.parse(stored));
+      } catch {
+        setDrafts([]);
+      }
+    }
+  }, []);
+
+  const saveDraft = (silent = false) => {
+    const label = vehicleForm.name || vehicleForm.make || 'Untitled';
+    const now = new Date().toISOString();
+
+    let updated: VehicleDraft[];
+    if (currentDraftId) {
+      // Update existing draft
+      updated = drafts.map(d =>
+        d.id === currentDraftId
+          ? { ...d, label, data: vehicleForm, savedAt: now }
+          : d
+      );
+    } else {
+      // Create new draft
+      const newDraft: VehicleDraft = { id: Date.now().toString(), label, data: vehicleForm, savedAt: now };
+      updated = [newDraft, ...drafts];
+    }
+
+    setDrafts(updated);
+    localStorage.setItem(VEHICLE_DRAFTS_KEY, JSON.stringify(updated));
+    if (!silent) {
+      toast.success(currentDraftId ? 'Draft updated' : 'Saved as draft');
+      setShowVehicleModal(false);
+      setCurrentDraftId(null);
+      setOriginalDraftData(null);
+    }
+  };
+
+  const deleteDraft = (draftId: string) => {
+    const updated = drafts.filter(d => d.id !== draftId);
+    setDrafts(updated);
+    localStorage.setItem(VEHICLE_DRAFTS_KEY, JSON.stringify(updated));
+    toast.success('Draft deleted');
+  };
+
+  const deleteAllDrafts = () => {
+    setDrafts([]);
+    localStorage.removeItem(VEHICLE_DRAFTS_KEY);
+    setShowDraftDropdown(false);
+    toast.success('All drafts deleted');
+  };
+
+  const handleCloseModal = () => {
+    // Auto-save draft if new vehicle has any data
+    if (!editingVehicle && (vehicleForm.name || vehicleForm.make || vehicleForm.model || vehicleForm.packageId)) {
+      const currentData = JSON.stringify(vehicleForm);
+      // Only save if data changed from original (or no original = new draft)
+      if (!originalDraftData || currentData !== originalDraftData) {
+        saveDraft(true);
+        toast.success(currentDraftId ? 'Draft updated' : 'Draft auto-saved');
+      }
+    }
+    setShowVehicleModal(false);
+    setCurrentDraftId(null);
+    setOriginalDraftData(null);
+  };
 
   // ── API Calls ──────────────────────────────────────────────────────────
   const { data: vehicles = [], isLoading: vehiclesLoading, refetch: refetchVehicles } = useGetVehiclesQuery(undefined);
   const { data: cities = [] } = useGetCitiesQuery({ page: 1, size: 100 });
+  const { data: vehiclePackages = [] } = useGetVehiclePackagesQuery();
 
   const {
     data: vehicleImages = [],
@@ -68,9 +156,18 @@ const VehiclesTab: React.FC = () => {
   const [deleteVehicleImage] = useDeleteVehicleImageMutation();
 
   // ── Handlers ──────────────────────────────────────────────────────────
-  const handleOpenAddVehicle = () => {
+  const handleOpenAddVehicle = (draft?: VehicleDraft) => {
     setEditingVehicle(null);
-    setVehicleForm(EMPTY_VEHICLE);
+    if (draft) {
+      setVehicleForm(draft.data);
+      setCurrentDraftId(draft.id);
+      setOriginalDraftData(JSON.stringify(draft.data));
+    } else {
+      setVehicleForm(EMPTY_VEHICLE);
+      setCurrentDraftId(null);
+      setOriginalDraftData(null);
+    }
+    setShowDraftDropdown(false);
     setVehicleModalTab('details');
     setShowVehicleModal(true);
   };
@@ -88,6 +185,7 @@ const VehiclesTab: React.FC = () => {
       fuelType: vehicle.fuelType, vehicleType: vehicle.vehicleType,
       kmTravelled: vehicle.kmTravelled,
       gpsDeviceId: vehicle.gpsDeviceId ?? '',
+      packageId: vehicle.packageId,
       packages: vehicle.packages ?? EMPTY_VEHICLE.packages,
       specs: vehicle.specs ?? EMPTY_VEHICLE.specs,
     });
@@ -104,6 +202,10 @@ const VehiclesTab: React.FC = () => {
       toast.error('Please select a city');
       return;
     }
+    if (!vehicleForm.packageId) {
+      toast.error('Please select a package');
+      return;
+    }
     try {
       if (editingVehicle) {
         await updateVehicle({ id: editingVehicle.id, vehicle: { ...vehicleForm, id: editingVehicle.id } }).unwrap();
@@ -112,6 +214,14 @@ const VehiclesTab: React.FC = () => {
       } else {
         const newVehicle = await createVehicle(vehicleForm as VehicleDto).unwrap();
         toast.success('Vehicle added! Now you can add images.');
+        // Delete draft if this was created from a draft
+        if (currentDraftId) {
+          const updatedDrafts = drafts.filter(d => d.id !== currentDraftId);
+          setDrafts(updatedDrafts);
+          localStorage.setItem(VEHICLE_DRAFTS_KEY, JSON.stringify(updatedDrafts));
+          setCurrentDraftId(null);
+          setOriginalDraftData(null);
+        }
         setEditingVehicle(newVehicle);
         setVehicleModalTab('images');
         refetchVehicles();
@@ -180,12 +290,56 @@ const VehiclesTab: React.FC = () => {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 lg:mb-6">
         <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Vehicle Management</h1>
-        <button
-          onClick={handleOpenAddVehicle}
-          className="bg-primary-600 text-white px-4 lg:px-6 py-2 rounded-lg hover:bg-primary-700 transition flex items-center justify-center text-sm lg:text-base"
-        >
-          <Plus className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />Add Vehicle
-        </button>
+        <div className="flex items-center gap-2">
+          {drafts.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowDraftDropdown(!showDraftDropdown)}
+                className="bg-amber-100 text-amber-700 px-4 py-2 rounded-lg hover:bg-amber-200 transition flex items-center justify-center text-sm border border-amber-300"
+              >
+                <FileText className="w-4 h-4 mr-2" />Drafts ({drafts.length})
+              </button>
+              {showDraftDropdown && (
+                <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                  <div className="max-h-60 overflow-y-auto">
+                    {drafts.map((draft) => (
+                      <div key={draft.id} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
+                        <button
+                          onClick={() => { handleOpenAddVehicle(draft); setShowDraftDropdown(false); }}
+                          className="flex-1 text-left text-sm text-gray-700 truncate"
+                        >
+                          <span className="font-medium">{draft.label}</span>
+                          <span className="text-xs text-gray-400 block">
+                            {new Date(draft.savedAt).toLocaleDateString()}
+                          </span>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteDraft(draft.id); }}
+                          className="p-1 text-red-500 hover:bg-red-50 rounded"
+                          title="Delete draft"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={deleteAllDrafts}
+                    className="w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 border-t border-gray-200 font-medium"
+                  >
+                    Delete All Drafts
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={() => handleOpenAddVehicle()}
+            className="bg-primary-600 text-white px-4 lg:px-6 py-2 rounded-lg hover:bg-primary-700 transition flex items-center justify-center text-sm lg:text-base"
+          >
+            <Plus className="w-4 h-4 lg:w-5 lg:h-5 mr-2" />Add Vehicle
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-4 mb-4 lg:mb-6">
@@ -207,7 +361,7 @@ const VehiclesTab: React.FC = () => {
             <table className="w-full min-w-[800px]">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Vehicle', 'Reg No', 'Make', 'Type', 'Rate/Hr', 'Status', 'Km Travelled', 'Actions'].map((h) => (
+                  {['Vehicle', 'Reg No', 'Make', 'Type', 'Package', 'Status', 'Km Travelled', 'Actions'].map((h) => (
                     <th key={h} className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-semibold text-gray-600 uppercase">{h}</th>
                   ))}
                 </tr>
@@ -224,7 +378,9 @@ const VehiclesTab: React.FC = () => {
                     </td>
                     <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm text-gray-600">{vehicle.make}</td>
                     <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm text-gray-600">{vehicle.vehicleType}</td>
-                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm font-semibold text-primary-600">₹{vehicle.pricePerHour}</td>
+                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm font-medium text-purple-600">
+                      {vehiclePackages.find(p => p.id === vehicle.packageId)?.name || <span className="text-gray-400">—</span>}
+                    </td>
                     <td className="px-4 lg:px-6 py-3 lg:py-4">
                       {vehicle.isAvailable
                         ? <span className="flex items-center text-green-600 text-xs lg:text-sm"><CheckCircle className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />Available</span>
@@ -295,7 +451,7 @@ const VehiclesTab: React.FC = () => {
               <h2 className="text-lg lg:text-xl font-bold text-gray-900">
                 {editingVehicle ? 'Edit Vehicle' : 'Add New Vehicle'}
               </h2>
-              <button onClick={() => setShowVehicleModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button onClick={handleCloseModal} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -375,36 +531,97 @@ const VehiclesTab: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Pricing */}
+                  {/* Vehicle Charges */}
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Pricing</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <FormField label="Price/Hour (₹)" value={vehicleForm.pricePerHour} onChange={(v) => setVehicleForm({ ...vehicleForm, pricePerHour: v })} type="number" required />
-                      <FormField label="Price/Day (₹)" value={vehicleForm.pricePerDay} onChange={(v) => setVehicleForm({ ...vehicleForm, pricePerDay: v })} type="number" />
-                      <FormField label="Min Booking Hrs" value={vehicleForm.minBookingHours} onChange={(v) => setVehicleForm({ ...vehicleForm, minBookingHours: v })} type="number" />
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Vehicle Charges</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       <FormField label="KM Limit/Day" value={vehicleForm.kmLimit} onChange={(v) => setVehicleForm({ ...vehicleForm, kmLimit: v })} type="number" />
                       <FormField label="Excess KM Charge" value={vehicleForm.excessKmCharge} onChange={(v) => setVehicleForm({ ...vehicleForm, excessKmCharge: v })} type="number" />
                       <FormField label="Late Return/Hr" value={vehicleForm.lateReturnCharge} onChange={(v) => setVehicleForm({ ...vehicleForm, lateReturnCharge: v })} type="number" />
                     </div>
                   </div>
 
-                  {/* Packages */}
+                  {/* Package Selection */}
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Packages (₹)</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {([
-                        ['4 Hours', 'fourHours'], ['1 Day', 'oneDay'], ['3 Days', 'threeDays'],
-                        ['7 Days', 'sevenDays'], ['15 Days', 'fifteenDays'], ['Monthly', 'monthly'],
-                      ] as [string, keyof NonNullable<typeof vehicleForm.packages>][]).map(([label, key]) => (
-                        <FormField
-                          key={key} label={label}
-                          value={vehicleForm.packages?.[key] ?? 0}
-                          onChange={(v) => setVehicleForm({ ...vehicleForm, packages: { ...vehicleForm.packages!, [key]: v } })}
-                          type="number"
-                        />
-                      ))}
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Package</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Select Package <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={vehicleForm.packageId ?? ''}
+                          onChange={(e) => setVehicleForm({ ...vehicleForm, packageId: e.target.value ? Number(e.target.value) : undefined })}
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition"
+                        >
+                          <option value="">-- Select a Package --</option>
+                          {vehiclePackages.map((pkg) => (
+                            <option key={pkg.id} value={pkg.id}>
+                              {pkg.name} - ₹{pkg.pricePerHour}/hr
+                            </option>
+                          ))}
+                        </select>
+                        {vehiclePackages.length === 0 && (
+                          <p className="mt-2 text-xs text-amber-600 flex items-center gap-1">
+                            <Package className="w-3.5 h-3.5" />
+                            No packages available. Create a package first.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Show selected package preview */}
+                      {vehicleForm.packageId && (
+                        <div className="p-4 bg-purple-50 border border-purple-100 rounded-xl">
+                          {(() => {
+                            const selectedPkg = vehiclePackages.find(p => p.id === vehicleForm.packageId);
+                            if (!selectedPkg) return null;
+                            return (
+                              <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Package className="w-4 h-4 text-purple-600" />
+                                  <span className="font-semibold text-purple-900">{selectedPkg.name}</span>
+                                  <span className="text-sm text-purple-600">₹{selectedPkg.pricePerHour}/hr</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {selectedPkg.selectedDurations.map(h => {
+                                    const opt = DURATION_OPTIONS.find(o => o.hours === h);
+                                    return (
+                                      <span key={h} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                                        {opt?.label ?? `${h}h`}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {/* Legacy Packages (for backward compatibility display only) */}
+                  {vehicleForm.packages && Object.values(vehicleForm.packages).some(v => v > 0) && !vehicleForm.packageId && (
+                    <div className="opacity-60">
+                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                        Legacy Packages (₹) <span className="text-xs font-normal text-amber-600">- Please select a package above</span>
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {([
+                          ['4 Hours', 'fourHours'], ['1 Day', 'oneDay'], ['3 Days', 'threeDays'],
+                          ['7 Days', 'sevenDays'], ['15 Days', 'fifteenDays'], ['Monthly', 'monthly'],
+                        ] as [string, keyof NonNullable<typeof vehicleForm.packages>][]).map(([label, key]) => (
+                          <FormField
+                            key={key} label={label}
+                            value={vehicleForm.packages?.[key] ?? 0}
+                            onChange={(v) => setVehicleForm({ ...vehicleForm, packages: { ...vehicleForm.packages!, [key]: v } })}
+                            type="number"
+                            disabled
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Specs */}
                   <div>
@@ -472,7 +689,7 @@ const VehiclesTab: React.FC = () => {
                           <img
                             src={image.imageUrl}
                             alt="Vehicle"
-                            className="w-full h-36 object-cover"
+                            className="w-full h-36 object-contain bg-gray-100"
                             onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x200?text=Image'; }}
                           />
                           {image.isPrimary && (
@@ -507,27 +724,42 @@ const VehiclesTab: React.FC = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex justify-end gap-3 p-6 border-t border-gray-200 sticky bottom-0 bg-white">
-              {vehicleModalTab === 'images' ? (
-                <button onClick={() => setShowVehicleModal(false)} className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition">
-                  Done
-                </button>
-              ) : (
-                <>
-                  <button onClick={() => setShowVehicleModal(false)} className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">
-                    Cancel
-                  </button>
+            <div className="flex justify-between gap-3 p-6 border-t border-gray-200 sticky bottom-0 bg-white">
+              {/* Left side - Draft button (only for new vehicles on details tab) */}
+              <div>
+                {vehicleModalTab === 'details' && !editingVehicle && (
                   <button
-                    onClick={handleSaveVehicle}
-                    disabled={creating || updating}
-                    className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition flex items-center disabled:opacity-50"
+                    onClick={() => saveDraft()}
+                    className="px-4 py-2 border border-amber-300 rounded-lg text-amber-700 hover:bg-amber-50 transition flex items-center text-sm"
                   >
-                    {(creating || updating)
-                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
-                      : <><Save className="w-4 h-4 mr-2" />{editingVehicle ? 'Update Vehicle' : 'Add Vehicle'}</>}
+                    <FileText className="w-4 h-4 mr-2" />Save Draft
                   </button>
-                </>
-              )}
+                )}
+              </div>
+
+              {/* Right side - Main actions */}
+              <div className="flex gap-3">
+                {vehicleModalTab === 'images' ? (
+                  <button onClick={() => setShowVehicleModal(false)} className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition">
+                    Done
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={handleCloseModal} className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveVehicle}
+                      disabled={creating || updating}
+                      className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition flex items-center disabled:opacity-50"
+                    >
+                      {(creating || updating)
+                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                        : <><Save className="w-4 h-4 mr-2" />{editingVehicle ? 'Update Vehicle' : 'Add Vehicle'}</>}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
           </div>
