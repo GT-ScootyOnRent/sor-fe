@@ -8,6 +8,7 @@ import { useAppSelector } from '../store/hooks';
 import PickupLocationModal from './PickupLocationModal';
 import LoginModal from './LoginModal';
 import type { PickupLocationDto } from '../store/api/pickupLocationApi';
+import { calculateDurationPrice, DURATION_OPTIONS } from '../store/api/vehiclePackageApi';
 
 interface VehicleCardProps {
   vehicle: VehicleWithImagesDto;
@@ -16,7 +17,7 @@ interface VehicleCardProps {
 interface PackageOption {
   label: string;
   price: number;
-  days: number;
+  hours: number;
   color: string;
   hoverColor: string;
 }
@@ -52,38 +53,27 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingLocation, setPendingLocation] = useState<PickupLocationDto | null>(null);
 
-  // Build package options for 2x2 grid (3 days, 7 days, 15 days, 1 month)
-  const packageOptions: PackageOption[] = vehicle.packages
-    ? [
-      {
-        label: '3 Days',
-        price: vehicle.packages.threeDays,
-        days: 3,
+  // Build package options from linkedPackage (new system)
+  const packageOptions: PackageOption[] = vehicle.linkedPackage
+    ? vehicle.linkedPackage.selectedDurations.map(hours => {
+      // Get price: use override if exists, otherwise calculate
+      const override = vehicle.linkedPackage!.priceOverrides?.[hours.toString()];
+      const price = override && override > 0
+        ? override
+        : calculateDurationPrice(hours, vehicle.linkedPackage!.pricePerHour, vehicle.linkedPackage!.freeHoursPerDay);
+
+      // Get label from DURATION_OPTIONS
+      const opt = DURATION_OPTIONS.find(o => o.hours === hours);
+      const label = opt?.label ?? `${hours}h`;
+
+      return {
+        label,
+        price,
+        hours,
         color: 'from-white to-white',
         hoverColor: 'hover:from-primary-50 hover:to-primary-100',
-      },
-      {
-        label: '7 Days',
-        price: vehicle.packages.sevenDays,
-        days: 7,
-        color: 'from-white to-white',
-        hoverColor: 'hover:from-primary-50 hover:to-primary-100',
-      },
-      {
-        label: '15 Days',
-        price: vehicle.packages.fifteenDays,
-        days: 15,
-        color: 'from-white to-white',
-        hoverColor: 'hover:from-primary-50 hover:to-primary-100',
-      },
-      {
-        label: '1 Month',
-        price: vehicle.packages.monthly,
-        days: 30,
-        color: 'from-white to-white',
-        hoverColor: 'hover:from-primary-50 hover:to-primary-100',
-      },
-    ].filter((item) => item.price > 0)
+      };
+    })
     : [];
 
   const hasPackages = packageOptions.length > 0;
@@ -106,27 +96,30 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
     if (selectedPackage !== null) {
       const selectedPkg = packageOptions[selectedPackage];
       if (selectedPkg) {
+        // Business hours: 6:00 AM to 11:30 PM
+        const clampTime = (time: string) => {
+          if (time < '06:00') return '06:00';
+          if (time > '23:30') return '23:30';
+          return time;
+        };
+
         // If no start date from search, use today
         if (!startDate) {
           const today = new Date();
           startDate = today.toISOString().split('T')[0];
 
-          // Use current time + 1 hour buffer for pickup time
+          // Use current time + 1 hour buffer for pickup time, clamped to business hours
           const pickupTime = new Date(today.getTime() + 60 * 60 * 1000);
-          const hours = pickupTime.getHours().toString().padStart(2, '0');
+          const hrs = pickupTime.getHours().toString().padStart(2, '0');
           const minutes = pickupTime.getMinutes().toString().padStart(2, '0');
-          startTime = `${hours}:${minutes}`;
+          startTime = clampTime(`${hrs}:${minutes}`);
         }
 
-        // Calculate end date based on package days
-        const start = new Date(startDate);
-        start.setDate(start.getDate() + selectedPkg.days);
-        endDate = start.toISOString().split('T')[0];
-
-        // If no end time, use default return time 11:30 PM
-        if (!endTime) {
-          endTime = '23:30';
-        }
+        // Calculate end date based on package hours
+        const start = new Date(startDate + 'T' + (startTime || '06:00'));
+        const endDateTime = new Date(start.getTime() + selectedPkg.hours * 60 * 60 * 1000);
+        endDate = endDateTime.toISOString().split('T')[0];
+        endTime = clampTime(endDateTime.getHours().toString().padStart(2, '0') + ':' + endDateTime.getMinutes().toString().padStart(2, '0'));
 
         // If no start time set, use default 6:00 AM
         if (!startTime) {
@@ -201,11 +194,11 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
   return (
     <div className="w-full bg-white rounded-2xl border border-gray-200 overflow-visible hover:shadow-xl transition-shadow">
       {/* IMAGE - Fixed, doesn't flip */}
-      <div className="relative h-56 md:h-64 bg-gray-100">
+      <div className="relative h-40 md:h-48 bg-gray-50 flex items-center justify-center p-4">
         <img
           src={imageUrl}
           alt={vehicle.name}
-          className="w-full h-full object-cover rounded-t-2xl"
+          className="max-w-full max-h-full object-contain rounded-lg"
           crossOrigin="anonymous"
           loading="lazy"
           onError={(e) => {
@@ -291,12 +284,21 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
               </div>
             </div>
 
-            {/* PRICE */}
+            {/* PRICE - Show first package price (e.g., 12 Hours) */}
             <div className="mb-5">
-              <span className="text-3xl font-bold text-primary-600">
-                ₹{vehicle.pricePerHour || 0}
-              </span>
-              <span className="text-base text-gray-600">/hour</span>
+              {hasPackages && packageOptions[0] ? (
+                <span className="text-3xl font-bold text-primary-600">
+                  ₹{packageOptions[0].price}/-
+                </span>
+              ) : vehicle.pricePerHour > 0 ? (
+                <span className="text-3xl font-bold text-primary-600">
+                  ₹{vehicle.pricePerHour * (vehicle.minBookingHours || 4)}/-
+                </span>
+              ) : (
+                <span className="text-lg font-semibold text-primary-600">
+                  Click for pricing
+                </span>
+              )}
             </div>
 
             {/* BOOK */}
@@ -313,37 +315,37 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
 
           {/* BACK - Package Options (2x2 Grid) */}
           <div
-            className="absolute inset-0 p-5 md:p-6 bg-white"
+            className="absolute inset-0 p-3 md:p-4 bg-white"
             style={{
               backfaceVisibility: 'hidden',
               transform: 'rotateY(180deg)',
             }}
           >
-            <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-3">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold mb-2">
               Select Package
             </p>
 
             {/* 2x2 GRID */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="grid grid-cols-2 gap-1.5 mb-2">
               {packageOptions.map((pkg, index) => (
                 <button
                   key={index}
                   type="button"
                   onClick={() => setSelectedPackage(index)}
-                  className={`relative bg-gradient-to-br ${pkg.color} ${pkg.hoverColor} border-2 rounded-xl p-3 cursor-pointer text-center transition-all shadow-sm ${selectedPackage === index
-                    ? 'border-primary-500 ring-2 ring-primary-200'
+                  className={`relative bg-gradient-to-br ${pkg.color} ${pkg.hoverColor} border rounded-md py-1.5 px-1 cursor-pointer text-center transition-all ${selectedPackage === index
+                    ? 'border-primary-500 ring-1 ring-primary-200'
                     : 'border-gray-200 hover:border-primary-300'
                     }`}
                 >
                   {/* Checkmark */}
                   {selectedPackage === index && (
-                    <div className="absolute top-1 right-1 w-5 h-5 bg-primary-500 rounded-full flex items-center justify-center">
-                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                    <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-primary-500 rounded-full flex items-center justify-center">
+                      <Check className="w-2 h-2 text-white" strokeWidth={3} />
                     </div>
                   )}
 
-                  <p className="text-lg font-bold text-primary-600">₹{pkg.price}</p>
-                  <p className="text-xs text-primary-500">{pkg.label}</p>
+                  <p className="text-sm font-bold text-primary-600">₹{pkg.price}</p>
+                  <p className="text-[9px] text-primary-500 leading-tight">{pkg.label}</p>
                 </button>
               ))}
             </div>
@@ -353,7 +355,8 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
               <Button
                 onClick={handleBookNow}
                 disabled={!isAvailable}
-                className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white disabled:bg-gray-300"
+                size="sm"
+                className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white disabled:bg-gray-300 text-sm py-2"
               >
                 {isAvailable ? 'Book Now' : 'Unavailable'}
               </Button>

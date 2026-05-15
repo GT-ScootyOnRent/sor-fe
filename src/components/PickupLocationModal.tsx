@@ -1,9 +1,7 @@
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, MapPin, Loader2, AlertCircle, Navigation } from 'lucide-react';
 import { useGetActivePickupLocationsByCityQuery } from '../store/api/pickupLocationApi';
 import type { PickupLocationDto } from '../store/api/pickupLocationApi';
-import { Button } from './ui/button';
 
 interface PickupLocationModalProps {
     isOpen: boolean;
@@ -20,19 +18,9 @@ export default function PickupLocationModal({
     cityName,
     onContinue,
 }: PickupLocationModalProps) {
-    const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
-
     const { data: locations = [], isLoading, error } = useGetActivePickupLocationsByCityQuery(cityId, {
         skip: !isOpen || !cityId,
     });
-
-    const selectedLocation = locations.find((loc) => loc.id === selectedLocationId);
-
-    const handleContinue = () => {
-        if (selectedLocation) {
-            onContinue(selectedLocation);
-        }
-    };
 
     const openDirections = (location: PickupLocationDto) => {
         if (location.latitude && location.longitude) {
@@ -115,24 +103,12 @@ export default function PickupLocationModal({
                                 {!isLoading && !error && locations.length > 0 && (
                                     <div className="space-y-3">
                                         {locations.map((location) => (
-                                            <label
+                                            <div
                                                 key={location.id}
-                                                className={`
-                          flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all
-                          ${selectedLocationId === location.id
-                                                        ? 'border-primary-500 bg-primary-50'
-                                                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                                    }
-                        `}
+                                                onClick={() => onContinue(location)}
+                                                className="flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all border-gray-200 hover:border-primary-500 hover:bg-primary-50"
                                             >
-                                                <input
-                                                    type="radio"
-                                                    name="pickupLocation"
-                                                    value={location.id}
-                                                    checked={selectedLocationId === location.id}
-                                                    onChange={() => setSelectedLocationId(location.id)}
-                                                    className="mt-1 w-4 h-4 text-primary-600 focus:ring-primary-500"
-                                                />
+                                                <div className="mt-1 w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-semibold text-gray-900">{location.name}</p>
                                                     {location.address && (
@@ -153,21 +129,10 @@ export default function PickupLocationModal({
                                                         <Navigation className="w-4 h-4" />
                                                     </button>
                                                 )}
-                                            </label>
+                                            </div>
                                         ))}
                                     </div>
                                 )}
-                            </div>
-
-                            {/* Footer */}
-                            <div className="p-5 border-t border-gray-100 bg-gray-50">
-                                <Button
-                                    onClick={handleContinue}
-                                    disabled={!selectedLocation}
-                                    className="w-full py-3 text-base font-semibold"
-                                >
-                                    Continue to Booking
-                                </Button>
                             </div>
                         </div>
                     </motion.div>

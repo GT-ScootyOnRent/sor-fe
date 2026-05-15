@@ -24,7 +24,9 @@ import { stateApi } from './api/stateApi';
 import { partnerInquiryApi } from './api/partnerInquiryApi';
 import { contactApi } from './api/contactApi';
 import { heroBannerApi } from './api/heroBannerApi';
+import { announcementBannerApi } from './api/announcementBannerApi';
 import { bookingCustomerDetailsApi } from './api/bookingCustomerDetailsApi';
+import { vehiclePackageApi } from './api/vehiclePackageApi';
 
 export const store = configureStore({
   reducer: {
@@ -51,7 +53,9 @@ export const store = configureStore({
     [partnerInquiryApi.reducerPath]: partnerInquiryApi.reducer,
     [contactApi.reducerPath]: contactApi.reducer,
     [heroBannerApi.reducerPath]: heroBannerApi.reducer,
+    [announcementBannerApi.reducerPath]: announcementBannerApi.reducer,
     [bookingCustomerDetailsApi.reducerPath]: bookingCustomerDetailsApi.reducer,
+    [vehiclePackageApi.reducerPath]: vehiclePackageApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -73,7 +77,9 @@ export const store = configureStore({
       partnerInquiryApi.middleware,
       contactApi.middleware,
       heroBannerApi.middleware,
-      bookingCustomerDetailsApi.middleware
+      announcementBannerApi.middleware,
+      bookingCustomerDetailsApi.middleware,
+      vehiclePackageApi.middleware
     ),
 });
 

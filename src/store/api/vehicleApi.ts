@@ -18,6 +18,16 @@ export interface VehicleSpecsDto {
   weight: string;
 }
 
+// New package system - linked from vehicle_packages table
+export interface LinkedPackageDto {
+  id: number;
+  name: string;
+  pricePerHour: number;
+  freeHoursPerDay: number;
+  selectedDurations: number[];
+  priceOverrides: Record<string, number>;
+}
+
 export interface VehicleDto {
   id: number;
   name: string;
@@ -46,6 +56,8 @@ export interface VehicleDto {
   imageCount?: number;
   packages?: VehiclePackagesDto;
   specs?: VehicleSpecsDto;
+  packageId?: number;
+  linkedPackage?: LinkedPackageDto;
 }
 
 export interface VehicleImageDto {

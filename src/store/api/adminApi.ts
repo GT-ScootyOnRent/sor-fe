@@ -80,6 +80,8 @@ export interface AdminDto {
   number: string;
   isActive: boolean;
   hasChangedPassword: boolean;
+  canManagePackages?: boolean;
+  canManageAnnouncements?: boolean;
 }
 
 export interface AdminProfileDto {
@@ -96,6 +98,8 @@ export interface AdminProfileDto {
   isActive: boolean;
   profilePicUrl: string | null;
   createdAt: string;
+  canManagePackages?: boolean;
+  canManageAnnouncements?: boolean;
 }
 
 // ── Staff DTOs ─────────────────────────────────────────────────────────────
