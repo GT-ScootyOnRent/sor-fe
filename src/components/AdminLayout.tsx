@@ -16,6 +16,8 @@ import {
   Image as ImageIcon,
   Menu,
   X,
+  Package,
+  Megaphone,
 } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { logout } from '../store/slices/authSlice'
@@ -32,6 +34,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { id: 'dashboard', path: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { id: 'vehicles', path: 'vehicles', icon: Bike, label: 'Vehicles' },
+  { id: 'vehicle-packages', path: 'vehicle-packages', icon: Package, label: 'Packages' },
   { id: 'bookings', path: 'bookings', icon: Calendar, label: 'Bookings' },
   { id: 'users', path: 'users', icon: Users, label: 'Customers' },
   { id: 'staff', path: 'staff', icon: UserCog, label: 'Staff' },
@@ -46,6 +49,7 @@ const navItems: NavItem[] = [
   },
   { id: 'contacts', path: 'contacts', icon: Phone, label: 'Contacts' },
   { id: 'hero-banners', path: 'hero-banners', icon: ImageIcon, label: 'Hero Banners' },
+  { id: 'announcement-banners', path: 'announcement-banners', icon: Megaphone, label: 'Announcements' },
   { id: 'states', path: 'states', icon: MapPin, label: 'States', roles: ['superadmin'] },
   { id: 'cities', path: 'cities', icon: MapPin, label: 'Cities', roles: ['superadmin'] },
   { id: 'superadmin', path: 'superadmin', icon: ShieldCheck, label: 'Admins', roles: ['superadmin'] },

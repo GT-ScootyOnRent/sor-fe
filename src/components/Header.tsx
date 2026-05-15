@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { openCityModal } from '../store/slices/citySlice';
 import ContactButton from './ContactButton';
+import AnnouncementBanner from './AnnouncementBanner';
 
 export default function Header() {
   const navigate = useNavigate();
@@ -232,6 +233,9 @@ export default function Header() {
           </div>
         )}
       </div>
+
+      {/* Announcement Banner - shows only when there are active announcements */}
+      <AnnouncementBanner />
     </header>
   );
 }

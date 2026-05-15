@@ -4,11 +4,11 @@ import { Button } from './ui/button';
 import { toast } from 'sonner';
 import PromoCodeModal from './PromoCodeModal';
 import { useValidatePromoCodeMutation, type PromoCodeDto } from '../store/api/promoCodeApi';
+import { calculatePackageBasedPrice } from '../store/api/vehiclePackageApi';
 
 const SECOND_HELMET_PRICE = 50; // ₹50 for 2nd helmet (shown as free promo)
 
 interface PriceCalculatorProps {
-  basePrice: number; // hourly rate
   hours: number; // total hours
   vehicleName: string;
   onProceedToPayment?: (finalAmount: number) => void;
@@ -19,12 +19,14 @@ interface PriceCalculatorProps {
   onSecondHelmetChange?: (value: boolean) => void;
   cityId?: number;
   userId?: number;
-  packagePrice?: number | null; // Fixed package price (overrides hourly calculation)
-  packageLabel?: string | null; // Package label (e.g., "3 Days")
+  // Package-based pricing
+  selectedDurations?: number[];
+  priceOverrides?: Record<string, number>;
+  pricePerHour?: number;
+  freeHoursPerDay?: number;
 }
 
 export default function PriceCalculator({
-  basePrice,
   hours,
   vehicleName,
   onProceedToPayment,
@@ -35,8 +37,10 @@ export default function PriceCalculator({
   onSecondHelmetChange,
   cityId,
   userId,
-  packagePrice = null,
-  packageLabel = null,
+  selectedDurations = [],
+  priceOverrides = {},
+  pricePerHour = 0,
+  freeHoursPerDay = 6,
 }: PriceCalculatorProps) {
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [appliedPromo, setAppliedPromo] = useState<PromoCodeDto | null>(null);
@@ -45,14 +49,18 @@ export default function PriceCalculator({
 
   const [validatePromo, { isLoading: validatingPromo }] = useValidatePromoCodeMutation();
 
-  // Calculate subtotal: use package price if available, otherwise hourly rate
-  const subtotal = packagePrice !== null ? packagePrice : basePrice * hours;
-  const isPackagePricing = packagePrice !== null;
+  // Calculate subtotal using package-based pricing
+  const subtotal = calculatePackageBasedPrice(
+    hours,
+    selectedDurations,
+    priceOverrides,
+    pricePerHour,
+    freeHoursPerDay
+  );
   const helmetCharge = includeSecondHelmet ? SECOND_HELMET_PRICE : 0;
   const helmetDiscount = includeSecondHelmet ? SECOND_HELMET_PRICE : 0; // Free promo!
   const subtotalAfterHelmet = subtotal + helmetCharge - helmetDiscount; // Helmet cancels out
-  const gst = (subtotalAfterHelmet - promoDiscountAmount) * 0.18; // 18% GST
-  const total = subtotalAfterHelmet - promoDiscountAmount + gst;
+  const total = subtotalAfterHelmet - promoDiscountAmount;
 
   const canProceed = hours > 0 && hours >= minBookingHours;
 
@@ -171,48 +179,11 @@ export default function PriceCalculator({
         </div>
       )}
 
-      {/* Hourly Rate Info */}
-      <div className="mb-6 p-4 bg-primary-50 rounded-lg">
-        {isPackagePricing ? (
-          <>
-            <div className="flex items-center gap-2 mb-2">
-              <Gift className="w-4 h-4 text-primary-600" />
-              <span className="text-sm font-semibold text-primary-700">Package Deal</span>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm text-gray-600">{packageLabel}</span>
-              <span className="text-2xl font-bold text-primary-600">₹{packagePrice}</span>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm text-gray-600">Hourly Rate</span>
-              <span className="text-2xl font-bold text-primary-600">₹{basePrice}</span>
-            </div>
-            {minBookingHours > 0 && (
-              <p className="text-xs text-gray-500 mt-1">
-                Minimum {minBookingHours} hours booking required
-              </p>
-            )}
-          </>
-        )}
-      </div>
-
       {/* Price Breakdown */}
       <div className="space-y-3 mb-6">
         <div className="flex justify-between">
-          {isPackagePricing ? (
-            <>
-              <span className="text-gray-600">{packageLabel} Package</span>
-              <span className="text-black">₹{subtotal.toFixed(2)}</span>
-            </>
-          ) : (
-            <>
-              <span className="text-gray-600">Rate × {hours} hours</span>
-              <span className="text-black">₹{subtotal.toFixed(2)}</span>
-            </>
-          )}
+          <span className="text-gray-600">Amount</span>
+          <span className="text-black">₹{subtotal.toFixed(2)}</span>
         </div>
 
         {/* 2nd Helmet charges - show when selected */}
@@ -241,11 +212,6 @@ export default function PriceCalculator({
             <span>-₹{promoDiscountAmount.toFixed(2)}</span>
           </div>
         )}
-
-        <div className="flex justify-between">
-          <span className="text-gray-600">GST (18%)</span>
-          <span className="text-black">₹{gst.toFixed(2)}</span>
-        </div>
 
         <div className="pt-3 border-t border-gray-200">
           <div className="flex justify-between items-center">
