@@ -17,7 +17,7 @@ import { useGetPickupLocationByIdQuery } from '../store/api/pickupLocationApi';
 import type { PickupLocationDto } from '../store/api/pickupLocationApi';
 import { useAppSelector } from '../store/hooks';
 import { calculateDuration } from '../utils/vehicleUtils';
-import { calculateDurationPrice, DURATION_OPTIONS } from '../store/api/vehiclePackageApi';
+import { calculateDurationPrice } from '../store/api/vehiclePackageApi';
 import { toast } from 'sonner';
 
 export default function BookNow() {
@@ -32,8 +32,6 @@ export default function BookNow() {
   const startTimeParam = searchParams.get('startTime');
   const endDateParam = searchParams.get('endDate');
   const endTimeParam = searchParams.get('endTime');
-  const packagePriceParam = searchParams.get('packagePrice');
-  const packageLabelParam = searchParams.get('packageLabel');
   const pickupLocationIdParam = searchParams.get('pickupLocationId');
   const cityIdParam = searchParams.get('cityId');
 
@@ -78,13 +76,6 @@ export default function BookNow() {
     const period = hours >= 12 ? 'PM' : 'AM';
     const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
     return `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${period}`;
-  };
-
-  // Check if current time is within business hours
-  const isWithinBusinessHours = () => {
-    const now = new Date();
-    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    return currentTime >= MIN_BUSINESS_TIME && currentTime <= MAX_BUSINESS_TIME;
   };
 
   // Helper to clamp time to business hours
@@ -199,7 +190,7 @@ export default function BookNow() {
   };
 
   // Handler to clear package pricing when user changes dates
-  const handleDateChange = (newDates: typeof bookingDates, fieldChanged?: string) => {
+  const handleDateChange = (newDates: typeof bookingDates) => {
     const today = getTodayDate();
     const minTimeToday = getMinTimeForToday();
 
@@ -512,7 +503,7 @@ export default function BookNow() {
                       type="date"
                       value={bookingDates.startDate}
                       onChange={(e) =>
-                        handleDateChange({ ...bookingDates, startDate: e.target.value }, 'startDate')
+                        handleDateChange({ ...bookingDates, startDate: e.target.value })
                       }
                       onClick={() => startDateRef.current?.showPicker?.()}
                       min={getTodayDate()}
@@ -521,7 +512,7 @@ export default function BookNow() {
                     <select
                       value={bookingDates.startTime}
                       onChange={(e) =>
-                        handleDateChange({ ...bookingDates, startTime: e.target.value }, 'startTime')
+                        handleDateChange({ ...bookingDates, startTime: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none cursor-pointer"
                     >
@@ -546,7 +537,7 @@ export default function BookNow() {
                       type="date"
                       value={bookingDates.endDate}
                       onChange={(e) =>
-                        handleDateChange({ ...bookingDates, endDate: e.target.value }, 'endDate')
+                        handleDateChange({ ...bookingDates, endDate: e.target.value })
                       }
                       onClick={() => returnDateRef.current?.showPicker?.()}
                       min={bookingDates.startDate || getTodayDate()}
@@ -555,7 +546,7 @@ export default function BookNow() {
                     <select
                       value={bookingDates.endTime}
                       onChange={(e) =>
-                        handleDateChange({ ...bookingDates, endTime: e.target.value }, 'endTime')
+                        handleDateChange({ ...bookingDates, endTime: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none cursor-pointer"
                     >
