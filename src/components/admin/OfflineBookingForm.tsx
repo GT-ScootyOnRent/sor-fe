@@ -98,6 +98,8 @@ const calculateBookingDays = (startDate: string, endDate: string): number | null
   }
 
   const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  return Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay) + 1;
+};
 
 // Round time to nearest 30-minute slot (e.g., "10:28" → "10:30", "10:14" → "10:00")
 const roundToNearest30Min = (timeStr: string): string => {
@@ -122,8 +124,6 @@ const roundToNearest30Min = (timeStr: string): string => {
   }
   
   return `${String(roundedHours).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`;
-};
-  return Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay) + 1;
 };
 
 const calculateBookingHours = (
@@ -179,7 +179,7 @@ const OfflineBookingForm: React.FC = () => {
 
   const [createOfflineBooking, { isLoading }] = useCreateOfflineBookingMutation();
   const [uploadOfflineBookingDocument, { isLoading: isUploadingDocument }] = useUploadOfflineBookingDocumentMutation();
-  const { data: vehicles = [] } = useGetVehiclesForAdminQuery(undefined);
+  const { data: vehicles = [] } = useGetVehiclesForAdminQuery({});
   const { data: pickupLocations = [] } = useGetAllPickupLocationsQuery({ page: 1, size: 100 });
 
   const calculatedNumberOfDays = useMemo(

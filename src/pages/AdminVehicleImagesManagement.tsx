@@ -26,7 +26,7 @@ const AdminVehicleImagesManagement: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
 
-  const { data: vehicles, isLoading: vehiclesLoading } = useGetVehiclesForAdminQuery();
+  const { data: vehicles, isLoading: vehiclesLoading } = useGetVehiclesForAdminQuery({});
   const {
     data: images,
     isLoading: imagesLoading,

@@ -27,15 +27,6 @@ export default function PickupLocationMap({ location, onChangeLocation }: Pickup
     ? { lat: Number(location.latitude), lng: Number(location.longitude) }
     : { lat: 24.5854, lng: 73.7125 }; // Default: Udaipur
 
-  const openInMaps = () => {
-    if (hasCoordinates) {
-      window.open(
-        `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`,
-        '_blank'
-      );
-    }
-  };
-
   const openDirections = () => {
     if (hasCoordinates) {
       window.open(

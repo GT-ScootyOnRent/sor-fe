@@ -1263,8 +1263,6 @@ export default function ProfilePage() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((state) => state.auth.user);
 
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [editedName, setEditedName] = useState(user?.name ?? '');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<BookingDto | null>(null);
@@ -1336,33 +1334,6 @@ export default function ProfilePage() {
     }
   };
 
-  const handleSaveName = async () => {
-    if (!editedName.trim()) { toast.error('Name cannot be empty'); return; }
-    if (!user?.id) return;
-    const token = localStorage.getItem('authToken');
-    if (!token) { toast.error('Session expired. Please login again.'); return; }
-    try {
-      await updateProfile({
-        userId: user.id,
-        name: editedName.trim(),
-        email: user.email ?? '',
-        token,
-      }).unwrap();
-      const updatedUser = { ...user, name: editedName.trim() };
-      dispatch(setCredentials({
-        token: localStorage.getItem('authToken')!,
-        user: updatedUser,
-      }));
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-      toast.success('Name updated successfully');
-      setIsEditingName(false);
-    } catch (err: any) {
-      toast.error('Failed to update name', {
-        description: err?.data?.message ?? 'Please try again',
-      });
-    }
-  };
-
   const handleCancelBooking = (booking: BookingDto) => {
     if (!booking.id) return;
     setBookingToCancel(booking);
@@ -1390,7 +1361,6 @@ export default function ProfilePage() {
   // Calculate stats based on display status
   const completedCount = sortedBookings.filter(b => getDisplayStatus(b) === 'completed').length;
   const upcomingCount = sortedBookings.filter(b => getDisplayStatus(b) === 'upcoming').length;
-  const activeCount = sortedBookings.filter(b => getDisplayStatus(b) === 'active').length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1641,7 +1611,7 @@ export default function ProfilePage() {
                       <h4 className="text-lg font-semibold text-gray-600 mb-2">No bookings found</h4>
                       <p className="text-sm text-gray-400 mb-4">No bookings match the selected filter.</p>
                       <button
-                        onClick={() => { setActiveFilter(-1); setCurrentPage(1); }}
+                        onClick={() => { setActiveFilter('all'); setCurrentPage(1); }}
                         className="text-sm text-primary-500 hover:text-primary-600 font-medium"
                       >
                         Clear filter

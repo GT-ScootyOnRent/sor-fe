@@ -27,7 +27,7 @@ const VEHICLE_ICON = {
   scaledSize: { width: 40, height: 40, equals: () => false },
 };
 
-const getMarkerIcon = (statusStr: string, isLoaded: boolean) => {
+const getMarkerIcon = (_statusStr: string, isLoaded: boolean) => {
   if (!isLoaded) return VEHICLE_ICON;
   return {
     url: 'https://maps.google.com/mapfiles/ms/icons/motorcycling.png',
@@ -43,8 +43,8 @@ interface VehicleLiveData {
 }
 
 const FleetMapPage: React.FC = () => {
-  const { data: vehicles = [], isLoading: vehiclesLoading } = useGetVehiclesForAdminQuery();
-  const { data: cities = [] } = useGetCitiesQuery();
+  const { data: vehicles = [], isLoading: vehiclesLoading } = useGetVehiclesForAdminQuery({});
+  const { data: cities = [] } = useGetCitiesQuery({ page: 1, size: 100 });
   
   const [vehicleLiveData, setVehicleLiveData] = useState<Map<number, VehicleLiveData>>(new Map());
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleLiveData | null>(null);
@@ -115,7 +115,7 @@ const FleetMapPage: React.FC = () => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const matchesName = v.vehicle.name.toLowerCase().includes(query);
-      const matchesNumber = v.vehicle.vehicleNumber?.toLowerCase().includes(query);
+      const matchesNumber = v.vehicle.registrationNumber?.toLowerCase().includes(query);
       if (!matchesName && !matchesNumber) return false;
     }
     
@@ -368,8 +368,8 @@ const FleetMapPage: React.FC = () => {
                     </span>
                   </div>
                   
-                  {selectedVehicle.vehicle.vehicleNumber && (
-                    <p className="text-sm text-gray-500 mb-2">{selectedVehicle.vehicle.vehicleNumber}</p>
+                  {selectedVehicle.vehicle.registrationNumber && (
+                    <p className="text-sm text-gray-500 mb-2">{selectedVehicle.vehicle.registrationNumber}</p>
                   )}
                   
                   <div className="space-y-1.5 text-sm">
@@ -434,7 +434,7 @@ const FleetMapPage: React.FC = () => {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{v.vehicle.name}</p>
-                        <p className="text-xs text-gray-500">{v.vehicle.vehicleNumber}</p>
+                        <p className="text-xs text-gray-500">{v.vehicle.registrationNumber}</p>
                       </div>
                     </div>
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
