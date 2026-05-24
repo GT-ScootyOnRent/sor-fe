@@ -291,9 +291,12 @@ export default function BookingFormPage() {
                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
                             <p className="font-semibold mb-1">⚠️ Note:</p>
                             <p>
-                                We will collect hard-copy documents at the time of pickup (DL, ID Proof, ₹2,000
-                                Security Deposit)
+                                We will collect hard-copy documents at the time of pickup (DL, ID Proof
+                                {booking?.securityDepositMode === 'pickup' ? ', ₹2,000 Security Deposit' : ''})
                             </p>
+                            {booking?.securityDepositMode === 'online' && (
+                                <p className="text-green-700 mt-1">✓ Security deposit already paid online</p>
+                            )}
                         </div>
 
                         {/* Submit Button */}
@@ -318,7 +321,11 @@ export default function BookingFormPage() {
             </div>
 
             {/* Success Modal */}
-            <FormSubmittedModal isOpen={showSuccessModal} onClose={() => setShowSuccessModal(false)} />
+            <FormSubmittedModal 
+                isOpen={showSuccessModal} 
+                onClose={() => setShowSuccessModal(false)}
+                securityDepositMode={booking?.securityDepositMode as 'online' | 'pickup' | undefined}
+            />
         </div>
     );
 }

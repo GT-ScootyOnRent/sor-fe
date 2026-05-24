@@ -18,10 +18,14 @@ import {
   X,
   Package,
   Megaphone,
+  Shield,
+  Search,
+  Map,
 } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { logout } from '../store/slices/authSlice'
 import { useGetAdminProfileQuery } from '../store/api/adminApi'
+import { useGetUnreadAlertCountQuery } from '../store/api/geofenceApi'
 
 type NavItem = {
   id: string
@@ -50,6 +54,8 @@ const navItems: NavItem[] = [
   { id: 'contacts', path: 'contacts', icon: Phone, label: 'Contacts' },
   { id: 'hero-banners', path: 'hero-banners', icon: ImageIcon, label: 'Hero Banners' },
   { id: 'announcement-banners', path: 'announcement-banners', icon: Megaphone, label: 'Announcements' },
+  { id: 'geofences', path: 'geofences', icon: Shield, label: 'Geofences' },
+  { id: 'fleet-map', path: 'fleet-map', icon: Map, label: 'Fleet Map' },
   { id: 'states', path: 'states', icon: MapPin, label: 'States', roles: ['superadmin'] },
   { id: 'cities', path: 'cities', icon: MapPin, label: 'Cities', roles: ['superadmin'] },
   { id: 'superadmin', path: 'superadmin', icon: ShieldCheck, label: 'Admins', roles: ['superadmin'] },
@@ -63,7 +69,9 @@ const AdminLayout: React.FC = () => {
   const dispatch = useAppDispatch()
   const adminUser = useAppSelector(state => state.auth.user)
   const { data: profile } = useGetAdminProfileQuery()
+  const { data: unreadAlertCount = 0 } = useGetUnreadAlertCountQuery()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const handleLogout = () => {
     dispatch(logout())
@@ -74,11 +82,24 @@ const AdminLayout: React.FC = () => {
 
   const isActive = (path: string) => location.pathname.includes(path)
 
-  // Filter nav items based on user role
+  const isSuperAdmin = adminUser?.userType === 'superadmin' || profile?.role === 2
+
+  // Filter nav items based on user role and permissions
   const visibleNavItems = navItems.filter(item => {
+    // Hide geofences if admin doesn't have permission
+    if (item.id === 'geofences') {
+      return isSuperAdmin || profile?.canManageGeofences
+    }
     if (!item.roles) return true
     return item.roles.includes(adminUser?.userType ?? '')
   })
+
+  // Filter nav items based on search query
+  const filteredNavItems = searchQuery.trim()
+    ? visibleNavItems.filter(item =>
+        item.label.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : visibleNavItems
 
   const handleNavClick = (path: string) => {
     navigate(path)
@@ -141,11 +162,23 @@ const AdminLayout: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Search bar */}
+          <div className="mt-3 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search menu..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+          </div>
         </div>
 
         {/* Scrollable navigation */}
         <nav className="px-3 lg:px-4 space-y-1 lg:space-y-2 overflow-y-auto flex-1 pb-4">
-          {visibleNavItems.map(({ id, path, icon: Icon, label }) => (
+          {filteredNavItems.map(({ id, path, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => handleNavClick(path)}
@@ -156,6 +189,11 @@ const AdminLayout: React.FC = () => {
             >
               <Icon className="w-4 h-4 lg:w-5 lg:h-5 mr-2 lg:mr-3 flex-shrink-0" />
               <span className="truncate">{label}</span>
+              {id === 'geofences' && unreadAlertCount > 0 && (
+                <span className="ml-auto px-2 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">
+                  {unreadAlertCount > 99 ? '99+' : unreadAlertCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>

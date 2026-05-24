@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Image, Plus, Edit, Trash2, X, Check, Upload, Star as StarIcon } from 'lucide-react';
-import { useGetVehiclesQuery } from '../store/api/vehicleApi';
+import { useGetVehiclesForAdminQuery } from '../store/api/vehicleApi';
 import {
   useGetVehicleImagesByVehicleIdQuery,
   useUpdateVehicleImageMutation,
@@ -26,7 +26,7 @@ const AdminVehicleImagesManagement: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
 
-  const { data: vehicles, isLoading: vehiclesLoading } = useGetVehiclesQuery();
+  const { data: vehicles, isLoading: vehiclesLoading } = useGetVehiclesForAdminQuery();
   const {
     data: images,
     isLoading: imagesLoading,

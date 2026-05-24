@@ -6,7 +6,7 @@ import Header from '../components/Header';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
 import PaymentModal from '../components/PaymentModal';
 import PriceCalculator from '../components/PriceCalculator';
-import PickupLocationCard from '../components/PickupLocationCard';
+import PickupLocationMap from '../components/PickupLocationMap';
 import PickupLocationModal from '../components/PickupLocationModal';
 import LoginModal from '../components/LoginModal';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -152,6 +152,7 @@ export default function BookNow() {
   const [finalBookingAmount, setFinalBookingAmount] = useState<number>(0);
   const [selectedPickup, setSelectedPickup] = useState<string>(pickupLocationIdParam || '');
   const [includeSecondHelmet, setIncludeSecondHelmet] = useState(false);
+  const [paySecurityAtPickup, setPaySecurityAtPickup] = useState(false); // false = pay online (default)
   const [showPickupModal, setShowPickupModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingBookingAmount, setPendingBookingAmount] = useState<number | null>(null);
@@ -160,6 +161,33 @@ export default function BookNow() {
   useEffect(() => {
     if (hadPastDatesInUrl) {
       toast.warning('Selected dates have passed, showing updated times');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Validate and correct dates on mount (handles stale state from browser cache/tabs)
+  useEffect(() => {
+    const today = getTodayDate();
+    const defaultPickup = getDefaultPickupDateTime();
+    
+    // If start date is in the past, reset to valid defaults
+    if (bookingDates.startDate < today) {
+      setBookingDates({
+        startDate: defaultPickup.date,
+        startTime: defaultPickup.time,
+        endDate: defaultPickup.date,
+        endTime: MAX_BUSINESS_TIME,
+      });
+      toast.info('Booking dates have been updated to today');
+    }
+    // If start date is today but time has passed, correct the time
+    else if (bookingDates.startDate === today && bookingDates.startTime) {
+      const minTime = getMinTimeForToday();
+      if (bookingDates.startTime < minTime) {
+        setBookingDates(prev => ({
+          ...prev,
+          startTime: minTime,
+        }));
+      }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -350,6 +378,7 @@ export default function BookNow() {
         endTime: bookingDates.endTime,
         totalAmount: amountToCharge,
         includeSecondHelmet,
+        securityDepositMode: (paySecurityAtPickup ? 'pickup' : 'online') as 'pickup' | 'online',
       };
 
       const result = await createBooking(bookingRequest).unwrap();
@@ -370,7 +399,8 @@ export default function BookNow() {
     setShowPaymentModal(false);
     toast.success('Booking Confirmed!', { description: 'Your payment was successful' });
     // Navigate to dynamic booking success page with all details
-    navigate(`/booking-success?bookingId=${createdBookingId}&amount=${finalBookingAmount}`);
+    const securityMode = paySecurityAtPickup ? 'pickup' : 'online';
+    navigate(`/booking-success?bookingId=${createdBookingId}&amount=${finalBookingAmount}&securityMode=${securityMode}`);
   };
 
   const handlePaymentFailure = (error: string) => {
@@ -414,37 +444,37 @@ export default function BookNow() {
 
           <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-6 sm:mb-8">Complete Your Booking</h1>
 
-          <div className="max-w-3xl mx-auto space-y-6">
+          {/* Two Column Layout */}
+          <div className="lg:grid lg:grid-cols-5 lg:gap-8 max-w-6xl mx-auto items-start">
+            {/* Left Column - Map + Vehicle + Rental Period */}
+            <div className="lg:col-span-3 space-y-6">
 
-            {/* Pickup Location Card */}
-            {pickupLocationData ? (
-              <div>
-                <h3 className="text-xl text-black mb-4">Pickup Location</h3>
-                <PickupLocationCard
+              {/* Pickup Location with Map (no title - starts from map) */}
+              {pickupLocationData ? (
+                <PickupLocationMap
                   location={pickupLocationData}
                   onChangeLocation={() => setShowPickupModal(true)}
                 />
-              </div>
-            ) : pickupLocationLoading ? (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <p className="text-gray-500">Loading pickup location...</p>
-              </div>
-            ) : (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-yellow-600" />
-                  <p className="text-yellow-800 font-medium">No pickup location selected</p>
+              ) : pickupLocationLoading ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <p className="text-gray-500">Loading pickup location...</p>
                 </div>
-                <p className="text-yellow-700 text-sm mt-1">Please go back and select a pickup location.</p>
-                <Button
-                  variant="outline"
-                  onClick={() => navigate(-1)}
-                  className="mt-3"
-                >
-                  Go Back
-                </Button>
-              </div>
-            )}
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-yellow-600" />
+                    <p className="text-yellow-800 font-medium">No pickup location selected</p>
+                  </div>
+                  <p className="text-yellow-700 text-sm mt-1">Please go back and select a pickup location.</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate(-1)}
+                    className="mt-3"
+                  >
+                    Go Back
+                  </Button>
+                </div>
+              )}
 
             {/* Vehicle Details Card */}
             <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -575,24 +605,29 @@ export default function BookNow() {
                 </div>
               )}
             </div>
+            </div>
 
-            {/* Booking Summary - Price Calculator */}
-            <PriceCalculator
-              hours={totalHours}
-              vehicleName={vehicleData.name}
-              onProceedToPayment={handleBooking}
-              isLoading={bookingLoading}
-              isLoggedIn={!!user}
-              minBookingHours={vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours}
-              includeSecondHelmet={includeSecondHelmet}
-              onSecondHelmetChange={setIncludeSecondHelmet}
-              cityId={vehicleData.cityId}
-              userId={user?.id}
-              selectedDurations={vehicleData.linkedPackage?.selectedDurations || []}
-              priceOverrides={vehicleData.linkedPackage?.priceOverrides || {}}
-              pricePerHour={vehicleData.linkedPackage?.pricePerHour || vehicleData.pricePerHour}
-              freeHoursPerDay={vehicleData.linkedPackage?.freeHoursPerDay}
-            />
+            {/* Right Column - Booking Summary / Price Calculator (Sticky) */}
+            <div className="lg:col-span-2 mt-6 lg:mt-0 lg:sticky lg:top-24">
+                <PriceCalculator
+                hours={totalHours}
+                vehicleName={vehicleData.name}
+                onProceedToPayment={handleBooking}
+                isLoading={bookingLoading}
+                isLoggedIn={!!user}
+                minBookingHours={vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours}
+                includeSecondHelmet={includeSecondHelmet}
+                onSecondHelmetChange={setIncludeSecondHelmet}
+                paySecurityAtPickup={paySecurityAtPickup}
+                onSecurityDepositModeChange={setPaySecurityAtPickup}
+                cityId={vehicleData.cityId}
+                userId={user?.id}
+                selectedDurations={vehicleData.linkedPackage?.selectedDurations || []}
+                priceOverrides={vehicleData.linkedPackage?.priceOverrides || {}}
+                pricePerHour={vehicleData.linkedPackage?.pricePerHour || vehicleData.pricePerHour}
+                freeHoursPerDay={vehicleData.linkedPackage?.freeHoursPerDay}
+              />
+            </div>
           </div>
         </div>
       </div>

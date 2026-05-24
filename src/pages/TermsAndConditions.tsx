@@ -116,8 +116,15 @@ const TermsAndConditions: React.FC = () => {
                 <li>Digital Wallets</li>
               </ul>
               <p className="text-gray-700 leading-relaxed">
-                <strong>Security Deposit:</strong> A refundable security deposit of ₹2,000 will be
-                collected at the time of vehicle pickup.
+                <strong>Security Deposit:</strong> A refundable security deposit of ₹2,000 is required.
+                You may choose to:
+              </p>
+              <ul className="list-disc list-outside ml-6 space-y-1 text-gray-700 mb-3">
+                <li>Pay online during booking (refund within 3 working days to the same payment source after ride completion), or</li>
+                <li>Pay in cash at the time of vehicle pickup</li>
+              </ul>
+              <p className="text-gray-700 leading-relaxed">
+                The deposit will be refunded after the vehicle is returned in good condition with no pending dues.
               </p>
             </section>
 

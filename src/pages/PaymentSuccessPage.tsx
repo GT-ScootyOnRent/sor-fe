@@ -7,6 +7,20 @@ import { useGetBookingByIdQuery } from '../store/api/bookingApi';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { toast } from 'sonner';
 
+// Format time to 12-hour format (e.g., "06:00:00" → "6:00 AM")
+function formatTime12Hour(timeStr: string): string {
+  try {
+    const date = new Date(`2000-01-01T${timeStr}`);
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      hour12: true 
+    });
+  } catch {
+    return timeStr;
+  }
+}
+
 export default function PaymentSuccessPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -14,6 +28,7 @@ export default function PaymentSuccessPage() {
   const bookingId = searchParams.get('bookingId') || searchParams.get('udf1');
   const txnId = searchParams.get('txnid');
   const amount = searchParams.get('amount');
+  const securityMode = searchParams.get('securityMode') || 'pickup'; // 'online' or 'pickup'
 
   const { data: booking, isLoading } = useGetBookingByIdQuery(
     parseInt(bookingId || '0'),
@@ -89,7 +104,7 @@ export default function PaymentSuccessPage() {
                       <p className="font-semibold text-gray-900 text-sm">
                         {booking.bookingStartDate}
                       </p>
-                      <p className="text-xs text-gray-500">{booking.startTime}</p>
+                      <p className="text-xs text-gray-500">{formatTime12Hour(booking.startTime)}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3 p-4 border border-gray-100 rounded-xl">
@@ -99,7 +114,7 @@ export default function PaymentSuccessPage() {
                       <p className="font-semibold text-gray-900 text-sm">
                         {booking.bookingEndDate}
                       </p>
-                      <p className="text-xs text-gray-500">{booking.endTime}</p>
+                      <p className="text-xs text-gray-500">{formatTime12Hour(booking.endTime)}</p>
                     </div>
                   </div>
                 </div>
@@ -146,7 +161,11 @@ export default function PaymentSuccessPage() {
           <ul className="list-disc list-inside space-y-1 text-amber-700">
             <li>Valid driving license (original)</li>
             <li>Government-issued ID (Aadhaar / PAN)</li>
-            <li>Security deposit ₹2,000 at pickup (refundable)</li>
+            {securityMode === 'pickup' ? (
+              <li>Security deposit ₹2,000 in cash (refundable)</li>
+            ) : (
+              <li className="text-green-700">✓ Security deposit ₹2,000 paid online (refund within 3 working days after ride)</li>
+            )}
           </ul>
         </div>
 

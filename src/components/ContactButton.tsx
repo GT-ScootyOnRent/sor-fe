@@ -43,7 +43,7 @@ export default function ContactButton({ className }: ContactButtonProps) {
     <a
       href={buildTelHref(displayPhone)}
       aria-label={`Call ${displayName}`}
-      className={`${BASE_CLASSES} border border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white ${className ?? ''}`}
+      className={`${BASE_CLASSES} border border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] ${className ?? ''}`}
     >
       <Phone className="w-4 h-4 shrink-0" />
       <span className="truncate">{displayName}</span>

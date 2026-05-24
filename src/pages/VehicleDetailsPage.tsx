@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapPin, Gauge, Clock, Shield, AlertCircle, ChevronLeft, Fuel, Calendar } from 'lucide-react';
 import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { useGetVehicleByIdQuery } from '../store/api/vehicleApi';
@@ -45,6 +45,24 @@ const VehicleDetailsPage: React.FC = () => {
   };
 
   const getTodayDate = () => new Date().toISOString().split('T')[0];
+
+  // Validate and correct dates on mount (handles stale state from browser cache/tabs)
+  useEffect(() => {
+    const today = getTodayDate();
+    
+    // If start date is in the past, reset to today
+    if (bookingDates.startDate && bookingDates.startDate < today) {
+      const minTime = getMinTimeForToday();
+      setBookingDates(prev => ({
+        ...prev,
+        startDate: today,
+        startTime: minTime > '06:00' ? minTime : '06:00',
+        endDate: today,
+        endTime: '23:30',
+      }));
+      toast.info('Booking dates have been updated to today');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handler with time validation
   const handleDateChange = (newDates: typeof bookingDates) => {
@@ -260,6 +278,12 @@ const VehicleDetailsPage: React.FC = () => {
                   alt={vehicleData.name}
                   className="w-full h-full object-cover"
                 />
+                {/* Coming Soon Badge */}
+                {vehicleData.isComingSoon && (
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-amber-500 text-white text-lg font-bold rounded-full shadow-lg">
+                    Coming Soon
+                  </div>
+                )}
                 <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
                   {(vehicleImages.length > 0 ? vehicleImages : [{ imageUrl: primaryImage }]).map((_, index) => (
                     <button
@@ -372,7 +396,7 @@ const VehicleDetailsPage: React.FC = () => {
               <h3 className="text-black mb-3">Important Information</h3>
               <ul className="space-y-2 text-sm text-gray-700">
                 <li>✓ Valid driving license and ID proof required at pickup</li>
-                <li>✓ Security deposit of ₹2000 will be collected at pickup (refundable)</li>
+                <li>✓ Security deposit ₹2,000 (pay online or cash at pickup - fully refundable)</li>
               </ul>
             </div>
           </div>
@@ -380,13 +404,29 @@ const VehicleDetailsPage: React.FC = () => {
           {/* Right Column - Booking Form */}
           <div>
             <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
-              <div className="mb-6">
-                <div className="flex items-baseline mb-2">
-                  <span className="text-4xl font-bold text-primary-600">₹{vehicleData.pricePerHour}</span>
-                  <span className="text-gray-600 ml-2">/hour</span>
+              {/* Coming Soon Message */}
+              {vehicleData.isComingSoon ? (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock className="w-8 h-8 text-amber-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Coming Soon</h3>
+                  <p className="text-gray-600 mb-4">This vehicle will be available for booking soon. Stay tuned!</p>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <p className="text-sm text-amber-800">
+                      <strong>Price:</strong> ₹{vehicleData.pricePerHour}/hour
+                    </p>
+                  </div>
                 </div>
-                <p className="text-sm text-gray-500">Minimum {vehicleData.minBookingHours} hours booking required</p>
-              </div>
+              ) : (
+                <>
+                  <div className="mb-6">
+                    <div className="flex items-baseline mb-2">
+                      <span className="text-4xl font-bold text-primary-600">₹{vehicleData.pricePerHour}</span>
+                      <span className="text-gray-600 ml-2">/hour</span>
+                    </div>
+                    <p className="text-sm text-gray-500">Minimum {vehicleData.minBookingHours} hours booking required</p>
+                  </div>
 
               {/* Error Message */}
               {bookingError && (
@@ -538,6 +578,8 @@ const VehicleDetailsPage: React.FC = () => {
                   {bookingLoading ? 'Processing...' : 'Proceed to Payment'}
                 </button>
               </div>
+                </>
+              )}
             </div>
           </div>
         </div>

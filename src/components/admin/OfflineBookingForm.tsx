@@ -11,7 +11,7 @@ import {
   type OfflineBookingDocumentDto,
 } from '../../store/api/offlineBookingApi';
 import { useGetAllPickupLocationsQuery } from '../../store/api/pickupLocationApi';
-import { useGetVehiclesQuery } from '../../store/api/vehicleApi';
+import { useGetVehiclesForAdminQuery } from '../../store/api/vehicleApi';
 
 const ID_TYPES = [
   { value: 'aadhaar', label: 'Aadhaar Card' },
@@ -98,6 +98,31 @@ const calculateBookingDays = (startDate: string, endDate: string): number | null
   }
 
   const millisecondsPerDay = 24 * 60 * 60 * 1000;
+
+// Round time to nearest 30-minute slot (e.g., "10:28" → "10:30", "10:14" → "10:00")
+const roundToNearest30Min = (timeStr: string): string => {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const roundedMinutes = minutes < 15 ? 0 : minutes < 45 ? 30 : 60;
+  
+  let roundedHours = hours;
+  let finalMinutes = roundedMinutes;
+  
+  if (roundedMinutes === 60) {
+    roundedHours = hours + 1;
+    finalMinutes = 0;
+  }
+  
+  // Clamp to business hours (06:00 - 23:30)
+  if (roundedHours < 6) {
+    roundedHours = 6;
+    finalMinutes = 0;
+  } else if (roundedHours > 23 || (roundedHours === 23 && finalMinutes > 30)) {
+    roundedHours = 23;
+    finalMinutes = 30;
+  }
+  
+  return `${String(roundedHours).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`;
+};
   return Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay) + 1;
 };
 
@@ -154,7 +179,7 @@ const OfflineBookingForm: React.FC = () => {
 
   const [createOfflineBooking, { isLoading }] = useCreateOfflineBookingMutation();
   const [uploadOfflineBookingDocument, { isLoading: isUploadingDocument }] = useUploadOfflineBookingDocumentMutation();
-  const { data: vehicles = [] } = useGetVehiclesQuery(undefined);
+  const { data: vehicles = [] } = useGetVehiclesForAdminQuery(undefined);
   const { data: pickupLocations = [] } = useGetAllPickupLocationsQuery({ page: 1, size: 100 });
 
   const calculatedNumberOfDays = useMemo(
@@ -245,7 +270,14 @@ const OfflineBookingForm: React.FC = () => {
     }
 
     setForm((currentForm) => {
-      const nextForm = { ...currentForm, [name]: value };
+      let processedValue = value;
+      
+      // Round time inputs to nearest 30-minute slot
+      if (name === 'startTime' || name === 'endTime') {
+        processedValue = roundToNearest30Min(value);
+      }
+
+      const nextForm = { ...currentForm, [name]: processedValue };
 
       if (name === 'bookingStartDate' || name === 'bookingEndDate') {
         const nextCalculatedDays = calculateBookingDays(nextForm.bookingStartDate, nextForm.bookingEndDate);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Trash2 } from 'lucide-react';
+import { Search, Trash2, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
@@ -7,6 +7,7 @@ import {
   useDeleteUserMutation,
 } from '../../store/api/userApi';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { exportToExcel, formatUsersForExport } from '../../utils/excelExport';
 
 const UsersTab: React.FC = () => {
   const [userSearchQuery, setUserSearchQuery] = useState('');
@@ -30,9 +31,29 @@ const UsersTab: React.FC = () => {
     u.userNumber.toLowerCase().includes(userSearchQuery.toLowerCase())
   );
 
+  // ── Export Handler ─────────────────────────────────────────────────────
+  const handleExportCustomers = () => {
+    if (users.length === 0) {
+      toast.error('No customers to export');
+      return;
+    }
+    const data = formatUsersForExport(users);
+    exportToExcel(data, 'Customers', 'Customers');
+    toast.success('Customers exported successfully');
+  };
+
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Customer Management</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Customer Management</h1>
+        <button
+          onClick={handleExportCustomers}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
+        >
+          <Download className="w-4 h-4" />
+          Export Customers
+        </button>
+      </div>
       <div className="flex gap-4 mb-6">
         <div className="flex-1 relative">
           <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

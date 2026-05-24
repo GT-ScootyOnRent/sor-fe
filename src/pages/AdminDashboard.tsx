@@ -4,9 +4,10 @@ import {
   CheckCircle, XCircle,
 } from 'lucide-react';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import DashboardCityFilter, { useDashboardCityFilter } from '../components/admin/DashboardCityFilter';
 
 // RTK Query hooks
-import { useGetVehiclesQuery } from '../store/api/vehicleApi';
+import { useGetVehiclesForAdminQuery } from '../store/api/vehicleApi';
 import { useGetUsersQuery } from '../store/api/userApi';
 import { useGetBookingsQuery } from '../store/api/bookingApi';
 
@@ -16,10 +17,19 @@ import { useGetBookingsQuery } from '../store/api/bookingApi';
  * Wrapped by AdminLayout (sidebar provided externally)
  */
 const AdminDashboard: React.FC = () => {
+  // City filter state from Redux
+  const { cityIdParam } = useDashboardCityFilter();
+
   // ── Overview data ──────────────────────────────────────────────────────
-  const { data: vehicles = [], isLoading: vehiclesLoading } = useGetVehiclesQuery(undefined);
+  const { data: vehicles = [], isLoading: vehiclesLoading } = useGetVehiclesForAdminQuery(
+    { cityId: cityIdParam }
+  );
   const { data: users = [] } = useGetUsersQuery({ page: 1, size: 100 });
-  const { data: bookings = [], isLoading: bookingsLoading } = useGetBookingsQuery({ page: 1, size: 100 });
+  const { data: bookings = [], isLoading: bookingsLoading } = useGetBookingsQuery({ 
+    page: 1, 
+    size: 100,
+    cityId: cityIdParam 
+  });
 
   // ── Derived Stats ──────────────────────────────────────────────────────
   const stats = {
@@ -46,7 +56,10 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard Overview</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Dashboard Overview</h1>
+        <DashboardCityFilter />
+      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

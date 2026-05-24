@@ -60,6 +60,19 @@ export interface UpdateStatusArgs {
   notes: string | null;
 }
 
+// Notes types
+export interface PartnerInquiryNote {
+  id: number;
+  partnerInquiryId: number;
+  noteText: string;
+  createdAt: string;
+}
+
+export interface AddNoteArgs {
+  partnerInquiryId: number;
+  noteText: string;
+}
+
 // ── API ────────────────────────────────────────────────────────────────────
 
 export const partnerInquiryApi = createApi({
@@ -133,6 +146,24 @@ export const partnerInquiryApi = createApi({
         { type: 'PartnerInquiry', id: 'LIST' },
       ],
     }),
+
+    // Admin — get notes
+    getPartnerInquiryNotes: builder.query<PartnerInquiryNote[], number>({
+      query: (id) => `admin/partner-inquiries/${id}/notes`,
+      providesTags: (_result, _err, id) => [{ type: 'PartnerInquiry', id: `notes-${id}` }],
+    }),
+
+    // Admin — add note
+    addPartnerInquiryNote: builder.mutation<PartnerInquiryNote, AddNoteArgs>({
+      query: ({ partnerInquiryId, noteText }) => ({
+        url: `admin/partner-inquiries/${partnerInquiryId}/notes`,
+        method: 'POST',
+        body: { noteText },
+      }),
+      invalidatesTags: (_result, _err, { partnerInquiryId }) => [
+        { type: 'PartnerInquiry', id: `notes-${partnerInquiryId}` },
+      ],
+    }),
   }),
 });
 
@@ -142,4 +173,6 @@ export const {
   useGetPartnerInquiryByIdQuery,
   useUpdatePartnerInquiryStatusMutation,
   useDeletePartnerInquiryMutation,
+  useGetPartnerInquiryNotesQuery,
+  useAddPartnerInquiryNoteMutation,
 } = partnerInquiryApi;

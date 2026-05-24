@@ -38,6 +38,8 @@ export interface VehicleDto {
   isAvailable: boolean;
   nextAvailableFrom?: string;
   featured: boolean;
+  isComingSoon: boolean;
+  isDummy: boolean;
   pricePerHour: number;
   pricePerDay: number;
   minBookingHours: number;
@@ -53,6 +55,8 @@ export interface VehicleDto {
   insuranceDetails?: string;
   kmTravelled: number;
   gpsDeviceId?: string;
+  initialOdometerReading: number;
+  currentOdometerReading: number;
   imageCount?: number;
   packages?: VehiclePackagesDto;
   specs?: VehicleSpecsDto;
@@ -106,8 +110,21 @@ export const vehicleApi = createApi({
   }),
   tagTypes: ['Vehicle'],
   endpoints: (builder) => ({
+    // Public endpoint - only available vehicles
     getVehicles: builder.query<VehicleDto[], void>({
       query: () => '/Vehicles',
+      providesTags: ['Vehicle'],
+    }),
+
+    // Admin endpoint - includes inactive/unavailable vehicles
+    getVehiclesForAdmin: builder.query<VehicleDto[], { cityId?: number }>({
+      query: (params) => {
+        const cityId = params?.cityId;
+        if (cityId) {
+          return `/Vehicles/admin/all?cityId=${cityId}`;
+        }
+        return '/Vehicles/admin/all';
+      },
       providesTags: ['Vehicle'],
     }),
 
@@ -185,6 +202,7 @@ export const vehicleApi = createApi({
 
 export const {
   useGetVehiclesQuery,
+  useGetVehiclesForAdminQuery,
   useGetVehicleByIdQuery,
   useGetFeaturedVehiclesQuery,
   useSearchAvailableVehiclesQuery,

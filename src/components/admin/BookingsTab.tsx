@@ -1,20 +1,29 @@
 import React, { useState } from 'react';
-import { CheckCircle, XCircle, ChevronDown } from 'lucide-react';
+import { CheckCircle, XCircle, ChevronDown, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
   useGetBookingsQuery,
   useUpdateBookingMutation,
 } from '../../store/api/bookingApi';
+import { useDashboardCityFilter } from './DashboardCityFilter';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { exportToExcel, formatBookingsForExport, formatPaymentsForExport } from '../../utils/excelExport';
 
 const BookingsTab: React.FC = () => {
   const [bookingSort, setBookingSort] = useState<{ column: string; direction: 'asc' | 'desc' }>({
     column: 'id', direction: 'desc',
   });
 
+  // Get city filter from Redux
+  const { cityIdParam } = useDashboardCityFilter();
+
   // ── API Calls ──────────────────────────────────────────────────────────
-  const { data: bookings = [], isLoading: bookingsLoading, refetch: refetchBookings } = useGetBookingsQuery({ page: 1, size: 100 });
+  const { data: bookings = [], isLoading: bookingsLoading, refetch: refetchBookings } = useGetBookingsQuery({ 
+    page: 1, 
+    size: 100,
+    cityId: cityIdParam
+  });
   const [updateBooking] = useUpdateBookingMutation();
 
   // ── Handlers ──────────────────────────────────────────────────────────
@@ -62,9 +71,48 @@ const BookingsTab: React.FC = () => {
     </button>
   );
 
+  // ── Export Handlers ─────────────────────────────────────────────────────
+  const handleExportBookings = () => {
+    if (bookings.length === 0) {
+      toast.error('No bookings to export');
+      return;
+    }
+    const data = formatBookingsForExport(bookings);
+    exportToExcel(data, 'Bookings', 'Bookings');
+    toast.success('Bookings exported successfully');
+  };
+
+  const handleExportPayments = () => {
+    if (bookings.length === 0) {
+      toast.error('No payment data to export');
+      return;
+    }
+    const data = formatPaymentsForExport(bookings);
+    exportToExcel(data, 'Payments', 'Payments');
+    toast.success('Payments exported successfully');
+  };
+
   return (
     <div>
-      <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4 lg:mb-6">Booking Management</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 lg:mb-6">
+        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Booking Management</h1>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportBookings}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-medium"
+          >
+            <Download className="w-4 h-4" />
+            Export Bookings
+          </button>
+          <button
+            onClick={handleExportPayments}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+          >
+            <Download className="w-4 h-4" />
+            Export Payments
+          </button>
+        </div>
+      </div>
       {bookingsLoading ? <LoadingSpinner /> : (
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="overflow-x-auto">

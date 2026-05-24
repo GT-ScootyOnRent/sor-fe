@@ -8,6 +8,7 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { logout } from '../store/slices/authSlice';
 import { resetPasswordChangeFlag } from '../store/slices/adminAuthSlice';
 import AdminManagementTab from '../components/superadmin/AdminManagementTab';
+import DashboardCityFilter from '../components/admin/DashboardCityFilter';
 // Re-use existing admin tab components for shared functionality
 import BookingsTab from '../components/admin/BookingsTab';
 import UsersTab from '../components/admin/UsersTab';
@@ -148,11 +149,14 @@ const SuperAdminDashboard: React.FC = () => {
               {TAB_CONFIG.find((t) => t.id === activeTab)?.label ?? 'Dashboard'}
             </h1>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <span className="hidden sm:block">{user?.name}</span>
-            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
-              SuperAdmin
-            </span>
+          <div className="flex items-center gap-4">
+            <DashboardCityFilter />
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span className="hidden sm:block">{user?.name}</span>
+              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
+                SuperAdmin
+              </span>
+            </div>
           </div>
         </header>
 
