@@ -15,6 +15,8 @@ export interface VehicleDto {
   insuranceDetails?: string;
   kmTravelled: number;
   gpsDeviceId?: string;
+  initialOdometerReading: number;
+  currentOdometerReading: number;
 }
 
 export interface VehicleSearchParams {

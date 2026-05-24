@@ -29,10 +29,13 @@ interface TrackingMapProps {
   label: string;
 }
 
+const GOOGLE_LIBRARIES: ('drawing' | 'places')[] = ['drawing', 'places'];
+
 const TrackingMap: React.FC<TrackingMapProps> = ({ lat, lng, label }) => {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: GOOGLE_MAPS_KEY,
-    id: 'tracking-map-script',
+    libraries: GOOGLE_LIBRARIES,
+    id: 'google-maps-script',
   });
 
   const center = { lat, lng };

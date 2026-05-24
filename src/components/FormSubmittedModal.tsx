@@ -6,9 +6,10 @@ import { Button } from './ui/button';
 interface FormSubmittedModalProps {
     isOpen: boolean;
     onClose: () => void;
+    securityDepositMode?: 'online' | 'pickup';
 }
 
-export default function FormSubmittedModal({ isOpen, onClose }: FormSubmittedModalProps) {
+export default function FormSubmittedModal({ isOpen, onClose, securityDepositMode = 'pickup' }: FormSubmittedModalProps) {
     const navigate = useNavigate();
 
     const handleMyBookings = () => {
@@ -96,7 +97,11 @@ export default function FormSubmittedModal({ isOpen, onClose }: FormSubmittedMod
                                     <ul className="text-sm text-amber-700 space-y-1">
                                         <li>• Original Driving License</li>
                                         <li>• Government ID (Aadhaar/PAN)</li>
-                                        <li>• Security deposit ₹2,000 (refundable)</li>
+                                        {securityDepositMode === 'pickup' ? (
+                                            <li>• Security deposit ₹2,000 in cash (refundable)</li>
+                                        ) : (
+                                            <li className="text-green-700">✓ Security deposit paid online (refund within 3 working days after ride)</li>
+                                        )}
                                     </ul>
                                 </motion.div>
 

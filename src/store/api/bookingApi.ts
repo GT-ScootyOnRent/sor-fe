@@ -14,8 +14,22 @@ export interface BookingDto {
   endTime: string;
   totalAmount: number;
   includeSecondHelmet?: boolean;
+  securityDepositMode?: 'online' | 'pickup'; // 'online' = paid with booking, 'pickup' = cash at pickup
   status: 0 | 1 | 2 | 3;
   friendFamilyContactNumber?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  // Vehicle details (enriched from backend)
+  vehicleName?: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleRegistrationNumber?: string;
+  vehiclePrimaryImageUrl?: string;
+  // Location details
+  pickupLocationName?: string;
+  // Payment details
+  transactionId?: string;
+  paymentStatus?: 'pending' | 'paid' | 'failed' | null;
 }
 
 export interface CreateBookingRequest {
@@ -28,6 +42,7 @@ export interface CreateBookingRequest {
   endTime: string;
   totalAmount: number;
   includeSecondHelmet?: boolean;
+  securityDepositMode?: 'online' | 'pickup';
 }
 
 export const bookingApi = createApi({
@@ -35,8 +50,14 @@ export const bookingApi = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ['Booking'],
   endpoints: (builder) => ({
-    getBookings: builder.query<BookingDto[], { page?: number; size?: number }>({
-      query: ({ page = 1, size = 10 }) => `${API_ENDPOINTS.BOOKINGS}?page=${page}&size=${size}`,
+    getBookings: builder.query<BookingDto[], { page?: number; size?: number; cityId?: number }>({
+      query: ({ page = 1, size = 10, cityId }) => {
+        let url = `${API_ENDPOINTS.BOOKINGS}?page=${page}&size=${size}`;
+        if (cityId) {
+          url += `&cityId=${cityId}`;
+        }
+        return url;
+      },
       providesTags: ['Booking'],
     }),
     getBookingById: builder.query<BookingDto, number>({
@@ -70,6 +91,13 @@ export const bookingApi = createApi({
       }),
       invalidatesTags: ['Booking'],
     }),
+    cancelBooking: builder.mutation<{ message: string }, number>({
+      query: (id) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/${id}/cancel`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Booking'],
+    }),
   }),
 });
 
@@ -80,4 +108,5 @@ export const {
   useCreateBookingMutation,
   useUpdateBookingMutation,
   useDeleteBookingMutation,
+  useCancelBookingMutation,
 } = bookingApi;

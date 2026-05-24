@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Tag, AlertCircle, CheckCircle, HardHat, Gift, Sparkles, X } from 'lucide-react';
+import { Tag, AlertCircle, CheckCircle, HardHat, Gift, Sparkles, X, Wallet } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 import PromoCodeModal from './PromoCodeModal';
@@ -7,6 +7,7 @@ import { useValidatePromoCodeMutation, type PromoCodeDto } from '../store/api/pr
 import { calculatePackageBasedPrice } from '../store/api/vehiclePackageApi';
 
 const SECOND_HELMET_PRICE = 50; // ₹50 for 2nd helmet (shown as free promo)
+const SECURITY_DEPOSIT = 2000; // ₹2000 refundable security deposit
 
 interface PriceCalculatorProps {
   hours: number; // total hours
@@ -17,6 +18,8 @@ interface PriceCalculatorProps {
   minBookingHours?: number;
   includeSecondHelmet?: boolean;
   onSecondHelmetChange?: (value: boolean) => void;
+  paySecurityAtPickup?: boolean;
+  onSecurityDepositModeChange?: (payAtPickup: boolean) => void;
   cityId?: number;
   userId?: number;
   // Package-based pricing
@@ -35,6 +38,8 @@ export default function PriceCalculator({
   minBookingHours = 0,
   includeSecondHelmet = false,
   onSecondHelmetChange,
+  paySecurityAtPickup = false,
+  onSecurityDepositModeChange,
   cityId,
   userId,
   selectedDurations = [],
@@ -59,8 +64,9 @@ export default function PriceCalculator({
   );
   const helmetCharge = includeSecondHelmet ? SECOND_HELMET_PRICE : 0;
   const helmetDiscount = includeSecondHelmet ? SECOND_HELMET_PRICE : 0; // Free promo!
+  const securityDeposit = paySecurityAtPickup ? 0 : SECURITY_DEPOSIT; // Add to online payment if not paying at pickup
   const subtotalAfterHelmet = subtotal + helmetCharge - helmetDiscount; // Helmet cancels out
-  const total = subtotalAfterHelmet - promoDiscountAmount;
+  const total = subtotalAfterHelmet - promoDiscountAmount + securityDeposit;
 
   const canProceed = hours > 0 && hours >= minBookingHours;
 
@@ -179,6 +185,36 @@ export default function PriceCalculator({
         </div>
       )}
 
+      {/* Security Deposit Option */}
+      {onSecurityDepositModeChange && (
+        <div className="mb-6 pb-6 border-b border-gray-200">
+          <div className="flex items-center gap-2 mb-3">
+            <Wallet className="w-5 h-5 text-primary-600" />
+            <h4 className="font-semibold text-gray-900">Security Deposit</h4>
+          </div>
+
+          <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-primary-300 hover:bg-primary-50/30 transition-colors">
+            <input
+              type="checkbox"
+              checked={paySecurityAtPickup}
+              onChange={(e) => onSecurityDepositModeChange(e.target.checked)}
+              className="mt-1 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+            />
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-gray-900">Pay ₹{SECURITY_DEPOSIT} at pickup (Cash)</span>
+              </div>
+              <p className="text-sm text-gray-600 mt-0.5">
+                {paySecurityAtPickup 
+                  ? 'Carry ₹2,000 cash to pay at pickup location' 
+                  : 'Security deposit included in online payment'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Fully refundable after ride completion</p>
+            </div>
+          </label>
+        </div>
+      )}
+
       {/* Price Breakdown */}
       <div className="space-y-3 mb-6">
         <div className="flex justify-between">
@@ -212,6 +248,20 @@ export default function PriceCalculator({
             <span>-₹{promoDiscountAmount.toFixed(2)}</span>
           </div>
         )}
+
+        {/* Security Deposit */}
+        <div className="flex justify-between">
+          <span className="text-gray-600 flex items-center gap-1">
+            <Wallet className="w-3.5 h-3.5" />
+            Security Deposit
+            <span className="text-xs text-gray-400">(refundable)</span>
+          </span>
+          {paySecurityAtPickup ? (
+            <span className="text-amber-600 text-sm">Pay at pickup</span>
+          ) : (
+            <span className="text-black">₹{SECURITY_DEPOSIT.toFixed(2)}</span>
+          )}
+        </div>
 
         <div className="pt-3 border-t border-gray-200">
           <div className="flex justify-between items-center">
@@ -317,7 +367,11 @@ export default function PriceCalculator({
         <h4 className="text-sm font-medium text-black mb-2">Important Information</h4>
         <ul className="text-sm text-gray-600 space-y-1">
           <li>• Valid driving license and ID proof required at pickup</li>
-          <li>• Security Deposit: ₹2000 collected at pickup (refundable)</li>
+          {paySecurityAtPickup ? (
+            <li>• Carry ₹2,000 cash as refundable security deposit</li>
+          ) : (
+            <li>• Security deposit (₹2,000) included - refund within 3 working days after ride</li>
+          )}
         </ul>
       </div>
 

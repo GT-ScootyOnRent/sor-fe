@@ -88,6 +88,30 @@ export interface UpdateProfileResponse {
   message: string;
 }
 
+// Phone Change OTP interfaces
+export interface SendPhoneChangeOtpRequest {
+  userId: number;
+  newPhoneNumber: string;
+  captchaToken?: string;
+}
+
+export interface SendPhoneChangeOtpResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface VerifyPhoneChangeOtpRequest {
+  userId: number;
+  newPhoneNumber: string;
+  otp: string;
+}
+
+export interface VerifyPhoneChangeOtpResponse {
+  success: boolean;
+  message: string;
+  newPhoneNumber?: string;
+}
+
 export const authApi = createApi({
   reducerPath: 'authApi',
   baseQuery: baseQueryWithReauth,
@@ -137,6 +161,20 @@ export const authApi = createApi({
         },
       }),
     }),
+    sendPhoneChangeOtp: builder.mutation<SendPhoneChangeOtpResponse, SendPhoneChangeOtpRequest>({
+      query: (data) => ({
+        url: 'Auth/send-phone-change-otp',
+        method: 'POST',
+        body: data,
+      }),
+    }),
+    verifyPhoneChangeOtp: builder.mutation<VerifyPhoneChangeOtpResponse, VerifyPhoneChangeOtpRequest>({
+      query: (data) => ({
+        url: 'Auth/verify-phone-change-otp',
+        method: 'POST',
+        body: data,
+      }),
+    }),
     logout: builder.mutation<{ success: boolean; message: string }, void>({
       query: () => ({
         url: 'Auth/logout',
@@ -159,6 +197,8 @@ export const {
   useSendEmailOtpMutation,
   useVerifyEmailOtpMutation,
   useUpdateProfileMutation,
+  useSendPhoneChangeOtpMutation,
+  useVerifyPhoneChangeOtpMutation,
   useLogoutMutation,
   useRefreshTokenMutation,
 } = authApi;

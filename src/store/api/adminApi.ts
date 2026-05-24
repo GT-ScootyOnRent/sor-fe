@@ -82,6 +82,7 @@ export interface AdminDto {
   hasChangedPassword: boolean;
   canManagePackages?: boolean;
   canManageAnnouncements?: boolean;
+  canManageGeofences?: boolean;
 }
 
 export interface AdminProfileDto {
@@ -100,6 +101,7 @@ export interface AdminProfileDto {
   createdAt: string;
   canManagePackages?: boolean;
   canManageAnnouncements?: boolean;
+  canManageGeofences?: boolean;
 }
 
 // ── Staff DTOs ─────────────────────────────────────────────────────────────

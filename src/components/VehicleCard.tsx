@@ -182,14 +182,17 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
     vehicle.images?.[0]?.imageUrl ||
     'https://via.placeholder.com/400x300?text=No+Image';
 
-  const isAvailable = vehicle.isAvailable !== false;
-  const showAvailabilityBadge = !isAvailable && !!vehicle.nextAvailableFrom;
+  const isComingSoon = vehicle.isComingSoon === true;
+  const isAvailable = !isComingSoon && vehicle.isAvailable !== false;
+  const showAvailabilityBadge = !isComingSoon && !isAvailable && !!vehicle.nextAvailableFrom;
   const availableFromLabel = showAvailabilityBadge
     ? `Available from ${formatNextAvailableFrom(vehicle.nextAvailableFrom!)}`
     : null;
-  const unavailableTitle = !isAvailable
-    ? availableFromLabel ?? 'Vehicle is currently unavailable'
-    : undefined;
+  const unavailableTitle = isComingSoon
+    ? 'This vehicle is coming soon'
+    : !isAvailable
+      ? availableFromLabel ?? 'Vehicle is currently unavailable'
+      : undefined;
 
   return (
     <div className="w-full bg-white rounded-2xl border border-gray-200 overflow-visible hover:shadow-xl transition-shadow">
@@ -209,13 +212,19 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
           }}
         />
 
-        {showAvailabilityBadge && (
+        {isComingSoon && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate cursor-default transition-all duration-300 hover:shadow-[0_0_20px_rgba(245,158,11,0.6)] hover:bg-amber-400">
+            Coming Soon
+          </div>
+        )}
+
+        {!isComingSoon && showAvailabilityBadge && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-blue-600 text-white text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate cursor-default transition-all duration-300 hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] hover:bg-blue-500">
             {availableFromLabel}
           </div>
         )}
 
-        {!isAvailable && !showAvailabilityBadge && (
+        {!isComingSoon && !isAvailable && !showAvailabilityBadge && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-black/60 text-white text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate">
             Unavailable
           </div>
@@ -302,15 +311,22 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
             </div>
 
             {/* BOOK */}
-            <span className="block" title={unavailableTitle}>
-              <Button
-                onClick={handleBookNow}
-                disabled={!isAvailable}
-                className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white disabled:bg-gray-300"
-              >
-                {isAvailable ? 'Book Now' : 'Unavailable'}
-              </Button>
-            </span>
+            {!isComingSoon && (
+              <span className="block" title={unavailableTitle}>
+                <Button
+                  onClick={handleBookNow}
+                  disabled={!isAvailable}
+                  className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white disabled:bg-gray-300"
+                >
+                  {isAvailable ? 'Book Now' : 'Unavailable'}
+                </Button>
+              </span>
+            )}
+            {isComingSoon && (
+              <div className="w-full py-2 text-center bg-amber-50 text-amber-600 font-semibold rounded-lg border border-amber-200">
+                Coming Soon
+              </div>
+            )}
           </div>
 
           {/* BACK - Package Options (2x2 Grid) */}
@@ -351,16 +367,23 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
             </div>
 
             {/* BOOK NOW */}
-            <span className="block" title={unavailableTitle}>
-              <Button
-                onClick={handleBookNow}
-                disabled={!isAvailable}
-                size="sm"
-                className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white disabled:bg-gray-300 text-sm py-2"
-              >
-                {isAvailable ? 'Book Now' : 'Unavailable'}
-              </Button>
-            </span>
+            {!isComingSoon && (
+              <span className="block" title={unavailableTitle}>
+                <Button
+                  onClick={handleBookNow}
+                  disabled={!isAvailable}
+                  size="sm"
+                  className="w-full bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white disabled:bg-gray-300 text-sm py-2"
+                >
+                  {isAvailable ? 'Book Now' : 'Unavailable'}
+                </Button>
+              </span>
+            )}
+            {isComingSoon && (
+              <div className="w-full py-2 text-center bg-amber-50 text-amber-600 font-semibold rounded-lg border border-amber-200 text-sm">
+                Coming Soon
+              </div>
+            )}
           </div>
         </div>
       </div>
