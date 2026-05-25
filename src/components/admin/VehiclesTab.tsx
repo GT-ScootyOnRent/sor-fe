@@ -440,8 +440,8 @@ const VehiclesTab: React.FC = () => {
                         )}
                         <button
                           onClick={() => setGeofenceVehicle(vehicle)}
-                          className="p-1.5 lg:p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                          title="Manage geofences"
+                          className={`p-1.5 lg:p-2 rounded-lg transition ${vehicle.geofenceCount ? 'text-indigo-600 hover:bg-indigo-50' : 'text-gray-300 hover:bg-gray-50'}`}
+                          title={vehicle.geofenceCount ? `${vehicle.geofenceCount} geofence(s) attached` : 'No geofences - click to add'}
                         >
                           <Shield className="w-4 h-4" />
                         </button>

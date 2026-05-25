@@ -14,8 +14,11 @@ interface PaymentModalProps {
 declare global {
   interface Window {
     EasebuzzCheckout: any;
+    Razorpay: any;
   }
 }
+
+const PAYMENT_GATEWAY = import.meta.env.VITE_PAYMENT_GATEWAY || "razorpay";
 
 const PaymentModal: React.FC<PaymentModalProps> = ({
   isOpen,
@@ -31,19 +34,38 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    if (!document.getElementById("easebuzz-checkout")) {
-      const script = document.createElement("script");
-      script.id = "easebuzz-checkout";
-      script.src =
-        "https://ebz-static.s3.ap-south-1.amazonaws.com/easecheckout/easebuzz-checkout.js";
-      script.onload = () => setSdkReady(true);
-      document.body.appendChild(script);
+    if (PAYMENT_GATEWAY === "easebuzz") {
+      // Load EaseBuzz SDK
+      if (!document.getElementById("easebuzz-checkout")) {
+        const script = document.createElement("script");
+        script.id = "easebuzz-checkout";
+        script.src =
+          "https://ebz-static.s3.ap-south-1.amazonaws.com/easecheckout/easebuzz-checkout.js";
+        script.onload = () => setSdkReady(true);
+        document.body.appendChild(script);
+      } else {
+        setSdkReady(true);
+      }
     } else {
-      setSdkReady(true);
+      // Load Razorpay SDK
+      if (!document.getElementById("razorpay-checkout")) {
+        const script = document.createElement("script");
+        script.id = "razorpay-checkout";
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.onload = () => setSdkReady(true);
+        document.body.appendChild(script);
+      } else {
+        setSdkReady(true);
+      }
     }
   }, [isOpen]);
 
-  const verifyPayment = async (txnid: string, easepayid: string) => {
+  // ─── Razorpay Payment Flow ───────────────────────────────────────────
+  const verifyRazorpayPayment = async (
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    razorpaySignature: string
+  ) => {
     try {
       const res = await fetch(
         `${import.meta.env.VITE_API_BASEURL}/Payments/verify`,
@@ -52,9 +74,15 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            Authorization: `Bearer ${localStorage.getItem("authToken") || localStorage.getItem("token")}`,
           },
-          body: JSON.stringify({ txnid, easepayid, bookingId }),
+          body: JSON.stringify({
+            bookingId,
+            razorpayOrderId,
+            razorpayPaymentId,
+            razorpaySignature,
+            gateway: "razorpay",
+          }),
         }
       );
 
@@ -71,10 +99,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   };
 
-
-  const initiatePayment = async () => {
+  const initiateRazorpayPayment = async () => {
     if (!sdkReady) return;
-
     setIsProcessing(true);
 
     try {
@@ -85,15 +111,107 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+            Authorization: `Bearer ${localStorage.getItem("authToken") || localStorage.getItem("token")}`,
           },
-          body: JSON.stringify({ bookingId, amount }),
+          body: JSON.stringify({ bookingId, amount, gateway: "razorpay" }),
         }
       );
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.message);
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: data.amount, // in paise
+        currency: "INR",
+        name: "ScootyOnRent",
+        description: `Booking #${bookingId}`,
+        order_id: data.orderId,
+        handler: function (response: any) {
+          verifyRazorpayPayment(
+            response.razorpay_order_id,
+            response.razorpay_payment_id,
+            response.razorpay_signature
+          );
+        },
+        prefill: {
+          name: localStorage.getItem("userName") || "",
+          contact: localStorage.getItem("userPhone") || "",
+          email: localStorage.getItem("userEmail") || "",
+        },
+        theme: {
+          color: "#2563eb",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsProcessing(false);
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.on("payment.failed", function (response: any) {
+        setIsProcessing(false);
+        onFailure(response.error.description || "Payment failed");
+      });
+      razorpay.open();
+    } catch (err: any) {
+      setIsProcessing(false);
+      onFailure(err.message);
+    }
+  };
+
+  // ─── EaseBuzz Payment Flow ───────────────────────────────────────────
+  const verifyEasebuzzPayment = async (txnid: string, easepayid: string) => {
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASEURL}/Payments/verify`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("authToken") || localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({ txnid, easepayid, bookingId, gateway: "easebuzz" }),
+        }
+      );
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const data = await res.json();
+
+      if (data.success) onSuccess();
+      else throw new Error(data.message);
+    } catch (err: any) {
+      onFailure(err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const initiateEasebuzzPayment = async () => {
+    if (!sdkReady) return;
+    setIsProcessing(true);
+
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASEURL}/Payments/initiate`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("authToken") || localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({ bookingId, amount, gateway: "easebuzz" }),
+        }
+      );
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
 
@@ -106,7 +224,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         access_key: data.accessKey,
         onResponse: (r: any) => {
           if (r.status === "success") {
-            verifyPayment(r.txnid, r.easepayid);
+            verifyEasebuzzPayment(r.txnid, r.easepayid);
           } else {
             setIsProcessing(false);
             onFailure("Payment failed");
@@ -119,6 +237,14 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   };
 
+  // ─── Main Handler ────────────────────────────────────────────────────
+  const initiatePayment = () => {
+    if (PAYMENT_GATEWAY === "easebuzz") {
+      initiateEasebuzzPayment();
+    } else {
+      initiateRazorpayPayment();
+    }
+  };
 
   if (!isOpen) return null;
 

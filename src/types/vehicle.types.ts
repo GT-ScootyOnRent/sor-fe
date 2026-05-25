@@ -17,6 +17,8 @@ export interface VehicleDto {
   gpsDeviceId?: string;
   initialOdometerReading: number;
   currentOdometerReading: number;
+  imageCount?: number;
+  geofenceCount?: number;
 }
 
 export interface VehicleSearchParams {

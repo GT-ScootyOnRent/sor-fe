@@ -58,6 +58,7 @@ export interface VehicleDto {
   initialOdometerReading: number;
   currentOdometerReading: number;
   imageCount?: number;
+  geofenceCount?: number;
   packages?: VehiclePackagesDto;
   specs?: VehicleSpecsDto;
   packageId?: number;
