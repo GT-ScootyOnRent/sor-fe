@@ -54,6 +54,51 @@ function formatDateShort(dateStr: string): string {
   }
 }
 
+// ─── Default date helpers (local time) ───────────────────────────────────────
+const MIN_TIME = '06:00';
+const MAX_TIME = '23:30';
+
+function getLocalDateStr(d: Date): string {
+  return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+}
+
+function getDefaultPickupDate(): { date: string; time: string } {
+  const now = new Date();
+  const today = getLocalDateStr(now);
+  const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  
+  // Before business hours - use today
+  if (currentTime < MIN_TIME) {
+    return { date: today, time: MIN_TIME };
+  }
+  
+  // Add 1 hour buffer
+  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+  const oneHourLaterDate = getLocalDateStr(oneHourLater);
+  const oneHourLaterTime = `${oneHourLater.getHours().toString().padStart(2, '0')}:${oneHourLater.getMinutes().toString().padStart(2, '0')}`;
+  
+  // If +1hr crosses to next day or past business hours, use tomorrow
+  if (oneHourLaterDate !== today || oneHourLaterTime > MAX_TIME) {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return { date: getLocalDateStr(tomorrow), time: MIN_TIME };
+  }
+  
+  // Round to next 30 min
+  const mins = oneHourLater.getMinutes();
+  const roundedMins = mins <= 0 ? 0 : mins <= 30 ? 30 : 0;
+  const roundedHours = mins > 30 ? oneHourLater.getHours() + 1 : oneHourLater.getHours();
+  const time = `${roundedHours.toString().padStart(2, '0')}:${roundedMins.toString().padStart(2, '0')}`;
+  
+  return { date: today, time };
+}
+
+function getDefaultReturnDate(pickupDate: string): string {
+  const d = new Date(pickupDate);
+  d.setDate(d.getDate() + 1);
+  return getLocalDateStr(d);
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 const VehicleListingPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -61,16 +106,26 @@ const VehicleListingPage: React.FC = () => {
   const { data: cities = [] } = useGetCitiesQuery({ page: 1, size: 100 });
 
   // URL search params
-  const startDate = searchParams.get('startDate');
-  const startTime = searchParams.get('startTime');
-  const endDate = searchParams.get('endDate');
-  const endTime = searchParams.get('endTime');
-  const hasDateFilter = !!(startDate && endDate);
+  const startDateParam = searchParams.get('startDate');
+  const startTimeParam = searchParams.get('startTime');
+  const endDateParam = searchParams.get('endDate');
+  const endTimeParam = searchParams.get('endTime');
+  
+  // Compute defaults for when no URL params
+  const defaultPickup = useMemo(() => getDefaultPickupDate(), []);
+  const defaultReturn = useMemo(() => getDefaultReturnDate(defaultPickup.date), [defaultPickup.date]);
+  
+  // Use URL params if available, otherwise use defaults
+  const startDate = startDateParam || defaultPickup.date;
+  const startTime = startTimeParam || defaultPickup.time;
+  const endDate = endDateParam || defaultReturn;
+  const endTime = endTimeParam || MAX_TIME;
+  const hasDateFilter = true; // Always have dates now (either from URL or defaults)
 
   // Date editing state
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [editStartDate, setEditStartDate] = useState(startDate || '');
-  const [editEndDate, setEditEndDate] = useState(endDate || '');
+  const [editStartDate, setEditStartDate] = useState(startDate);
+  const [editEndDate, setEditEndDate] = useState(endDate);
   const returnDateInputRef = useRef<HTMLInputElement>(null);
 
   // ── Top-bar state ──
@@ -96,10 +151,10 @@ const VehicleListingPage: React.FC = () => {
     }
   }, [selectedCity, selectedCityId]);
 
-  // Sync date edit state with URL params
+  // Sync date edit state with URL params (or defaults)
   useEffect(() => {
-    setEditStartDate(startDate || '');
-    setEditEndDate(endDate || '');
+    setEditStartDate(startDate);
+    setEditEndDate(endDate);
   }, [startDate, endDate]);
 
   // Close dropdowns on outside click
@@ -391,7 +446,7 @@ const VehicleListingPage: React.FC = () => {
                             setEditStartDate(value);
                             // Auto-update return date if not set or before pickup
                             if (value && (!editEndDate || editEndDate < value)) {
-                              setEditEndDate(value);
+                              setEditEndDate(getDefaultReturnDate(value));
                             }
                             // Auto-focus return date input
                             setTimeout(() => {
@@ -399,7 +454,7 @@ const VehicleListingPage: React.FC = () => {
                               returnDateInputRef.current?.focus();
                             }, 100);
                           }}
-                          min={new Date().toISOString().split('T')[0]}
+                          min={defaultPickup.date}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
@@ -410,7 +465,7 @@ const VehicleListingPage: React.FC = () => {
                           type="date"
                           value={editEndDate}
                           onChange={(e) => setEditEndDate(e.target.value)}
-                          min={editStartDate || new Date().toISOString().split('T')[0]}
+                          min={editStartDate || defaultPickup.date}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                         />
                       </div>
