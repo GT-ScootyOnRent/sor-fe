@@ -342,7 +342,7 @@ export default function BookNow() {
     }
 
     // If end date is today, apply minTimeForToday constraint
-    if (newDates.endDate === today && newDates.endTime && newDates.endTime < minTimeToday) {
+    if (newDates.endDate === today && newDates.endTime && minTimeToday && newDates.endTime < minTimeToday) {
       newDates.endTime = minTimeToday;
     }
 
