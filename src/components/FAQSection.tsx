@@ -10,17 +10,12 @@ export default function FAQSection() {
     {
       question: 'What documents do I need to rent a vehicle?',
       answer:
-        'You need a valid driving license, a government-issued ID proof (Aadhar card/PAN card), and a security deposit. All documents must be original.',
-    },
-    {
-      question: 'What is the minimum rental period?',
-      answer:
-        'The minimum rental period is 4 hours. However, we offer flexible packages for daily, 3-day, and weekly rentals at discounted rates.',
+        'You need an original valid permanent two-wheeler driving license, an Aadhar card, and a security deposit. If your current address is different from your ID, address proof may also be required. The minimum age is 18 years.',
     },
     {
       question: 'Is fuel included in the rental price?',
       answer:
-        'No, fuel is not included. The vehicle will be provided with a full tank, and you are expected to return it with a full tank or pay for the consumed fuel.',
+        'No, fuel is not included. The vehicle will be provided with enough fuel to reach the nearest fuel station, and it should be returned with enough fuel for the next customer to reach the nearest pump. If the fuel is insufficient at return, a charge of Rs. 50 will apply.',
     },
     {
       question: 'What happens if I exceed the kilometer limit?',
@@ -30,17 +25,17 @@ export default function FAQSection() {
     {
       question: 'What if the vehicle breaks down?',
       answer:
-        'In case of any breakdown or issue, contact our 24/7 support immediately. We will provide roadside assistance or a replacement vehicle based on the situation.',
+        'If the vehicle breaks down, contact Scooty On Rent support immediately. Assistance will be provided based on the situation.',
     },
     {
       question: 'Is helmet provided?',
       answer:
-        'The helmet is charged ₹200 per unit.',
+        'One helmet is provided free with each booking. Additional helmets are available at ₹50 per helmet. A lost or damaged helmet will be charged at ₹1000.',
     },
     {
       question: 'Can I pick up and drop off at different locations?',
       answer:
-        'Yes, we offer flexible pickup and drop-off locations across our service cities. Additional charges may apply for different location drop-offs.',
+        'Pickup and drop-off are subject to availability and Scooty On Rent policy. Please confirm the exact location at pickup time.',
     },
   ];
 

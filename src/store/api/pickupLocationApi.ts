@@ -18,7 +18,7 @@ export const pickupLocationApi = createApi({
     baseUrl: APICONFIG.BASE_URL,
     credentials: 'include',
     prepareHeaders: (headers) => {
-      const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+      const token = localStorage.getItem('token');
       if (token) headers.set('Authorization', `Bearer ${token}`);
       return headers;
     },

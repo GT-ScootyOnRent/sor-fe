@@ -97,10 +97,14 @@ export default function Login() {
               id: response.user.id,
               name: response.user.userNumber,
               phone: response.user.userNumber,
+              email: response.user.email,
+              dateOfBirth: response.user.dateOfBirth,
+              anniversaryDate: response.user.anniversaryDate,
               userType: 'user',
               cityId: response.user.cityId,
             },
             token: response.token,
+            refreshToken: response.refreshToken,
           })
         );
 

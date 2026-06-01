@@ -18,7 +18,7 @@ const baseQuery = fetchBaseQuery({
             headers.set('Authorization', `Bearer ${token}`);
         }
         // Don't set Content-Type for file uploads - browser will set it with boundary
-        const multipartEndpoints = new Set(['uploadProfilePic', 'createHeroBanner', 'updateHeroBanner']);
+        const multipartEndpoints = new Set(['uploadProfilePic', 'uploadMyDocument', 'createHeroBanner', 'updateHeroBanner']);
         if (!headers.has('Content-Type') && !multipartEndpoints.has(endpoint)) {
             headers.set('Content-Type', 'application/json');
         }
@@ -59,25 +59,35 @@ export const baseQueryWithReauth: BaseQueryFn<
                         userData?: {
                             id: number;
                             username?: string;
+                            name?: string;
                             email?: string;
                             userNumber?: string;
+                            number?: string;
                             cityId?: number;
+                            dateOfBirth?: string;
+                            anniversaryDate?: string;
                             role?: number;
                         };
                         userType?: string;
                     };
 
                     if (data.success && data.userData) {
+                        const resolvedUserType = (data.userType?.toLowerCase() as 'user' | 'admin' | 'superadmin') || 'admin';
+                        const resolvedName = data.userData.username || data.userData.name || '';
+                        const resolvedPhone = data.userData.userNumber || data.userData.number || '';
+
                         // Update Redux state with new tokens (cookies are set by backend)
                         api.dispatch(
                             setCredentials({
                                 user: {
                                     id: data.userData.id,
-                                    name: data.userData.username || '',
-                                    phone: data.userData.userNumber || '',
+                                    name: resolvedName,
+                                    phone: resolvedPhone,
                                     email: data.userData.email,
+                                    dateOfBirth: data.userData.dateOfBirth,
+                                    anniversaryDate: data.userData.anniversaryDate,
                                     cityId: data.userData.cityId,
-                                    userType: (data.userType?.toLowerCase() as 'user' | 'admin' | 'superadmin') || 'admin',
+                                    userType: resolvedUserType,
                                 },
                                 token: data.token,
                                 refreshToken: data.refreshToken,

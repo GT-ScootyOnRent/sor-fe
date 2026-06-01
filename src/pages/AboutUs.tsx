@@ -56,7 +56,7 @@ export default function AboutUs() {
                     <div className="container mx-auto px-4 relative z-10">
                         <div className="max-w-3xl mx-auto text-center text-white">
                             <h1 className="text-4xl md:text-5xl font-bold mb-6">
-                                About Wheels On Rent
+                                About Scooty On Rent
                             </h1>
                             <p className="text-xl md:text-2xl text-primary-100 leading-relaxed">
                                 Making travel and commute budget-friendly for everyone in Udaipur
@@ -79,7 +79,7 @@ export default function AboutUs() {
                                         <span className="text-primary-600">Right Here in Udaipur</span>
                                     </h2>
                                     <p className="text-gray-600 text-lg leading-relaxed mb-4">
-                                        Wheels On Rent was born from a simple idea: everyone deserves affordable and convenient transportation.
+                                        Scooty On Rent was born from a simple idea: everyone deserves affordable and convenient transportation.
                                         We noticed that travelers and locals in Udaipur often struggled to find reliable, budget-friendly vehicles for their daily commute and travel needs.
                                     </p>
                                     <p className="text-gray-600 text-lg leading-relaxed">

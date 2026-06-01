@@ -13,7 +13,7 @@ const TermsAndConditions: React.FC = () => {
       <div className="relative z-10">
         <Header />
 
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="container mx-auto px-4 py-8 max-w-5xl">
           {/* Back */}
           <button
             onClick={() => navigate(-1)}
@@ -79,7 +79,6 @@ const TermsAndConditions: React.FC = () => {
                 >
                   Terms of Service
                 </a>
-                .
               </p>
             </section>
 
@@ -89,12 +88,10 @@ const TermsAndConditions: React.FC = () => {
                 2. Booking Process
               </h2>
               <p className="text-gray-700 leading-relaxed mb-3">
-                All bookings must be made through our website or mobile application. Offline booking
-                requests will not be entertained under any circumstances.
+                All bookings must be made through our website or mobile application.
               </p>
               <ul className="list-disc list-outside ml-6 space-y-1 text-gray-700">
-                <li>Minimum booking duration is 4 hours.</li>
-                <li>Bookings can be made online through our platform only.</li>
+                <li>Bookings can be made online through our platform or offline by phone or through Scooty On Rent staff.</li>
                 <li>Confirmation will be sent via email or SMS after successful payment.</li>
                 <li>Booking reference number must be presented at pickup.</li>
               </ul>
@@ -107,21 +104,22 @@ const TermsAndConditions: React.FC = () => {
               </h2>
               <p className="text-gray-700 leading-relaxed mb-3">
                 Rental charges must be paid in advance through our secure payment gateway
-                (Razorpay). We accept:
+                (Razorpay) or offline. We accept:
               </p>
               <ul className="list-disc list-outside ml-6 space-y-1 text-gray-700 mb-3">
                 <li>Credit / Debit Cards</li>
                 <li>UPI (Google Pay, PhonePe, Paytm, etc.)</li>
                 <li>Net Banking</li>
                 <li>Digital Wallets</li>
+                <li>Cash</li>
               </ul>
               <p className="text-gray-700 leading-relaxed">
                 <strong>Security Deposit:</strong> A refundable security deposit of ₹2,000 is required.
                 You may choose to:
               </p>
               <ul className="list-disc list-outside ml-6 space-y-1 text-gray-700 mb-3">
-                <li>Pay online during booking (refund within 3 working days to the same payment source after ride completion), or</li>
-                <li>Pay in cash at the time of vehicle pickup</li>
+                <li>Pay online during booking (refund within 3 to 7 working days to the same payment source after ride completion), or</li>
+                <li>Pay in cash at the time of vehicle pickup if you selected Cash on Delivery (COD) on the booking page.</li>
               </ul>
               <p className="text-gray-700 leading-relaxed">
                 The deposit will be refunded after the vehicle is returned in good condition with no pending dues.
@@ -142,7 +140,7 @@ const TermsAndConditions: React.FC = () => {
                   chip. Learning licenses are not accepted.
                 </li>
                 <li>
-                  <strong>Government-Issued ID:</strong> Aadhaar Card, PAN Card, or Passport.
+                  <strong>Government-Issued ID:</strong> Aadhaar Card.
                 </li>
                 <li>
                   <strong>Address Proof:</strong> If different from ID, provide a utility bill or
@@ -155,6 +153,21 @@ const TermsAndConditions: React.FC = () => {
               <p className="text-gray-700 leading-relaxed">
                 No refund of the booking amount if the customer fails to submit the original driving
                 license at pickup.
+              </p>
+              <p className="text-gray-700 leading-relaxed mt-3">
+                By booking or using our services, the rider confirms that all documents submitted,
+                including the driving license, Aadhaar, proof of age, and any other identification,
+                are genuine, valid, accurate, and belong to the rider. If any document is false,
+                inaccurate, misleading, expired, forged, or does not belong to the rider, or if the
+                rider is below 18 years of age, Scootyonrent may refuse service, cancel the booking,
+                retain applicable charges where permitted, and report the matter to the relevant
+                authorities.
+              </p>
+              <p className="text-gray-700 leading-relaxed mt-3">
+                Scootyonrent will not be liable for any loss, claim, penalty, damage, injury, legal
+                consequence, or other outcome arising from the rider providing incorrect, invalid,
+                forged, or another person's documents, or from any misrepresentation regarding the
+                rider's age or legal eligibility to rent and operate the vehicle.
               </p>
             </section>
 
@@ -193,35 +206,11 @@ const TermsAndConditions: React.FC = () => {
               </h2>
               <p className="text-gray-700 leading-relaxed mb-4">
                 All vehicles are equipped with GPS tracking. Riders must follow traffic rules and
-                speed limits set by government regulations. Penalties incurred are passed to the
-                rider:
+                speed limits set by government regulations. Any challan or traffic penalty
+                incurred during the rental period, as per applicable government rules, will be
+                charged to the rider. In addition, Scooty On Rent will charge an extra fee of
+                ₹100 or 10% of the challan amount, whichever is higher:
               </p>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b-2 border-gray-300">
-                      <th className="py-2 px-3 text-left font-semibold text-gray-900">Violation</th>
-                      <th className="py-2 px-3 text-right font-semibold text-gray-900">
-                        Penalty Amount
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-gray-700">
-                    {[
-                      ['Exceeding speed limit', '₹1,000'],
-                      ['Riding with more than 2 persons', '₹1,000'],
-                      ['Drink and drive', '₹10,000'],
-                      ['Jumping red light', '₹1,000 – ₹5,000'],
-                      ['Vehicle impounded by authorities', '₹1,500 + legal charges'],
-                    ].map(([violation, fine]) => (
-                      <tr key={violation} className="border-b border-gray-200">
-                        <td className="py-2 px-3">{violation}</td>
-                        <td className="py-2 px-3 text-right">{fine}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </section>
 
             {/* 7. Geographic Restrictions */}
@@ -247,7 +236,7 @@ const TermsAndConditions: React.FC = () => {
                       Full liability for any damages, accidents, or incidents occurring outside city
                       limits.
                     </li>
-                    <li>Additional penalty charges as determined by Scootyonrent.</li>
+                    <li>Additional penalty charges of ₹500 per day, as determined by Scootyonrent.</li>
                     <li>Forfeiture of security deposit.</li>
                     <li>Legal action may be taken if necessary.</li>
                   </ul>
@@ -299,7 +288,7 @@ const TermsAndConditions: React.FC = () => {
                   customer (minimum to reach the pump).
                 </li>
                 <li>
-                  <strong>Insufficient Fuel at Return:</strong> ₹30 will be charged.
+                  <strong>Insufficient Fuel at Return:</strong> ₹50 will be charged.
                 </li>
               </ul>
               <p className="text-gray-700 leading-relaxed">
@@ -308,39 +297,10 @@ const TermsAndConditions: React.FC = () => {
               </p>
             </section>
 
-            {/* 10. Cancellation & Refund */}
+            {/* 10. Vehicle Damage & Security */}
             <section className="mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
-                10. Cancellation & Refund Policy
-              </h2>
-              <p className="text-gray-700 leading-relaxed mb-3">
-                Cancellation requests can be made through the website or app:
-              </p>
-              <ul className="list-disc list-outside ml-6 space-y-1 text-gray-700 mb-3">
-                <li>
-                  <strong>Free Cancellation:</strong> Up to 24 hours before pickup time.
-                </li>
-                <li>
-                  <strong>50% Refund:</strong> 12–24 hours before pickup time.
-                </li>
-                <li>
-                  <strong>No Refund:</strong> Less than 12 hours before pickup, or no-show.
-                </li>
-              </ul>
-              <p className="text-gray-700 leading-relaxed mb-2">
-                <strong>Refund Processing:</strong> Approved refunds will be processed within 5–7
-                business days to the original payment method.
-              </p>
-              <p className="text-gray-700 leading-relaxed">
-                Bookings not picked up within 1 hour of the scheduled time will be automatically
-                cancelled without refund.
-              </p>
-            </section>
-
-            {/* 11. Vehicle Damage & Security */}
-            <section className="mb-8">
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
-                11. Vehicle Damage & Security
+                10. Vehicle Damage & Security
               </h2>
               <p className="text-gray-700 leading-relaxed mb-3">
                 The rider is responsible for the vehicle's safety during the rental period.
@@ -358,7 +318,6 @@ const TermsAndConditions: React.FC = () => {
               <ul className="list-disc list-outside ml-6 space-y-1 text-gray-700">
                 <li>Inform Scootyonrent and the police immediately.</li>
                 <li>Rider is accountable for repair costs.</li>
-                <li>Insurance liability beyond ₹10,000.</li>
                 <li>Vehicle downtime charges apply until repaired.</li>
               </ul>
 
@@ -368,37 +327,37 @@ const TermsAndConditions: React.FC = () => {
               </p>
             </section>
 
-            {/* 12. Helmet Policy */}
+            {/* 11. Helmet Policy */}
             <section className="mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
-                12. Helmet Policy
+                11. Helmet Policy
               </h2>
               <ul className="list-disc list-outside ml-6 space-y-1 text-gray-700">
                 <li>One helmet provided free with each booking.</li>
                 <li>Additional helmets: ₹50 per helmet.</li>
-                <li>Lost or damaged helmet: ₹450 charge.</li>
+                <li>Lost or damaged helmet: ₹1000 charge.</li>
                 <li>Helmets must be returned in good condition.</li>
               </ul>
             </section>
 
-            {/* 13. Operating Hours */}
+            {/* 12. Operating Hours */}
             <section className="mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
-                13. Operating Hours
+                12. Operating Hours
               </h2>
               <p className="text-gray-700 leading-relaxed mb-2">
-                <strong>Pickup / Drop centres:</strong> 9:00 AM – 8:00 PM (all days).
+                <strong>Pickup / Drop centres:</strong> 6:00 AM – 11:30 PM (all days).
               </p>
               <p className="text-gray-700 leading-relaxed">
-                Vehicle returns after 8:00 PM are not accepted. Late returns must be completed by
-                9:00 AM the next morning with applicable penalties.
+                Vehicle returns after 11:30 PM are not accepted. Late returns must be completed by
+                6:00 AM the next morning with applicable penalties.
               </p>
             </section>
 
-            {/* 14. Assumption of Risk */}
+            {/* 13. Assumption of Risk */}
             <section className="mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
-                14. Assumption of Risk
+                13. Assumption of Risk
               </h2>
               <p className="text-gray-700 leading-relaxed mb-3">
                 By accepting these terms, the rider acknowledges and accepts:
@@ -412,10 +371,10 @@ const TermsAndConditions: React.FC = () => {
               </ul>
             </section>
 
-            {/* 15. Liability Disclaimer */}
+            {/* 14. Liability Disclaimer */}
             <section className="mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
-                15. Liability Disclaimer
+                14. Liability Disclaimer
               </h2>
               <p className="text-gray-700 leading-relaxed mb-3">
                 Scootyonrent shall not be liable for:
@@ -428,6 +387,19 @@ const TermsAndConditions: React.FC = () => {
                   Losses due to vehicle breakdown or mechanical failure (assistance is provided).
                 </li>
               </ul>
+            </section>
+
+            {/* 15. Amendments */}
+            <section className="mb-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
+                15. Governing Law and Jurisdiction
+              </h2>
+              <p className="text-gray-700 leading-relaxed">
+                These Terms & Conditions shall be governed by and construed in accordance with the
+                laws of India. Any dispute, claim, or legal proceeding arising out of or relating to
+                these Terms, the booking, the rental, or use of Scootyonrent services shall be
+                subject to the exclusive jurisdiction of the competent courts at Udaipur, Rajasthan.
+              </p>
             </section>
 
             {/* 16. Amendments */}
@@ -456,9 +428,9 @@ const TermsAndConditions: React.FC = () => {
                     support@scootyonrent.com
                   </a>
                 </li>
-                <li><strong>Phone:</strong> +91 9983391137</li>
+                <li><strong>Phone:</strong> +91 9653785852</li>
                 <li><strong>Address:</strong> Udaipur, Rajasthan, India</li>
-                <li><strong>Customer Support Hours:</strong> 9:00 AM – 8:00 PM (all days)</li>
+                <li><strong>Customer Support Hours:</strong> 6:00 AM – 11:30 PM (all days)</li>
               </ul>
             </section>
 
