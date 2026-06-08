@@ -6,7 +6,6 @@ import { staffLogout } from '../slices/staffAuthSlice';
 const getOfflineBookingToken = () => (
   localStorage.getItem('staff_token')
   || localStorage.getItem('token')
-  || localStorage.getItem('adminToken')
 );
 
 export interface OfflineBookingDocumentDto {

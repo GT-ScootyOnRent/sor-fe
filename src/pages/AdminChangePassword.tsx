@@ -43,11 +43,7 @@ const AdminChangePassword: React.FC = () => {
   // Resolve token from Redux or localStorage fallback
   const getToken = (): string | null => {
     if (tokenFromRedux) return tokenFromRedux;
-    return (
-      localStorage.getItem('token') ||
-      localStorage.getItem('adminToken') ||
-      null
-    );
+    return localStorage.getItem('token');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

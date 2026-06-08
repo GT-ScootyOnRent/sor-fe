@@ -24,15 +24,15 @@ const PrivacyPolicy: React.FC = () => {
           </button>
 
           {/* Header */}
-          <div className="bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-xl p-8 mb-8">
+          <div className="bg-gradient-to-r from-primary-600 to-indigo-600 text-white rounded-2xl p-8 mb-8 shadow-lg">
             <div className="flex items-center mb-4">
               <Lock className="w-10 h-10 mr-4" />
               <h1 className="text-4xl font-bold">Privacy Policy</h1>
             </div>
-            <p className="text-green-100">
+            <p className="text-primary-100">
               Last updated: {new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
-            <p className="mt-2 text-green-100">
+            <p className="mt-2 text-primary-100">
               This Privacy Policy describes how scootyonrent collects, uses, and protects your personal information.
             </p>
           </div>
@@ -88,9 +88,9 @@ const PrivacyPolicy: React.FC = () => {
                 <h3 className="text-lg font-semibold text-gray-800">Definitions</h3>
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3 text-sm">
                   <p><strong>Account:</strong> A unique account created for you to access our Service or parts of our Service.</p>
-                  <p><strong>Company:</strong> Refers to scootyonrent, Udaipur, Rajaathan, India.</p>
+                  <p><strong>Company:</strong> Refers to ScootyonRent, Udaipur, Rajasthan, India.</p>
                   <p><strong>Cookies:</strong> Small files placed on your device containing browsing history details.</p>
-                  <p><strong>Country:</strong> Refers to Gujarat, India.</p>
+                  <p><strong>Country:</strong> Refers to India.</p>
                   <p><strong>Device:</strong> Any device that can access the Service (computer, phone, tablet).</p>
                   <p><strong>Personal Data:</strong> Any information relating to an identified or identifiable individual.</p>
                   <p><strong>Service:</strong> Refers to the scootyonrent website and mobile application.</p>
@@ -110,19 +110,17 @@ const PrivacyPolicy: React.FC = () => {
                       <strong> Traffic Police</strong> during the rental period is the sole responsibility of the customer.
                     </p>
                     <p className="text-gray-700 leading-relaxed">
-                      If an online challan is received and the customer has not cleared it independently,
-                      <strong> ScootyOnRent will process the challan payment on the customer's behalf</strong> and
-                      charge an additional <strong className="text-red-600">10% processing fee</strong> on the
-                      total challan amount for this service.
+                      Whether the challan is paid directly by the customer or processed by <strong>ScootyOnRent</strong>{' '}
+                      on the customer's behalf, an additional <strong className="text-red-600">₹100 or 10% of the challan amount, whichever is higher</strong>{' '}
+                      will be charged to the customer.
                     </p>
                     <p className="text-gray-700 leading-relaxed">
-                      Customers are advised to check and clear any pending challans promptly to avoid
-                      the additional processing charge.
+                      Customers are advised to check and clear any pending challans promptly.
                     </p>
                     <div className="bg-yellow-100 border border-yellow-300 rounded-lg px-4 py-3 mt-2">
                       <p className="text-sm text-yellow-800 font-medium">
-                        ⚠️ उदाहरण: यदि चालान ₹500 का है और ScootyOnRent द्वारा जमा कराया जाता है,
-                        तो कुल देय राशि ₹500 + ₹50 (10% processing fee) = <strong>₹550</strong> होगी।
+                        ⚠️ उदाहरण: यदि चालान ₹500 का है,
+                        तो कुल देय राशि ₹500 + ₹100 = <strong>₹600</strong> होगी, क्योंकि ₹100, ₹50 से अधिक है।
                       </p>
                     </div>
                   </div>
@@ -150,7 +148,7 @@ const PrivacyPolicy: React.FC = () => {
                     <li>Phone number</li>
                     <li>Address, State, Province, ZIP/Postal code, City</li>
                     <li>Driving License details</li>
-                    <li>Government-issued ID (Aadhaar, PAN, Passport)</li>
+                    <li>Government-issued ID (Aadhaar)</li>
                     <li>Date of birth</li>
                     <li>Payment information (processed securely via Razorpay)</li>
                   </ul>
@@ -401,6 +399,21 @@ const PrivacyPolicy: React.FC = () => {
               </div>
             </section>
 
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Governing Law and Jurisdiction</h2>
+              <div className="space-y-3 text-gray-700">
+                <p className="leading-relaxed">
+                  This Privacy Policy shall be governed by and interpreted in accordance with the
+                  laws of India.
+                </p>
+                <p className="leading-relaxed">
+                  Any dispute, complaint, or legal proceeding arising out of or relating to this
+                  Privacy Policy or the handling of personal data by Scootyonrent shall be subject
+                  to the exclusive jurisdiction of the competent courts at Udaipur, Rajasthan.
+                </p>
+              </div>
+            </section>
+
             {/* Security */}
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
@@ -492,9 +505,8 @@ const PrivacyPolicy: React.FC = () => {
               </p>
               <div className="space-y-2 text-gray-700">
                 <p><strong>Company:</strong> scootyonrent</p>
-                <p><strong>Email:</strong> privacy@scootyonrent.com</p>
                 <p><strong>Support Email:</strong> support@scootyonrent.com</p>
-                <p><strong>Phone:</strong> +91 9983391137</p>
+                <p><strong>Phone:</strong> +91 9653785852</p>
                 <p><strong>Address:</strong> Udaipur, Rajasthan, India</p>
                 <p><strong>Response Time:</strong> We respond to privacy inquiries within 48 hours</p>
               </div>

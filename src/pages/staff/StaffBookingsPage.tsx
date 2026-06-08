@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Search,
@@ -270,6 +270,8 @@ interface BookingDetailProps {
     onBack: () => void;
 }
 
+type UploadInputMode = 'upload' | 'camera';
+
 const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
     const { data: booking, isLoading: bookingLoading, error: bookingError } =
         useGetStaffBookingByIdQuery(bookingId);
@@ -281,7 +283,190 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
     const [showUploadModal, setShowUploadModal] = useState<'document' | 'media' | null>(null);
     const [uploadType, setUploadType] = useState<string>('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [uploadInputMode, setUploadInputMode] = useState<UploadInputMode>('upload');
+    const [cameraError, setCameraError] = useState<string | null>(null);
+    const [isCameraStarting, setIsCameraStarting] = useState(false);
+    const [isRecordingVideo, setIsRecordingVideo] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const videoPreviewRef = useRef<HTMLVideoElement>(null);
+    const cameraStreamRef = useRef<MediaStream | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordedChunksRef = useRef<Blob[]>([]);
+
+    const isVideoUploadType = uploadType === 'video_before' || uploadType === 'video_after';
+    const isCameraCaptureMode = Boolean(showUploadModal) && uploadInputMode === 'camera';
+
+    const resetUploadModal = () => {
+        setShowUploadModal(null);
+        setSelectedFile(null);
+        setUploadType('');
+        setUploadInputMode('upload');
+        setCameraError(null);
+        setIsCameraStarting(false);
+        setIsRecordingVideo(false);
+        recordedChunksRef.current = [];
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const stopCameraStream = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+        mediaRecorderRef.current = null;
+        recordedChunksRef.current = [];
+        setIsRecordingVideo(false);
+
+        if (!cameraStreamRef.current) {
+            return;
+        }
+
+        cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+        cameraStreamRef.current = null;
+
+        if (videoPreviewRef.current) {
+            videoPreviewRef.current.srcObject = null;
+        }
+    };
+
+    const startCameraStream = async () => {
+        if (!isCameraCaptureMode) {
+            return;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+            setCameraError('Live capture is not supported on this device/browser.');
+            return;
+        }
+
+        try {
+            setIsCameraStarting(true);
+            setCameraError(null);
+            stopCameraStream();
+
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: 'environment' } },
+                audio: isVideoUploadType,
+            });
+
+            cameraStreamRef.current = stream;
+
+            if (videoPreviewRef.current) {
+                videoPreviewRef.current.srcObject = stream;
+                await videoPreviewRef.current.play();
+            }
+        } catch {
+            setCameraError('Camera access failed. Please allow camera permission or use Upload File.');
+        } finally {
+            setIsCameraStarting(false);
+        }
+    };
+
+    const capturePhoto = async () => {
+        const video = videoPreviewRef.current;
+        if (!video) {
+            return;
+        }
+
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+
+        if (!width || !height) {
+            toast.error('Camera is not ready yet. Please try again.');
+            return;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const context = canvas.getContext('2d');
+        if (!context) {
+            toast.error('Unable to capture photo.');
+            return;
+        }
+
+        context.drawImage(video, 0, 0, width, height);
+
+        const blob = await new Promise<Blob | null>((resolve) => {
+            canvas.toBlob(resolve, 'image/jpeg', 0.92);
+        });
+
+        if (!blob) {
+            toast.error('Unable to capture photo.');
+            return;
+        }
+
+        const file = new File([blob], `${uploadType || 'capture'}-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        setSelectedFile(file);
+        stopCameraStream();
+        setUploadInputMode('upload');
+    };
+
+    const startVideoRecording = () => {
+        if (!cameraStreamRef.current) {
+            toast.error('Camera is not ready yet. Please try again.');
+            return;
+        }
+
+        if (typeof MediaRecorder === 'undefined') {
+            toast.error('Video recording is not supported on this device/browser.');
+            return;
+        }
+
+        try {
+            recordedChunksRef.current = [];
+            const preferredMimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+                ? 'video/webm;codecs=vp8,opus'
+                : 'video/webm';
+            const recorder = new MediaRecorder(cameraStreamRef.current, { mimeType: preferredMimeType });
+
+            recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunksRef.current.push(event.data);
+                }
+            };
+
+            recorder.onstop = () => {
+                const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'video/webm' });
+                const file = new File([blob], `${uploadType || 'capture'}-${Date.now()}.webm`, {
+                    type: blob.type || 'video/webm',
+                });
+
+                setSelectedFile(file);
+                stopCameraStream();
+                setUploadInputMode('upload');
+            };
+
+            recorder.start();
+            mediaRecorderRef.current = recorder;
+            setIsRecordingVideo(true);
+        } catch {
+            toast.error('Unable to start video recording.');
+        }
+    };
+
+    const stopVideoRecording = () => {
+        if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
+            return;
+        }
+
+        mediaRecorderRef.current.stop();
+    };
+
+    useEffect(() => {
+        if (isCameraCaptureMode) {
+            void startCameraStream();
+            return;
+        }
+
+        stopCameraStream();
+    }, [isCameraCaptureMode, isVideoUploadType]);
+
+    useEffect(() => () => {
+        stopCameraStream();
+    }, []);
 
     const handleUpload = async () => {
         if (!selectedFile || !uploadType) {
@@ -304,9 +489,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                 refetchMedia();
                 toast.success('Media uploaded successfully');
             }
-            setShowUploadModal(null);
-            setSelectedFile(null);
-            setUploadType('');
+            resetUploadModal();
         } catch (err: any) {
             toast.error(err?.data?.error || 'Upload failed');
         }
@@ -537,6 +720,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                             <button
                                 onClick={() => {
                                     setUploadType('driving_license');
+                                    setUploadInputMode('upload');
                                     setShowUploadModal('document');
                                 }}
                                 className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
@@ -547,6 +731,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                             <button
                                 onClick={() => {
                                     setUploadType('aadhar_card');
+                                    setUploadInputMode('upload');
                                     setShowUploadModal('document');
                                 }}
                                 className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
@@ -557,6 +742,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                             <button
                                 onClick={() => {
                                     setUploadType('video_before');
+                                    setUploadInputMode('upload');
                                     setShowUploadModal('media');
                                 }}
                                 className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
@@ -567,6 +753,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                             <button
                                 onClick={() => {
                                     setUploadType('video_after');
+                                    setUploadInputMode('upload');
                                     setShowUploadModal('media');
                                 }}
                                 className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
@@ -577,6 +764,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                             <button
                                 onClick={() => {
                                     setUploadType('photo_before');
+                                    setUploadInputMode('upload');
                                     setShowUploadModal('media');
                                 }}
                                 className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
@@ -587,6 +775,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                             <button
                                 onClick={() => {
                                     setUploadType('photo_after');
+                                    setUploadInputMode('upload');
                                     setShowUploadModal('media');
                                 }}
                                 className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
@@ -608,11 +797,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                                 Upload {showUploadModal === 'document' ? 'Document' : 'Media'}
                             </h3>
                             <button
-                                onClick={() => {
-                                    setShowUploadModal(null);
-                                    setSelectedFile(null);
-                                    setUploadType('');
-                                }}
+                                onClick={resetUploadModal}
                                 className="text-gray-400 hover:text-gray-600"
                             >
                                 <X className="w-5 h-5" />
@@ -624,7 +809,11 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                                 <select
                                     value={uploadType}
-                                    onChange={(e) => setUploadType(e.target.value)}
+                                    onChange={(e) => {
+                                        setUploadType(e.target.value);
+                                        setSelectedFile(null);
+                                        setCameraError(null);
+                                    }}
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                                 >
                                     <option value="">Select type</option>
@@ -646,13 +835,97 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept={showUploadModal === 'document' ? 'image/*,.pdf' : 'image/*,video/*'}
-                                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                                />
+                                <div className="grid grid-cols-2 gap-2 mb-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setUploadInputMode('upload');
+                                            setCameraError(null);
+                                        }}
+                                        className={`px-3 py-2 rounded-lg border text-sm font-medium transition ${uploadInputMode === 'upload'
+                                            ? 'border-primary-600 bg-primary-50 text-primary-700'
+                                            : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        Upload File
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedFile(null);
+                                            setUploadInputMode('camera');
+                                        }}
+                                        disabled={!uploadType}
+                                        className={`px-3 py-2 rounded-lg border text-sm font-medium transition ${uploadInputMode === 'camera'
+                                            ? 'border-primary-600 bg-primary-50 text-primary-700'
+                                            : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    >
+                                        Live Capture
+                                    </button>
+                                </div>
+
+                                {uploadInputMode === 'camera' ? (
+                                    <div className="space-y-3 rounded-lg border border-gray-200 p-3">
+                                        <div className="overflow-hidden rounded-lg bg-gray-900 aspect-[4/3] flex items-center justify-center">
+                                            {cameraError ? (
+                                                <p className="px-4 text-center text-sm text-white/85">{cameraError}</p>
+                                            ) : isCameraStarting ? (
+                                                <div className="flex items-center text-sm text-white/85">
+                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                    Starting camera...
+                                                </div>
+                                            ) : (
+                                                <video
+                                                    ref={videoPreviewRef}
+                                                    autoPlay
+                                                    playsInline
+                                                    muted
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2 flex-wrap">
+                                            {isVideoUploadType ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={isRecordingVideo ? stopVideoRecording : startVideoRecording}
+                                                    disabled={Boolean(cameraError) || isCameraStarting}
+                                                    className="flex-1 min-w-[140px] px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {isRecordingVideo ? 'Stop Recording' : 'Record Video'}
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={capturePhoto}
+                                                    disabled={Boolean(cameraError) || isCameraStarting}
+                                                    className="flex-1 min-w-[140px] px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    Capture Photo
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setUploadInputMode('upload');
+                                                    setCameraError(null);
+                                                }}
+                                                className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                                            >
+                                                Use Upload
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept={showUploadModal === 'document' ? 'image/*,.pdf' : isVideoUploadType ? 'video/*' : 'image/*'}
+                                        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                                    />
+                                )}
                                 {selectedFile && (
                                     <p className="text-sm text-gray-500 mt-1">
                                         Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
@@ -663,11 +936,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                             <div className="flex gap-3 pt-2">
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setShowUploadModal(null);
-                                        setSelectedFile(null);
-                                        setUploadType('');
-                                    }}
+                                    onClick={resetUploadModal}
                                     className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
                                 >
                                     Cancel

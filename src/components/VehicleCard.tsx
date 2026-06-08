@@ -196,6 +196,14 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
 
   return (
     <div className="w-full bg-white rounded-2xl border border-gray-200 overflow-visible hover:shadow-xl transition-shadow">
+      {!isComingSoon && showAvailabilityBadge && (
+        <div className="px-4 pt-4 pb-1 md:px-5 md:pt-5">
+          <div className="rounded-full bg-blue-50 px-4 py-2 text-center text-xs font-semibold text-blue-700 ring-1 ring-blue-100 sm:text-sm">
+            {availableFromLabel}
+          </div>
+        </div>
+      )}
+
       {/* IMAGE - Fixed, doesn't flip */}
       <div className="relative h-40 md:h-48 bg-gray-50 flex items-center justify-center p-4">
         <img
@@ -215,12 +223,6 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
         {isComingSoon && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-amber-500 text-white text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate cursor-default transition-all duration-300 hover:shadow-[0_0_20px_rgba(245,158,11,0.6)] hover:bg-amber-400">
             Coming Soon
-          </div>
-        )}
-
-        {!isComingSoon && showAvailabilityBadge && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-blue-600 text-white text-xs sm:text-sm font-semibold shadow-md backdrop-blur-sm max-w-[92%] truncate cursor-default transition-all duration-300 hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] hover:bg-blue-500">
-            {availableFromLabel}
           </div>
         )}
 

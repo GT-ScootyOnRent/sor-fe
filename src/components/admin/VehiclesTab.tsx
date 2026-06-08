@@ -111,6 +111,7 @@ const VehiclesTab: React.FC = () => {
   };
 
   const deleteDraft = (draftId: string) => {
+    if (!window.confirm('Are you sure you want to delete this draft?')) return;
     const updated = drafts.filter(d => d.id !== draftId);
     setDrafts(updated);
     localStorage.setItem(VEHICLE_DRAFTS_KEY, JSON.stringify(updated));
@@ -118,6 +119,7 @@ const VehiclesTab: React.FC = () => {
   };
 
   const deleteAllDrafts = () => {
+    if (!window.confirm('Are you sure you want to delete all drafts?')) return;
     setDrafts([]);
     localStorage.removeItem(VEHICLE_DRAFTS_KEY);
     setShowDraftDropdown(false);

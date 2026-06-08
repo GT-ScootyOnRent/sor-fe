@@ -21,6 +21,7 @@ import {
   Shield,
   Search,
   Map,
+  Mail,
 } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { logout } from '../store/slices/authSlice'
@@ -54,6 +55,7 @@ const navItems: NavItem[] = [
   { id: 'contacts', path: 'contacts', icon: Phone, label: 'Contacts' },
   { id: 'hero-banners', path: 'hero-banners', icon: ImageIcon, label: 'Hero Banners' },
   { id: 'announcement-banners', path: 'announcement-banners', icon: Megaphone, label: 'Announcements' },
+  { id: 'legal-notifications', path: 'legal-notifications', icon: Mail, label: 'Legal Emails', roles: ['superadmin'] },
   { id: 'geofences', path: 'geofences', icon: Shield, label: 'Geofences' },
   { id: 'fleet-map', path: 'fleet-map', icon: Map, label: 'Fleet Map' },
   { id: 'states', path: 'states', icon: MapPin, label: 'States', roles: ['superadmin'] },

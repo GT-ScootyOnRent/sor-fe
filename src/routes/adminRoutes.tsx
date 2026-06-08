@@ -28,6 +28,7 @@ import AnnouncementBannersPage from '../pages/admin/AnnouncementBannersPage';
 import VehiclePackagesPage from '../pages/admin/VehiclePackagesPage';
 import GeofencesPage from '../pages/admin/GeofencesPage';
 import FleetMapPage from '../pages/admin/FleetMapPage';
+import LegalNotificationsPage from '../pages/admin/LegalNotificationsPage';
 export const adminRoutes: RouteObject[] = [
   // Auth pages — no layout
   { path: '', element: <AdminLogin /> },
@@ -71,6 +72,14 @@ export const adminRoutes: RouteObject[] = [
       { path: 'contacts', element: <ContactsPage /> },
       { path: 'hero-banners', element: <HeroBannersPage /> },
       { path: 'announcement-banners', element: <AnnouncementBannersPage /> },
+      {
+        path: 'legal-notifications',
+        element: (
+          <ProtectedRoute allowedRoles={['superadmin']}>
+            <LegalNotificationsPage />
+          </ProtectedRoute>
+        ),
+      },
       { path: 'geofences', element: <GeofencesPage /> },
       { path: 'fleet-map', element: <FleetMapPage /> },
       {

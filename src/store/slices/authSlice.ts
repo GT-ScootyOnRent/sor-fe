@@ -5,6 +5,8 @@ export interface User {
   name: string;
   phone: string;
   email?: string;
+  dateOfBirth?: string;
+  anniversaryDate?: string;
   cityId?: number;
   userType: 'user' | 'admin' | 'superadmin';
 }
@@ -58,6 +60,16 @@ const authSlice = createSlice({
       if (action.payload.user.email) {
         localStorage.setItem('userEmail', action.payload.user.email);
       }
+      if (action.payload.user.dateOfBirth) {
+        localStorage.setItem('userDateOfBirth', action.payload.user.dateOfBirth);
+      } else {
+        localStorage.removeItem('userDateOfBirth');
+      }
+      if (action.payload.user.anniversaryDate) {
+        localStorage.setItem('userAnniversaryDate', action.payload.user.anniversaryDate);
+      } else {
+        localStorage.removeItem('userAnniversaryDate');
+      }
     },
     logout: (state) => {
       state.user = null;
@@ -72,6 +84,8 @@ const authSlice = createSlice({
       localStorage.removeItem('userPhone');
       localStorage.removeItem('userName');
       localStorage.removeItem('userEmail');
+      localStorage.removeItem('userDateOfBirth');
+      localStorage.removeItem('userAnniversaryDate');
       localStorage.removeItem('authToken'); // Legacy cleanup
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');

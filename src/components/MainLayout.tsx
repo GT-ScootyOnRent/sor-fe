@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import WhatsAppButton from './WhatsAppButton';
 import CitySelectorModal from './CitySelectorModal';
@@ -15,6 +15,10 @@ const HIDE_COUPON_PATHS = ['/login', '/auth', '/profile'];
 const MainLayout: React.FC = () => {
     const location = useLocation();
     const showCoupon = !HIDE_COUPON_PATHS.some(path => location.pathname.startsWith(path));
+
+    useEffect(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }, [location.pathname]);
 
     return (
         <>

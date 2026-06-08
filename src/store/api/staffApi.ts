@@ -1,7 +1,8 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
+import { Mutex } from 'async-mutex';
 import { API_CONFIG } from '../../config/api.config';
-import { staffLogout, type StaffUser } from '../slices/staffAuthSlice';
+import { setStaffCredentials, staffLogout, type StaffUser } from '../slices/staffAuthSlice';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,8 @@ export interface StaffLoginResponse {
     userData: StaffUser;
     message?: string;
 }
+
+const mutex = new Mutex();
 
 export interface StaffProfileDto {
     id: number;
@@ -92,48 +95,71 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
     api,
     extraOptions
 ) => {
-    // // Wait if another refresh is in progress
-    // await mutex.waitForUnlock();
+    await mutex.waitForUnlock();
     let result = await baseQuery(args, api, extraOptions);
 
     if (result.error && result.error.status === 401) {
-        // if (!mutex.isLocked()) {
-        //     const release = await mutex.acquire();
-        //     try {
-        //         // Try to refresh token
-        //         const refreshResult = await baseQuery(
-        //             { url: '/staff/auth/refresh', method: 'POST' },
-        //             api,
-        //             extraOptions
-        //         );
+        const isRefreshRequest = typeof args === 'object' && args.url?.includes('/staff/auth/refresh');
 
-        //         if (refreshResult.data) {
-        //             const data = refreshResult.data as { staff: StaffUser };
-        //             api.dispatch(setStaffCredentials({ staff: data.staff }));
-        //             // Retry original request
-        //             result = await baseQuery(args, api, extraOptions);
-        //         } else {
-        //             api.dispatch(staffLogout());
-        //             window.location.href = '/login';
-        //         }
-        //     } finally {
-        //         release();
-        //     }
-        // } else {
-        //     // Wait for other refresh to complete
-        //     await mutex.waitForUnlock();
-        //     result = await baseQuery(args, api, extraOptions);
-        // }
-             // Staff requirement: any 401 should force logout (no refresh/retry).
-             api.dispatch(staffLogout());
-             localStorage.removeItem('staff_token');
-             localStorage.removeItem('staff_refresh_token');
-             localStorage.removeItem('staff');
-             localStorage.removeItem('staffId');
-     
-             if (window.location.pathname !== '/login') {
-                 window.location.href = '/login';
-    }
+        if (!mutex.isLocked() && !isRefreshRequest) {
+            const release = await mutex.acquire();
+
+            try {
+                const refreshResult = await baseQuery(
+                    { url: '/staff/auth/refresh', method: 'POST' },
+                    api,
+                    extraOptions
+                );
+
+                if (refreshResult.data) {
+                    const data = refreshResult.data as StaffLoginResponse;
+
+                    if (data.success && data.token && data.userData) {
+                        localStorage.setItem('staff_token', data.token);
+                        if (data.refreshToken) {
+                            localStorage.setItem('staff_refresh_token', data.refreshToken);
+                        }
+                        api.dispatch(setStaffCredentials({ staff: data.userData }));
+                        result = await baseQuery(args, api, extraOptions);
+                    } else {
+                        api.dispatch(staffLogout());
+                        localStorage.removeItem('staff_token');
+                        localStorage.removeItem('staff_refresh_token');
+                        localStorage.removeItem('staff');
+                        localStorage.removeItem('staffId');
+
+                        if (window.location.pathname !== '/login') {
+                            window.location.href = '/login';
+                        }
+                    }
+                } else {
+                    api.dispatch(staffLogout());
+                    localStorage.removeItem('staff_token');
+                    localStorage.removeItem('staff_refresh_token');
+                    localStorage.removeItem('staff');
+                    localStorage.removeItem('staffId');
+
+                    if (window.location.pathname !== '/login') {
+                        window.location.href = '/login';
+                    }
+                }
+            } finally {
+                release();
+            }
+        } else if (!isRefreshRequest) {
+            await mutex.waitForUnlock();
+            result = await baseQuery(args, api, extraOptions);
+        } else {
+            api.dispatch(staffLogout());
+            localStorage.removeItem('staff_token');
+            localStorage.removeItem('staff_refresh_token');
+            localStorage.removeItem('staff');
+            localStorage.removeItem('staffId');
+
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
+        }
     }
 
     return result;
@@ -160,7 +186,7 @@ export const staffApi = createApi({
                 method: 'POST',
             }),
         }),
-        staffRefreshToken: builder.mutation<{ staff: StaffUser }, void>({
+        staffRefreshToken: builder.mutation<StaffLoginResponse, void>({
             query: () => ({
                 url: '/staff/auth/refresh',
                 method: 'POST',

@@ -665,21 +665,6 @@ export default function BookNow() {
                   </div>
                 </div>
               </div>
-
-              {/* Duration Display */}
-              {totalHours > 0 && (
-                <div className="mt-4 p-3 bg-primary-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    Total Duration: <strong>{totalHours} hours</strong>
-                    {(vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours) &&
-                      totalHours < (vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours) && (
-                        <span className="text-red-600 ml-2">
-                          (Minimum {vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours}h required)
-                        </span>
-                      )}
-                  </p>
-                </div>
-              )}
             </div>
             </div>
 

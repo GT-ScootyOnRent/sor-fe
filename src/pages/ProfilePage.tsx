@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User, Calendar, Clock,
@@ -12,9 +12,17 @@ import { Button } from '../components/ui/button';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
 import { logout } from '../store/slices/authSlice';
-import { useGetBookingsByUserIdQuery, useCancelBookingMutation } from '../store/api/bookingApi';
+import { useGetBookingsByUserIdQuery } from '../store/api/bookingApi';
 import type { BookingDto } from '../store/api/bookingApi';
-import { useUpdateProfileMutation, useSendPhoneChangeOtpMutation, useVerifyPhoneChangeOtpMutation } from '../store/api/authApi';
+import {
+  useDeleteMyDocumentMutation,
+  useGetMyDocumentsQuery,
+  useSendPhoneChangeOtpMutation,
+  useUpdateProfileMutation,
+  useUploadMyDocumentMutation,
+  useVerifyPhoneChangeOtpMutation,
+  type UserDocumentDto,
+} from '../store/api/authApi';
 import { useGetBookingCustomerDetailsQuery } from '../store/api/bookingCustomerDetailsApi';
 import { useGetBookingMediaQuery, useUploadBookingVideoMutation, useDeleteBookingMediaMutation } from '../store/api/bookingMediaApi';
 import type { BookingMediaDto } from '../store/api/bookingMediaApi';
@@ -25,6 +33,13 @@ import Header from '../components/Header';
 const PENDING_BOOKING_TIMEOUT_HOURS = 2;
 
 const BOOKINGS_PER_PAGE = 4;
+
+type ProfileDocumentType = 'driving_license' | 'aadhaar';
+
+const PROFILE_DOCUMENT_LABELS: Record<ProfileDocumentType, string> = {
+  driving_license: 'Driving License',
+  aadhaar: 'Aadhaar Card',
+};
 
 const BOOKING_STATUS_MAP: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   'pending': { label: 'Pending', color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: <AlertCircle className="w-3.5 h-3.5" /> },
@@ -92,55 +107,6 @@ function getPendingTimeRemaining(createdAt?: string): { expired: boolean; text: 
   return { expired: false, text: `${mins}m left`, minutes: diffMins };
 }
 
-// Helper to calculate cancellation refund tier based on pickup time
-function getCancellationRefundInfo(booking: BookingDto): { 
-  refundPercent: number; 
-  refundAmount: number;
-  tier: 'full' | 'partial' | 'none';
-  message: string;
-  hoursUntilPickup: number;
-} {
-  const now = new Date();
-  const pickupDateTime = new Date(booking.bookingStartDate);
-  // Set pickup time from startTime field
-  if (booking.startTime) {
-    const [hours, minutes] = booking.startTime.split(':').map(Number);
-    pickupDateTime.setHours(hours, minutes, 0, 0);
-  }
-  
-  const diffMs = pickupDateTime.getTime() - now.getTime();
-  const hoursUntilPickup = diffMs / (1000 * 60 * 60);
-  
-  if (hoursUntilPickup >= 24) {
-    // More than 24 hours: Full refund
-    return {
-      refundPercent: 100,
-      refundAmount: Number(booking.totalAmount),
-      tier: 'full',
-      message: 'Free cancellation - Full refund',
-      hoursUntilPickup
-    };
-  } else if (hoursUntilPickup >= 12) {
-    // 12-24 hours: 50% refund
-    return {
-      refundPercent: 50,
-      refundAmount: Math.round(Number(booking.totalAmount) * 0.5),
-      tier: 'partial',
-      message: '50% refund (12-24 hours before pickup)',
-      hoursUntilPickup
-    };
-  } else {
-    // Less than 12 hours: No refund
-    return {
-      refundPercent: 0,
-      refundAmount: 0,
-      tier: 'none',
-      message: 'No refund (less than 12 hours before pickup)',
-      hoursUntilPickup
-    };
-  }
-}
-
 function StatusBadge({ status }: { status: string }) {
   const s = BOOKING_STATUS_MAP[status] ?? { label: 'Unknown', color: 'bg-gray-100 text-gray-700 border-gray-200', icon: null };
   return (
@@ -173,6 +139,305 @@ function PaymentStatusBadge({ status, securityDepositMode }: { status?: string |
     );
   }
   return null;
+}
+
+function getLatestProfileDocument(documents: UserDocumentDto[], documentType: ProfileDocumentType) {
+  return documents.find((doc) => doc.documentType === documentType);
+}
+
+function formatDateInput(dateStr?: string | null) {
+  if (!dateStr) {
+    return '';
+  }
+
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function ProfileDocumentUploadModal({
+  documentType,
+  onClose,
+}: {
+  documentType: ProfileDocumentType | null;
+  onClose: () => void;
+}) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [inputMode, setInputMode] = useState<'upload' | 'camera'>('upload');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isCameraStarting, setIsCameraStarting] = useState(false);
+  const [uploadMyDocument, { isLoading: isUploading }] = useUploadMyDocumentMutation();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+
+  const stopCameraStream = () => {
+    if (!cameraStreamRef.current) {
+      return;
+    }
+
+    cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+
+    if (videoPreviewRef.current) {
+      videoPreviewRef.current.srcObject = null;
+    }
+  };
+
+  const startCameraStream = async () => {
+    if (!documentType || inputMode !== 'camera') {
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Live capture is not supported on this device/browser.');
+      return;
+    }
+
+    try {
+      setIsCameraStarting(true);
+      setCameraError(null);
+      stopCameraStream();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+
+      cameraStreamRef.current = stream;
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = stream;
+        await videoPreviewRef.current.play();
+      }
+    } catch {
+      setCameraError('Camera access failed. Please allow camera permission or use Upload File.');
+    } finally {
+      setIsCameraStarting(false);
+    }
+  };
+
+  const capturePhoto = async () => {
+    if (!documentType) {
+      return;
+    }
+
+    const video = videoPreviewRef.current;
+    if (!video) {
+      return;
+    }
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    if (!width || !height) {
+      toast.error('Camera is not ready yet. Please try again.');
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      toast.error('Unable to capture photo.');
+      return;
+    }
+
+    context.drawImage(video, 0, 0, width, height);
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.92);
+    });
+
+    if (!blob) {
+      toast.error('Unable to capture photo.');
+      return;
+    }
+
+    setSelectedFile(new File([blob], `${documentType}-${Date.now()}.jpg`, { type: 'image/jpeg' }));
+    stopCameraStream();
+    setInputMode('upload');
+  };
+
+  useEffect(() => {
+    if (documentType && inputMode === 'camera') {
+      void startCameraStream();
+      return;
+    }
+
+    stopCameraStream();
+  }, [documentType, inputMode]);
+
+  useEffect(() => () => {
+    stopCameraStream();
+  }, []);
+
+  if (!documentType) {
+    return null;
+  }
+
+  const handleClose = () => {
+    setSelectedFile(null);
+    setInputMode('upload');
+    setCameraError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    stopCameraStream();
+    onClose();
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      toast.error('Please select a file first');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('documentType', documentType);
+
+    try {
+      await uploadMyDocument(formData).unwrap();
+      toast.success(`${PROFILE_DOCUMENT_LABELS[documentType]} uploaded successfully`);
+      handleClose();
+    } catch (err: any) {
+      toast.error(err?.data?.error || 'Document upload failed');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={handleClose} />
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Upload {PROFILE_DOCUMENT_LABELS[documentType]}</h3>
+            <p className="text-sm text-gray-500">Choose upload or live capture</p>
+          </div>
+          <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setInputMode('upload');
+                setCameraError(null);
+              }}
+              className={`px-3 py-2 rounded-lg border text-sm font-medium transition ${inputMode === 'upload'
+                ? 'border-primary-600 bg-primary-50 text-primary-700'
+                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+            >
+              Upload File
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedFile(null);
+                setInputMode('camera');
+              }}
+              className={`px-3 py-2 rounded-lg border text-sm font-medium transition ${inputMode === 'camera'
+                ? 'border-primary-600 bg-primary-50 text-primary-700'
+                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+            >
+              Live Capture
+            </button>
+          </div>
+
+          {inputMode === 'camera' ? (
+            <div className="space-y-3 rounded-xl border border-gray-200 p-3">
+              <div className="overflow-hidden rounded-lg bg-gray-900 aspect-[4/3] flex items-center justify-center">
+                {cameraError ? (
+                  <p className="px-4 text-center text-sm text-white/85">{cameraError}</p>
+                ) : isCameraStarting ? (
+                  <div className="flex items-center text-sm text-white/85">
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Starting camera...
+                  </div>
+                ) : (
+                  <video
+                    ref={videoPreviewRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="h-full w-full object-cover"
+                  />
+                )}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={capturePhoto}
+                  disabled={Boolean(cameraError) || isCameraStarting}
+                  className="flex-1 min-w-[140px] px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Capture Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInputMode('upload');
+                    setCameraError(null);
+                  }}
+                  className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                >
+                  Use Upload
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+          )}
+
+          {selectedFile && (
+            <p className="text-sm text-gray-500">
+              Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+            </p>
+          )}
+        </div>
+
+        <div className="border-t border-gray-200 p-4 flex gap-3">
+          <Button variant="outline" className="flex-1" onClick={handleClose} disabled={isUploading}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1 bg-primary-500 hover:bg-primary-600 text-white"
+            onClick={handleUpload}
+            disabled={isUploading || !selectedFile}
+          >
+            {isUploading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4 mr-2" />
+                Upload
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // Customer Details Section Component
@@ -570,15 +835,11 @@ function BookingVideoSection({ bookingId, booking }: { bookingId: number; bookin
 function BookingDetailsModal({ 
   booking, 
   onClose,
-  onBookAgain,
-  onCancel,
-  isCancelling
+  onBookAgain
 }: { 
   booking: BookingDto; 
   onClose: () => void;
   onBookAgain: () => void;
-  onCancel: () => void;
-  isCancelling: boolean;
 }) {
   const timeRemaining = getDisplayStatus(booking) === 'pending' ? getPendingTimeRemaining(booking.createdAt) : null;
   return (
@@ -705,215 +966,8 @@ function BookingDetailsModal({
               >
                 <CreditCard className="w-4 h-4 mr-2" /> Complete Payment
               </Button>
-              <Button
-                variant="outline"
-                className="border-red-400 text-red-500 hover:bg-red-50"
-                onClick={onCancel}
-                disabled={isCancelling}
-              >
-                {isCancelling ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
-                {isCancelling ? 'Cancelling...' : 'Cancel'}
-              </Button>
             </>
           )}
-          {getDisplayStatus(booking) === 'upcoming' && (
-            <>
-              {/* Show refund info for upcoming bookings */}
-              {(() => {
-                const refundInfo = getCancellationRefundInfo(booking);
-                return (
-                  <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
-                    refundInfo.tier === 'full' ? 'bg-green-50 border border-green-200 text-green-700' :
-                    refundInfo.tier === 'partial' ? 'bg-amber-50 border border-amber-200 text-amber-700' :
-                    'bg-red-50 border border-red-200 text-red-700'
-                  }`}>
-                    {refundInfo.tier === 'full' && '✅ '}
-                    {refundInfo.tier === 'partial' && '⚠️ '}
-                    {refundInfo.tier === 'none' && '❌ '}
-                    {refundInfo.message}
-                  </div>
-                );
-              })()}
-              <Button
-                variant="outline"
-                className="border-red-400 text-red-500 hover:bg-red-50"
-                onClick={onCancel}
-                disabled={isCancelling}
-              >
-                {isCancelling ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
-                {isCancelling ? 'Cancelling...' : 'Cancel Booking'}
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Cancel Confirmation Modal
-function CancelConfirmationModal({
-  booking,
-  onClose,
-  onConfirm,
-  isCancelling
-}: {
-  booking: BookingDto;
-  onClose: () => void;
-  onConfirm: () => void;
-  isCancelling: boolean;
-}) {
-  const displayStatus = getDisplayStatus(booking);
-  const refundInfo = displayStatus === 'upcoming' && booking.status === 1 
-    ? getCancellationRefundInfo(booking) 
-    : null;
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      
-      {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-        {/* Header */}
-        <div className="bg-red-500 text-white p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/20 rounded-full">
-              <XCircle className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold">Cancel Booking</h2>
-              <p className="text-sm text-red-100">Booking #{booking.id}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-5 space-y-4">
-          {/* Vehicle info */}
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-            <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
-              {booking.vehiclePrimaryImageUrl ? (
-                <img src={booking.vehiclePrimaryImageUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <Bike className="w-6 h-6 text-gray-400" />
-              )}
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900">{getVehicleDisplayName(booking)}</p>
-              <p className="text-sm text-gray-500">{formatDate(booking.bookingStartDate)}</p>
-            </div>
-          </div>
-
-          {/* Refund info for upcoming bookings */}
-          {refundInfo && (
-            <div className={`p-4 rounded-xl border-2 ${
-              refundInfo.tier === 'full' 
-                ? 'bg-green-50 border-green-200' 
-                : refundInfo.tier === 'partial' 
-                  ? 'bg-amber-50 border-amber-200' 
-                  : 'bg-red-50 border-red-200'
-            }`}>
-              <div className="flex items-start gap-3">
-                <div className={`p-1.5 rounded-full ${
-                  refundInfo.tier === 'full' 
-                    ? 'bg-green-100' 
-                    : refundInfo.tier === 'partial' 
-                      ? 'bg-amber-100' 
-                      : 'bg-red-100'
-                }`}>
-                  {refundInfo.tier === 'full' && <CheckCircle className="w-5 h-5 text-green-600" />}
-                  {refundInfo.tier === 'partial' && <AlertTriangle className="w-5 h-5 text-amber-600" />}
-                  {refundInfo.tier === 'none' && <XCircle className="w-5 h-5 text-red-600" />}
-                </div>
-                <div className="flex-1">
-                  <p className={`font-semibold ${
-                    refundInfo.tier === 'full' 
-                      ? 'text-green-800' 
-                      : refundInfo.tier === 'partial' 
-                        ? 'text-amber-800' 
-                        : 'text-red-800'
-                  }`}>
-                    {refundInfo.tier === 'full' && 'Full Refund'}
-                    {refundInfo.tier === 'partial' && '50% Refund'}
-                    {refundInfo.tier === 'none' && 'No Refund'}
-                  </p>
-                  <p className={`text-sm mt-1 ${
-                    refundInfo.tier === 'full' 
-                      ? 'text-green-700' 
-                      : refundInfo.tier === 'partial' 
-                        ? 'text-amber-700' 
-                        : 'text-red-700'
-                  }`}>
-                    {refundInfo.tier === 'full' && (
-                      <>You'll receive ₹{refundInfo.refundAmount.toLocaleString('en-IN')} refund</>
-                    )}
-                    {refundInfo.tier === 'partial' && (
-                      <>₹{refundInfo.refundAmount.toLocaleString('en-IN')} will be refunded. ₹{(Number(booking.totalAmount) - refundInfo.refundAmount).toLocaleString('en-IN')} will not be refunded.</>
-                    )}
-                    {refundInfo.tier === 'none' && (
-                      <>Cancelling less than 12 hours before pickup. ₹{Number(booking.totalAmount).toLocaleString('en-IN')} will not be refunded.</>
-                    )}
-                  </p>
-                  <p className="text-xs mt-2 text-gray-500">
-                    {refundInfo.tier === 'full' && 'More than 24 hours before pickup'}
-                    {refundInfo.tier === 'partial' && '12-24 hours before pickup'}
-                    {refundInfo.tier === 'none' && 'Less than 12 hours before pickup'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Warning for pending bookings */}
-          {displayStatus === 'pending' && (
-            <div className="p-4 rounded-xl bg-yellow-50 border-2 border-yellow-200">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-yellow-800">Pending Booking</p>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    This booking has not been paid yet. No refund is applicable.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Confirmation text */}
-          <p className="text-gray-600 text-center">
-            Are you sure you want to cancel this booking?<br />
-            <span className="text-red-500 font-medium">This action cannot be undone.</span>
-          </p>
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-gray-200 p-4 flex gap-3">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={onClose}
-            disabled={isCancelling}
-          >
-            Keep Booking
-          </Button>
-          <Button
-            className="flex-1 bg-red-500 hover:bg-red-600 text-white"
-            onClick={onConfirm}
-            disabled={isCancelling}
-          >
-            {isCancelling ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Cancelling...
-              </>
-            ) : (
-              <>
-                <XCircle className="w-4 h-4 mr-2" />
-                Yes, Cancel
-              </>
-            )}
-          </Button>
         </div>
       </div>
     </div>
@@ -923,18 +977,25 @@ function CancelConfirmationModal({
 // Edit Profile Modal
 function EditProfileModal({
   user,
+  documents,
   onClose,
   onSave,
   isUpdating,
   onPhoneUpdated
 }: {
-  user: { name?: string; phone?: string; email?: string; id?: number; cityId?: number };
+  user: { name?: string; phone?: string; email?: string; id?: number; cityId?: number; dateOfBirth?: string; anniversaryDate?: string };
+  documents: UserDocumentDto[];
   onClose: () => void;
-  onSave: (name: string) => Promise<void>;
+  onSave: (profile: { name: string; email: string; dateOfBirth: string | null; anniversaryDate: string | null }) => Promise<void>;
   isUpdating: boolean;
   onPhoneUpdated: (newPhone: string) => void;
 }) {
   const [editedName, setEditedName] = useState(user.name ?? '');
+  const [editedEmail, setEditedEmail] = useState(user.email ?? '');
+  const [editedDateOfBirth, setEditedDateOfBirth] = useState(formatDateInput(user.dateOfBirth));
+  const [editedAnniversaryDate, setEditedAnniversaryDate] = useState(formatDateInput(user.anniversaryDate));
+  const [activeDocumentType, setActiveDocumentType] = useState<ProfileDocumentType | null>(null);
+  const [deleteMyDocument, { isLoading: isDeletingDocument }] = useDeleteMyDocumentMutation();
   
   // Phone change states
   const [isChangingPhone, setIsChangingPhone] = useState(false);
@@ -946,8 +1007,16 @@ function EditProfileModal({
   const [sendPhoneChangeOtp, { isLoading: isSendingOtp }] = useSendPhoneChangeOtpMutation();
   const [verifyPhoneChangeOtp, { isLoading: isVerifyingOtp }] = useVerifyPhoneChangeOtpMutation();
 
+  const drivingLicenseDocument = getLatestProfileDocument(documents, 'driving_license');
+  const aadhaarDocument = getLatestProfileDocument(documents, 'aadhaar');
+
   const handleSave = async () => {
-    await onSave(editedName);
+    await onSave({
+      name: editedName,
+      email: editedEmail.trim(),
+      dateOfBirth: editedDateOfBirth || null,
+      anniversaryDate: editedAnniversaryDate || null,
+    });
   };
 
   const handleSendOtp = async () => {
@@ -1010,13 +1079,31 @@ function EditProfileModal({
     setOtp('');
   };
 
+  const handleViewDocument = (document: UserDocumentDto) => {
+    window.open(document.fileUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleDeleteDocument = async (documentType: ProfileDocumentType) => {
+    const confirmed = window.confirm(`Delete your ${PROFILE_DOCUMENT_LABELS[documentType]}?`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteMyDocument(documentType).unwrap();
+      toast.success(`${PROFILE_DOCUMENT_LABELS[documentType]} deleted`);
+    } catch (err: any) {
+      toast.error(err?.data?.error || 'Failed to delete document');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100vh-2rem)] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-primary-500 to-blue-600 text-white p-5">
           <div className="flex items-center justify-between">
@@ -1036,7 +1123,7 @@ function EditProfileModal({
         </div>
 
         {/* Content */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto">
           {/* Avatar */}
           <div className="flex justify-center">
             <div className="w-20 h-20 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-full flex items-center justify-center">
@@ -1156,9 +1243,35 @@ function EditProfileModal({
           {/* Email (Optional) */}
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700">Email (Optional)</label>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
-              <span className="text-gray-500">{user.email || 'Not provided'}</span>
-            </div>
+            <input
+              type="email"
+              value={editedEmail}
+              onChange={(e) => setEditedEmail(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              placeholder="Enter your email"
+              inputMode="email"
+              autoCapitalize="none"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">Date of Birth</label>
+            <input
+              type="date"
+              value={editedDateOfBirth}
+              onChange={(e) => setEditedDateOfBirth(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">Anniversary Date</label>
+            <input
+              type="date"
+              value={editedAnniversaryDate}
+              onChange={(e) => setEditedAnniversaryDate(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            />
           </div>
 
           {/* Documents Section */}
@@ -1175,15 +1288,39 @@ function EditProfileModal({
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-700">Driving License</p>
-                    <p className="text-xs text-gray-400">Not uploaded</p>
+                    <p className="text-xs text-gray-400">
+                      {drivingLicenseDocument ? `Uploaded on ${formatDate(drivingLicenseDocument.createdAt)}` : 'Not uploaded'}
+                    </p>
                   </div>
                 </div>
-                <button 
-                  className="text-xs text-primary-600 hover:text-primary-700 font-medium px-3 py-1.5 bg-primary-50 rounded-lg"
-                  onClick={() => toast.info('Document upload coming soon')}
-                >
-                  Upload
-                </button>
+                <div className="flex items-center gap-2">
+                  {drivingLicenseDocument && (
+                    <>
+                      <button
+                        type="button"
+                        className="text-xs text-gray-700 hover:text-gray-900 font-medium px-3 py-1.5 bg-white border border-gray-200 rounded-lg"
+                        onClick={() => handleViewDocument(drivingLicenseDocument)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs text-red-600 hover:text-red-700 font-medium px-3 py-1.5 bg-red-50 rounded-lg disabled:opacity-50"
+                        onClick={() => handleDeleteDocument('driving_license')}
+                        disabled={isDeletingDocument}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="text-xs text-primary-600 hover:text-primary-700 font-medium px-3 py-1.5 bg-primary-50 rounded-lg"
+                    onClick={() => setActiveDocumentType('driving_license')}
+                  >
+                    {drivingLicenseDocument ? 'Replace' : 'Upload'}
+                  </button>
+                </div>
               </div>
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2">
@@ -1192,19 +1329,43 @@ function EditProfileModal({
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-700">Aadhaar Card</p>
-                    <p className="text-xs text-gray-400">Not uploaded</p>
+                    <p className="text-xs text-gray-400">
+                      {aadhaarDocument ? `Uploaded on ${formatDate(aadhaarDocument.createdAt)}` : 'Not uploaded'}
+                    </p>
                   </div>
                 </div>
-                <button 
-                  className="text-xs text-primary-600 hover:text-primary-700 font-medium px-3 py-1.5 bg-primary-50 rounded-lg"
-                  onClick={() => toast.info('Document upload coming soon')}
-                >
-                  Upload
-                </button>
+                <div className="flex items-center gap-2">
+                  {aadhaarDocument && (
+                    <>
+                      <button
+                        type="button"
+                        className="text-xs text-gray-700 hover:text-gray-900 font-medium px-3 py-1.5 bg-white border border-gray-200 rounded-lg"
+                        onClick={() => handleViewDocument(aadhaarDocument)}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs text-red-600 hover:text-red-700 font-medium px-3 py-1.5 bg-red-50 rounded-lg disabled:opacity-50"
+                        onClick={() => handleDeleteDocument('aadhaar')}
+                        disabled={isDeletingDocument}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="text-xs text-primary-600 hover:text-primary-700 font-medium px-3 py-1.5 bg-primary-50 rounded-lg"
+                    onClick={() => setActiveDocumentType('aadhaar')}
+                  >
+                    {aadhaarDocument ? 'Replace' : 'Upload'}
+                  </button>
+                </div>
               </div>
             </div>
             <p className="text-xs text-gray-400 mt-2 text-center">
-              Upload documents for faster booking verification
+              Uploading documents here can speed up booking verification.
             </p>
           </div>
         </div>
@@ -1238,6 +1399,11 @@ function EditProfileModal({
           </Button>
         </div>
       </div>
+
+      <ProfileDocumentUploadModal
+        documentType={activeDocumentType}
+        onClose={() => setActiveDocumentType(null)}
+      />
     </div>
   );
 }
@@ -1266,11 +1432,10 @@ export default function ProfilePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<BookingDto | null>(null);
-  const [bookingToCancel, setBookingToCancel] = useState<BookingDto | null>(null);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
 
   const [updateProfile, { isLoading: isUpdating }] = useUpdateProfileMutation();
-  const [cancelBooking, { isLoading: isCancelling }] = useCancelBookingMutation();
+  const { data: userDocuments = [] } = useGetMyDocumentsQuery(undefined, { skip: !user });
   const {
     data: bookings,
     isLoading: isLoadingBookings,
@@ -1278,6 +1443,9 @@ export default function ProfilePage() {
     isError: isBookingsError,
     refetch: refetchBookings,
   } = useGetBookingsByUserIdQuery(user?.id ?? 0, { skip: !user?.id });
+
+  const drivingLicenseDocument = getLatestProfileDocument(userDocuments, 'driving_license');
+  const aadhaarDocument = getLatestProfileDocument(userDocuments, 'aadhaar');
 
   // Sort: most recent first
   const sortedBookings = bookings
@@ -1307,19 +1475,27 @@ export default function ProfilePage() {
     navigate('/');
   };
 
-  const handleSaveProfile = async (newName: string) => {
-    if (!newName.trim()) { toast.error('Name cannot be empty'); return; }
+  const handleSaveProfile = async (profile: { name: string; email: string; dateOfBirth: string | null; anniversaryDate: string | null }) => {
+    if (!profile.name.trim()) { toast.error('Name cannot be empty'); return; }
     if (!user?.id) return;
     const token = localStorage.getItem('authToken');
     if (!token) { toast.error('Session expired. Please login again.'); return; }
     try {
       await updateProfile({
         userId: user.id,
-        name: newName.trim(),
-        email: user.email ?? '',
+        name: profile.name.trim(),
+        email: profile.email,
+        dateOfBirth: profile.dateOfBirth,
+        anniversaryDate: profile.anniversaryDate,
         token,
       }).unwrap();
-      const updatedUser = { ...user, name: newName.trim() };
+      const updatedUser = {
+        ...user,
+        name: profile.name.trim(),
+        email: profile.email || undefined,
+        dateOfBirth: profile.dateOfBirth ?? undefined,
+        anniversaryDate: profile.anniversaryDate ?? undefined,
+      };
       dispatch(setCredentials({
         token: localStorage.getItem('authToken')!,
         user: updatedUser,
@@ -1333,28 +1509,6 @@ export default function ProfilePage() {
       });
     }
   };
-
-  const handleCancelBooking = (booking: BookingDto) => {
-    if (!booking.id) return;
-    setBookingToCancel(booking);
-  };
-
-  const confirmCancelBooking = async () => {
-    if (!bookingToCancel?.id) return;
-    
-    try {
-      await cancelBooking(bookingToCancel.id).unwrap();
-      toast.success('Booking cancelled successfully');
-      setSelectedBooking(null);
-      setBookingToCancel(null);
-      refetchBookings();
-    } catch (err: any) {
-      toast.error('Failed to cancel booking', {
-        description: err?.data?.error ?? 'Please try again',
-      });
-    }
-  };
-
 
   if (!user) { navigate('/login'); return null; }
 
@@ -1454,6 +1608,16 @@ export default function ProfilePage() {
                   <span className="text-gray-500 text-sm">Email</span>
                   <span className="text-gray-900 text-sm font-medium">{user.email || 'Not provided'}</span>
                 </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 text-sm">Date of Birth</span>
+                  <span className="text-gray-900 text-sm font-medium">{user.dateOfBirth ? formatDate(user.dateOfBirth) : 'Not provided'}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 text-sm">Anniversary</span>
+                  <span className="text-gray-900 text-sm font-medium">{user.anniversaryDate ? formatDate(user.anniversaryDate) : 'Not provided'}</span>
+                </div>
               </div>
 
               {/* Edit Profile & Logout */}
@@ -1491,7 +1655,9 @@ export default function ProfilePage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-700">Driving License</p>
-                      <p className="text-xs text-gray-400">Not uploaded</p>
+                      <p className="text-xs text-gray-400">
+                        {drivingLicenseDocument ? `Uploaded on ${formatDate(drivingLicenseDocument.createdAt)}` : 'Not uploaded'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1502,7 +1668,9 @@ export default function ProfilePage() {
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-700">Aadhaar Card</p>
-                      <p className="text-xs text-gray-400">Not uploaded</p>
+                      <p className="text-xs text-gray-400">
+                        {aadhaarDocument ? `Uploaded on ${formatDate(aadhaarDocument.createdAt)}` : 'Not uploaded'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1722,25 +1890,7 @@ export default function ProfilePage() {
                               >
                                 <CreditCard className="w-3.5 h-3.5" /> Pay
                               </button>
-                              <button
-                                onClick={() => booking.id && handleCancelBooking(booking)}
-                                disabled={isCancelling}
-                                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
-                              >
-                                {isCancelling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
-                                Cancel
-                              </button>
                             </>
-                          )}
-                          {getDisplayStatus(booking) === 'upcoming' && (
-                            <button
-                              onClick={() => booking.id && handleCancelBooking(booking)}
-                              disabled={isCancelling}
-                              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
-                            >
-                              {isCancelling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
-                              Cancel Booking
-                            </button>
                           )}
                         </div>
                       </div>
@@ -1793,18 +1943,6 @@ export default function ProfilePage() {
             setSelectedBooking(null);
             navigate('/vehicles');
           }}
-          onCancel={() => handleCancelBooking(selectedBooking)}
-          isCancelling={isCancelling}
-        />
-      )}
-
-      {/* Cancel Confirmation Modal */}
-      {bookingToCancel && (
-        <CancelConfirmationModal
-          booking={bookingToCancel}
-          onClose={() => setBookingToCancel(null)}
-          onConfirm={confirmCancelBooking}
-          isCancelling={isCancelling}
         />
       )}
 
@@ -1812,6 +1950,7 @@ export default function ProfilePage() {
       {showEditProfileModal && (
         <EditProfileModal
           user={user}
+          documents={userDocuments}
           onClose={() => setShowEditProfileModal(false)}
           onSave={handleSaveProfile}
           isUpdating={isUpdating}

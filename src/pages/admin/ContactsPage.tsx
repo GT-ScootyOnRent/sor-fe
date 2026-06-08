@@ -140,7 +140,7 @@ const ContactsPage: React.FC = () => {
     const next: Partial<Record<keyof FormState, string>> = {};
 
     if (!form.name.trim()) next.name = 'Name is required';
-    else if (form.name.trim().length > 10) next.name = 'Name must be 10 characters or fewer';
+    else if (form.name.trim().length > 25) next.name = 'Name must be 25 characters or fewer';
 
     if (!form.phoneNumber.trim() || form.phoneNumber.trim() === '+91') next.phoneNumber = 'Phone number is required';
     else if (!PHONE_RE.test(form.phoneNumber.replace(/\s/g, ''))) next.phoneNumber = 'Enter a valid 10-digit Indian phone number (e.g., +91 9876543210)';
