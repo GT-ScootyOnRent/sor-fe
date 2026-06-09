@@ -28,6 +28,7 @@ import { useGetBookingMediaQuery, useUploadBookingVideoMutation, useDeleteBookin
 import type { BookingMediaDto } from '../store/api/bookingMediaApi';
 import { toast } from 'sonner';
 import Header from '../components/Header';
+import PaymentModal from '../components/PaymentModal';
 
 // Pending booking timeout (must match backend PendingBookingCleanupService)
 const PENDING_BOOKING_TIMEOUT_HOURS = 2;
@@ -835,11 +836,13 @@ function BookingVideoSection({ bookingId, booking }: { bookingId: number; bookin
 function BookingDetailsModal({ 
   booking, 
   onClose,
-  onBookAgain
+  onBookAgain,
+  onCompletePayment
 }: { 
   booking: BookingDto; 
   onClose: () => void;
   onBookAgain: () => void;
+  onCompletePayment: (booking: BookingDto) => void;
 }) {
   const timeRemaining = getDisplayStatus(booking) === 'pending' ? getPendingTimeRemaining(booking.createdAt) : null;
   return (
@@ -962,7 +965,7 @@ function BookingDetailsModal({
               )}
               <Button
                 className="flex-1 bg-amber-500 hover:bg-amber-600"
-                onClick={() => toast.info('Payment feature coming soon')}
+                onClick={() => onCompletePayment(booking)}
               >
                 <CreditCard className="w-4 h-4 mr-2" /> Complete Payment
               </Button>
@@ -1432,6 +1435,7 @@ export default function ProfilePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [selectedBooking, setSelectedBooking] = useState<BookingDto | null>(null);
+  const [paymentBooking, setPaymentBooking] = useState<BookingDto | null>(null);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
 
   const [updateProfile, { isLoading: isUpdating }] = useUpdateProfileMutation();
@@ -1508,6 +1512,35 @@ export default function ProfilePage() {
         description: err?.data?.message ?? 'Please try again',
       });
     }
+  };
+
+  const handleRetryPayment = (booking: BookingDto) => {
+    const timeRemaining = getPendingTimeRemaining(booking.createdAt);
+
+    if (timeRemaining.expired) {
+      toast.error('This booking has expired. Please create a new booking.');
+      refetchBookings();
+      if (selectedBooking?.id === booking.id) {
+        setSelectedBooking(null);
+      }
+      return;
+    }
+
+    setSelectedBooking(null);
+    setPaymentBooking(booking);
+  };
+
+  const handlePaymentSuccess = async () => {
+    setPaymentBooking(null);
+    setSelectedBooking(null);
+    await refetchBookings();
+    toast.success('Payment completed successfully');
+  };
+
+  const handlePaymentFailure = async (error: string) => {
+    setPaymentBooking(null);
+    await refetchBookings();
+    toast.error(error || 'Payment failed');
   };
 
   if (!user) { navigate('/login'); return null; }
@@ -1885,7 +1918,7 @@ export default function ProfilePage() {
                                 );
                               })()}
                               <button
-                                onClick={() => toast.info('Payment feature coming soon')}
+                                onClick={() => handleRetryPayment(booking)}
                                 className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition"
                               >
                                 <CreditCard className="w-3.5 h-3.5" /> Pay
@@ -1943,6 +1976,18 @@ export default function ProfilePage() {
             setSelectedBooking(null);
             navigate('/vehicles');
           }}
+          onCompletePayment={handleRetryPayment}
+        />
+      )}
+
+      {paymentBooking?.id && (
+        <PaymentModal
+          isOpen={true}
+          onClose={() => setPaymentBooking(null)}
+          amount={Number(paymentBooking.totalAmount)}
+          bookingId={paymentBooking.id}
+          onSuccess={handlePaymentSuccess}
+          onFailure={handlePaymentFailure}
         />
       )}
 
