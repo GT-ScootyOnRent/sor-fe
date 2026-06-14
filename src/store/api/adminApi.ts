@@ -83,6 +83,7 @@ export interface AdminDto {
   canManagePackages?: boolean;
   canManageAnnouncements?: boolean;
   canManageGeofences?: boolean;
+  canManageAgents?: boolean;
 }
 
 export interface AdminProfileDto {
@@ -102,6 +103,7 @@ export interface AdminProfileDto {
   canManagePackages?: boolean;
   canManageAnnouncements?: boolean;
   canManageGeofences?: boolean;
+  canManageAgents?: boolean;
 }
 
 export interface LegalNotificationTemplateDto {

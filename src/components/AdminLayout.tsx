@@ -22,6 +22,7 @@ import {
   Search,
   Map,
   Mail,
+  Handshake,
 } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { logout } from '../store/slices/authSlice'
@@ -37,6 +38,7 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
+  { id: 'agent-management', path: 'agent-management', icon: Handshake, label: 'Agent Management' },
   { id: 'dashboard', path: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { id: 'vehicles', path: 'vehicles', icon: Bike, label: 'Vehicles' },
   { id: 'vehicle-packages', path: 'vehicle-packages', icon: Package, label: 'Packages' },
@@ -91,6 +93,10 @@ const AdminLayout: React.FC = () => {
     // Hide geofences if admin doesn't have permission
     if (item.id === 'geofences') {
       return isSuperAdmin || profile?.canManageGeofences
+    }
+    // Hide agent management if admin doesn't have permission
+    if (item.id === 'agent-management') {
+      return isSuperAdmin || profile?.canManageAgents
     }
     if (!item.roles) return true
     return item.roles.includes(adminUser?.userType ?? '')

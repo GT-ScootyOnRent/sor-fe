@@ -1,15 +1,40 @@
 import { useState } from 'react';
 import { X, Tag, ChevronDown, ChevronUp } from 'lucide-react';
 import { useGetAvailablePromoCodesForCityQuery, type PromoCodeDto } from '../store/api/promoCodeApi';
+import { useGetAvailableAgentsForCityQuery, type Agent } from '../store/api/agentApi';
+
+// A coupon shown in the modal: a regular promo OR an agent coupon (flagged with __isAgent).
+export type CouponItem = PromoCodeDto & { __isAgent?: boolean };
 
 interface PromoCodeModalProps {
     isOpen: boolean;
     onClose: () => void;
     cityId: number;
-    onSelectPromo: (promo: PromoCodeDto) => void;
+    onSelectPromo: (promo: CouponItem) => void;
     currentOrderAmount: number;
     isApplying?: boolean;
 }
+
+// Map an agent coupon into the PromoCodeDto-shaped card model the modal renders.
+const agentToCoupon = (a: Agent): CouponItem => ({
+    id: a.id,
+    code: a.code,
+    description: a.description ?? undefined,
+    discountType: a.discountType,
+    discountValue: a.discountValue,
+    maxDiscountAmount: a.maxDiscountAmount ?? undefined,
+    minOrderAmount: a.minOrderAmount,
+    usedCount: 0,
+    isFirstRideOnly: false,
+    isActive: a.isActive,
+    showOnHomepage: false,
+    validFrom: a.validFrom,
+    validUntil: a.validUntil ?? null,
+    cityId: a.cityIds.length === 1 ? a.cityIds[0] : null,
+    createdAt: a.createdAt,
+    updatedAt: a.updatedAt,
+    __isAgent: true,
+});
 
 function PromoCard({
     promo,
@@ -17,7 +42,7 @@ function PromoCard({
     onApply,
     isApplying,
 }: {
-    promo: PromoCodeDto;
+    promo: CouponItem;
     currentOrderAmount: number;
     onApply: () => void;
     isApplying: boolean;
@@ -133,14 +158,19 @@ export default function PromoCodeModal({
     const { data: promoCodes = [], isLoading, isFetching } = useGetAvailablePromoCodesForCityQuery(cityId, {
         skip: !isOpen || !cityId,
     });
+    const { data: agents = [], isLoading: agentsLoading, isFetching: agentsFetching } =
+        useGetAvailableAgentsForCityQuery(cityId, { skip: !isOpen || !cityId });
 
     if (!isOpen) return null;
 
-    const showLoader = isLoading || isFetching;
+    const showLoader = isLoading || isFetching || agentsLoading || agentsFetching;
 
-    // Separate applicable and non-applicable promos
-    const applicablePromos = promoCodes.filter(p => currentOrderAmount >= p.minOrderAmount);
-    const nonApplicablePromos = promoCodes.filter(p => currentOrderAmount < p.minOrderAmount);
+    // Merge regular promo coupons with agent coupons (both already city-filtered by the API).
+    const allCoupons: CouponItem[] = [...promoCodes, ...agents.map(agentToCoupon)];
+
+    // Separate applicable and non-applicable coupons
+    const applicablePromos = allCoupons.filter(p => currentOrderAmount >= p.minOrderAmount);
+    const nonApplicablePromos = allCoupons.filter(p => currentOrderAmount < p.minOrderAmount);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -170,7 +200,7 @@ export default function PromoCodeModal({
                             <div className="w-10 h-10 border-3 border-primary-600 border-t-transparent rounded-full animate-spin mb-3" />
                             <p className="text-sm text-gray-500">Loading coupons...</p>
                         </div>
-                    ) : promoCodes.length === 0 ? (
+                    ) : allCoupons.length === 0 ? (
                         <div className="text-center py-16 bg-white rounded-lg">
                             <Tag className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                             <p className="text-gray-500">No coupons available</p>
@@ -183,7 +213,7 @@ export default function PromoCodeModal({
                                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Available offers</p>
                                     {applicablePromos.map((promo) => (
                                         <PromoCard
-                                            key={promo.id}
+                                            key={`${promo.__isAgent ? 'agent' : 'promo'}-${promo.id}`}
                                             promo={promo}
                                             currentOrderAmount={currentOrderAmount}
                                             onApply={() => onSelectPromo(promo)}
@@ -199,7 +229,7 @@ export default function PromoCodeModal({
                                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-4">More offers</p>
                                     {nonApplicablePromos.map((promo) => (
                                         <PromoCard
-                                            key={promo.id}
+                                            key={`${promo.__isAgent ? 'agent' : 'promo'}-${promo.id}`}
                                             promo={promo}
                                             currentOrderAmount={currentOrderAmount}
                                             onApply={() => onSelectPromo(promo)}

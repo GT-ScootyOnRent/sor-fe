@@ -13,6 +13,7 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { useGetVehicleByIdQuery } from '../store/api/vehicleApi';
 import { useCreateBookingMutation } from '../store/api/bookingApi';
+import { useRecordAgentUsageMutation } from '../store/api/agentApi';
 import { useGetPickupLocationByIdQuery } from '../store/api/pickupLocationApi';
 import type { PickupLocationDto } from '../store/api/pickupLocationApi';
 import { useAppSelector } from '../store/hooks';
@@ -167,6 +168,9 @@ export default function BookNow() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [createdBookingId, setCreatedBookingId] = useState<number | null>(null);
   const [finalBookingAmount, setFinalBookingAmount] = useState<number>(0);
+  // Agent referral code applied at checkout (recorded as used once payment succeeds)
+  const [appliedAgentCode, setAppliedAgentCode] = useState<{ code: string; orderAmount: number } | null>(null);
+  const [recordAgentUsage] = useRecordAgentUsageMutation();
   const [selectedPickup, setSelectedPickup] = useState<string>(pickupLocationIdParam || '');
   const [includeSecondHelmet, setIncludeSecondHelmet] = useState(false);
   const [paySecurityAtPickup, setPaySecurityAtPickup] = useState(false); // false = pay online (default)
@@ -474,6 +478,19 @@ export default function BookNow() {
   const handlePaymentSuccess = () => {
     setShowPaymentModal(false);
     toast.success('Booking Confirmed!', { description: 'Your payment was successful' });
+
+    // If an agent referral code was applied, mark it as used now that payment succeeded.
+    if (appliedAgentCode && user) {
+      recordAgentUsage({
+        code: appliedAgentCode.code,
+        userId: user.id,
+        bookingId: createdBookingId ?? undefined,
+        orderAmount: appliedAgentCode.orderAmount,
+      })
+        .unwrap()
+        .catch(() => { /* non-blocking: booking already confirmed */ });
+    }
+
     // Navigate to dynamic booking success page with all details
     const securityMode = paySecurityAtPickup ? 'pickup' : 'online';
     navigate(`/booking-success?bookingId=${createdBookingId}&amount=${finalBookingAmount}&securityMode=${securityMode}`);
@@ -683,6 +700,7 @@ export default function BookNow() {
                 onSecurityDepositModeChange={setPaySecurityAtPickup}
                 cityId={vehicleData.cityId}
                 userId={user?.id}
+                onAgentApplied={setAppliedAgentCode}
                 selectedDurations={vehicleData.linkedPackage?.selectedDurations || []}
                 priceOverrides={vehicleData.linkedPackage?.priceOverrides || {}}
                 pricePerHour={vehicleData.linkedPackage?.pricePerHour || vehicleData.pricePerHour}

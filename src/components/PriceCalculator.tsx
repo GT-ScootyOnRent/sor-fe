@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Tag, AlertCircle, CheckCircle, HardHat, Gift, Sparkles, X, Wallet } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
-import PromoCodeModal from './PromoCodeModal';
+import PromoCodeModal, { type CouponItem } from './PromoCodeModal';
 import { useValidatePromoCodeMutation, type PromoCodeDto } from '../store/api/promoCodeApi';
+import { useValidateAgentCodeMutation } from '../store/api/agentApi';
 import { calculatePackageBasedPrice } from '../store/api/vehiclePackageApi';
 
 const SECOND_HELMET_PRICE = 50; // ₹50 for 2nd helmet (shown as free promo)
@@ -22,6 +23,8 @@ interface PriceCalculatorProps {
   onSecurityDepositModeChange?: (payAtPickup: boolean) => void;
   cityId?: number;
   userId?: number;
+  // Fired when an agent referral code is applied (so the parent can record usage on payment success)
+  onAgentApplied?: (info: { code: string; orderAmount: number } | null) => void;
   // Package-based pricing
   selectedDurations?: number[];
   priceOverrides?: Record<string, number>;
@@ -42,6 +45,7 @@ export default function PriceCalculator({
   onSecurityDepositModeChange,
   cityId,
   userId,
+  onAgentApplied,
   selectedDurations = [],
   priceOverrides = {},
   pricePerHour = 0,
@@ -52,7 +56,9 @@ export default function PriceCalculator({
   const [promoDiscountAmount, setPromoDiscountAmount] = useState(0);
   const [promoCode, setPromoCode] = useState('');
 
-  const [validatePromo, { isLoading: validatingPromo }] = useValidatePromoCodeMutation();
+  const [validatePromo, { isLoading: validatingPromoReq }] = useValidatePromoCodeMutation();
+  const [validateAgentCode, { isLoading: validatingAgent }] = useValidateAgentCodeMutation();
+  const validatingPromo = validatingPromoReq || validatingAgent;
 
   // Calculate subtotal using package-based pricing
   const subtotal = calculatePackageBasedPrice(
@@ -70,7 +76,7 @@ export default function PriceCalculator({
 
   const canProceed = hours > 0 && hours >= minBookingHours;
 
-  const handleSelectPromo = async (promo: PromoCodeDto) => {
+  const handleSelectPromo = async (promo: CouponItem) => {
     if (!cityId || !userId) {
       toast.error('Please login to apply promo code');
       setShowPromoModal(false);
@@ -78,18 +84,18 @@ export default function PriceCalculator({
     }
 
     try {
-      const result = await validatePromo({
-        code: promo.code,
-        userId,
-        orderAmount: subtotal,
-        cityId,
-      }).unwrap();
+      // Agent coupons validate through the agent pipeline; regular promos through the promo one.
+      const result = promo.__isAgent
+        ? await validateAgentCode({ code: promo.code, userId, orderAmount: subtotal, cityId }).unwrap()
+        : await validatePromo({ code: promo.code, userId, orderAmount: subtotal, cityId }).unwrap();
 
       if (result.isValid) {
         setAppliedPromo(promo);
         setPromoDiscountAmount(result.discountAmount);
         setPromoCode('');
         setShowPromoModal(false);
+        // Agent coupons must be recorded as used on payment success; promos are not.
+        onAgentApplied?.(promo.__isAgent ? { code: promo.code, orderAmount: subtotal } : null);
         toast.success(`Coupon "${promo.code}" applied!`);
       } else {
         toast.error(result.message || 'Coupon not applicable');
@@ -100,7 +106,8 @@ export default function PriceCalculator({
   };
 
   const handleApplyManualPromo = async () => {
-    if (!promoCode.trim()) {
+    const code = promoCode.trim().toUpperCase();
+    if (!code) {
       toast.error('Please enter a promo code');
       return;
     }
@@ -109,37 +116,50 @@ export default function PriceCalculator({
       return;
     }
 
+    // First try a regular promo code; if that fails, try an agent referral code.
     try {
-      const result = await validatePromo({
-        code: promoCode.trim().toUpperCase(),
-        userId,
-        orderAmount: subtotal,
-        cityId,
-      }).unwrap();
+      const result = await validatePromo({ code, userId, orderAmount: subtotal, cityId }).unwrap();
 
       if (result.isValid) {
-        setAppliedPromo({
-          id: 0,
-          code: promoCode.trim().toUpperCase(),
-          discountType: 'flat',
-          discountValue: result.discountAmount,
-          minOrderAmount: 0,
-          isActive: true,
-        } as PromoCodeDto);
-        setPromoDiscountAmount(result.discountAmount);
-        setPromoCode('');
-        toast.success(`Coupon applied! You save ₹${result.discountAmount}`);
-      } else {
-        toast.error(result.message || 'Invalid promo code');
+        applyCoupon(code, result.discountAmount, false);
+        return;
       }
-    } catch (error: any) {
-      toast.error(error?.data?.message || 'Failed to apply coupon');
+    } catch {
+      // fall through to agent code validation
     }
+
+    try {
+      const agentResult = await validateAgentCode({ code, userId, orderAmount: subtotal, cityId }).unwrap();
+      if (agentResult.isValid) {
+        applyCoupon(code, agentResult.discountAmount, true);
+        return;
+      }
+      toast.error(agentResult.message || 'Invalid coupon code');
+    } catch (error: any) {
+      toast.error(error?.data?.message || error?.data?.error || 'Invalid coupon code');
+    }
+  };
+
+  // Shared helper to set applied coupon state. isAgent => report to parent for usage recording.
+  const applyCoupon = (code: string, discountAmount: number, isAgent: boolean) => {
+    setAppliedPromo({
+      id: 0,
+      code,
+      discountType: 'flat',
+      discountValue: discountAmount,
+      minOrderAmount: 0,
+      isActive: true,
+    } as PromoCodeDto);
+    setPromoDiscountAmount(discountAmount);
+    setPromoCode('');
+    onAgentApplied?.(isAgent ? { code, orderAmount: subtotal } : null);
+    toast.success(`Coupon applied! You save ₹${discountAmount}`);
   };
 
   const handleRemovePromo = () => {
     setAppliedPromo(null);
     setPromoDiscountAmount(0);
+    onAgentApplied?.(null);
     toast.success('Coupon removed');
   };
 

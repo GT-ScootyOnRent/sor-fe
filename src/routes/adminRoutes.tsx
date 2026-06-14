@@ -29,6 +29,7 @@ import VehiclePackagesPage from '../pages/admin/VehiclePackagesPage';
 import GeofencesPage from '../pages/admin/GeofencesPage';
 import FleetMapPage from '../pages/admin/FleetMapPage';
 import LegalNotificationsPage from '../pages/admin/LegalNotificationsPage';
+import AgentManagementPage from '../pages/admin/AgentManagementPage';
 export const adminRoutes: RouteObject[] = [
   // Auth pages — no layout
   { path: '', element: <AdminLogin /> },
@@ -51,6 +52,7 @@ export const adminRoutes: RouteObject[] = [
       </ProtectedRoute>
     ),
     children: [
+      { path: 'agent-management', element: <AgentManagementPage /> },
       { path: 'dashboard', element: <AdminDashboard /> },
       { path: 'vehicles', element: <VehiclesPage /> },
       { path: 'vehicle-packages', element: <VehiclePackagesPage /> },
