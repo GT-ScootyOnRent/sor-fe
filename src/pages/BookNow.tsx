@@ -156,7 +156,8 @@ export default function BookNow() {
     return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
   };
   const defaultEndDate = isEndDateValid ? endDateParam : getNextDay(defaultStartDate);
-  const defaultEndTime = endTimeParam && isEndDateValid ? roundToNext30Min(clampToBusinessHours(endTimeParam)) : MAX_BUSINESS_TIME;
+  // Default to a 24-hour cycle: same time as pickup, next day
+  const defaultEndTime = endTimeParam && isEndDateValid ? roundToNext30Min(clampToBusinessHours(endTimeParam)) : defaultStartTime;
 
   const [bookingDates, setBookingDates] = useState({
     startDate: defaultStartDate,
@@ -190,13 +191,13 @@ export default function BookNow() {
     const today = getTodayDate();
     const defaultPickup = getDefaultPickupDateTime();
     
-    // If start date is in the past, reset to valid defaults
+    // If start date is in the past, reset to valid defaults (24-hour cycle)
     if (bookingDates.startDate < today) {
       setBookingDates({
         startDate: defaultPickup.date,
         startTime: defaultPickup.time,
-        endDate: defaultPickup.date,
-        endTime: MAX_BUSINESS_TIME,
+        endDate: getNextDay(defaultPickup.date),
+        endTime: defaultPickup.time,
       });
       toast.info('Booking dates have been updated to today');
     }
@@ -204,13 +205,13 @@ export default function BookNow() {
     else if (bookingDates.startDate === today && bookingDates.startTime) {
       const minTime = getMinTimeForToday();
       
-      // If today is no longer bookable (too late), push to tomorrow
+      // If today is no longer bookable (too late), push to tomorrow (24-hour cycle)
       if (minTime === null) {
         setBookingDates({
           startDate: defaultPickup.date,
           startTime: defaultPickup.time,
-          endDate: defaultPickup.date,
-          endTime: MAX_BUSINESS_TIME,
+          endDate: getNextDay(defaultPickup.date),
+          endTime: defaultPickup.time,
         });
         toast.info('Booking dates have been updated - too late to book for today');
       }
@@ -409,7 +410,7 @@ export default function BookNow() {
 
     // Use linkedPackage pricing if available
     const pricePerHour = vehicleData.linkedPackage?.pricePerHour || vehicleData.pricePerHour;
-    const freeHoursPerDay = vehicleData.linkedPackage?.freeHoursPerDay || 6;
+    const freeHoursPerDay = vehicleData.linkedPackage?.freeHoursPerDay ?? 6;
 
     return calculateDurationPrice(hours, pricePerHour, freeHoursPerDay);
   };

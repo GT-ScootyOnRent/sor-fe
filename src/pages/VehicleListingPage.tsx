@@ -119,7 +119,8 @@ const VehicleListingPage: React.FC = () => {
   const startDate = startDateParam || defaultPickup.date;
   const startTime = startTimeParam || defaultPickup.time;
   const endDate = endDateParam || defaultReturn;
-  const endTime = endTimeParam || MAX_TIME;
+  // Default to a 24-hour cycle: same time as pickup, next day
+  const endTime = endTimeParam || defaultPickup.time;
   const hasDateFilter = true; // Always have dates now (either from URL or defaults)
 
   // Date editing state

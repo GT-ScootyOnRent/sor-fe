@@ -188,7 +188,7 @@ const VehiclePackagesPage: React.FC = () => {
     setForm({
       name: pkg.name,
       pricePerHour: pkg.pricePerHour,
-      freeHoursPerDay: pkg.freeHoursPerDay || 6,
+      freeHoursPerDay: pkg.freeHoursPerDay ?? 6,
       selectedDurations: [...pkg.selectedDurations],
       priceOverrides: { ...pkg.priceOverrides },
     });
