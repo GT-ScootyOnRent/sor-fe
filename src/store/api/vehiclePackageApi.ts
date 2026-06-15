@@ -51,13 +51,15 @@ export const DURATION_OPTIONS = [
 // Calculate price for a given duration (used for package display)
 export function calculateDurationPrice(hours: number, pricePerHour: number, freeHoursPerDay: number = 6): number {
   if (hours < 24) {
-    return hours * pricePerHour;
+    // Round to nearest rupee (>= .50 up, < .50 down) so no float values are shown
+    return Math.round(hours * pricePerHour);
   }
   const days = Math.floor(hours / 24);
   const extraHours = hours % 24;
   // Configurable free hours per day (charge 24 - freeHoursPerDay hours per day)
   const chargeableHoursPerDay = 24 - freeHoursPerDay;
-  return (days * chargeableHoursPerDay + extraHours) * pricePerHour;
+  // Round to nearest rupee (>= .50 up, < .50 down) so no float values are shown
+  return Math.round((days * chargeableHoursPerDay + extraHours) * pricePerHour);
 }
 
 /**
@@ -121,7 +123,8 @@ export function calculatePackageBasedPrice(
 
   // Otherwise, calculate: applicable package price + extra hours × pricePerHour
   const extraHours = bookingHours - applicablePackage.hours;
-  return applicablePackage.price + (extraHours * pricePerHour);
+  // Round to nearest rupee (>= .50 up, < .50 down) so no float values are shown
+  return Math.round(applicablePackage.price + (extraHours * pricePerHour));
 }
 
 // Legacy function - kept for backward compatibility

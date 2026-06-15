@@ -10,7 +10,6 @@ import { toast } from 'sonner';
 
 const MIN_TIME = '06:00'; // 6 AM
 const MAX_TIME = '23:30'; // 11:30 PM
-const RETURN_DEFAULT_TIME = '23:30'; // returns default to 11:30 PM
 
 // 30-min slots between 6:00 AM and 11:30 PM
 const TIME_SLOTS: string[] = (() => {
@@ -98,7 +97,8 @@ const computeDefaults = () => {
     pickupDate: ymd(pickupDateObj),
     pickupTime,
     returnDate: ymd(returnDateObj),
-    returnTime: RETURN_DEFAULT_TIME,
+    // Default to a 24-hour cycle: same time as pickup, next day
+    returnTime: pickupTime,
   };
 };
 

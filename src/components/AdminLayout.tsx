@@ -38,8 +38,8 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-  { id: 'agent-management', path: 'agent-management', icon: Handshake, label: 'Agent Management' },
   { id: 'dashboard', path: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { id: 'agent-management', path: 'agent-management', icon: Handshake, label: 'Agent Management' },
   { id: 'vehicles', path: 'vehicles', icon: Bike, label: 'Vehicles' },
   { id: 'vehicle-packages', path: 'vehicle-packages', icon: Package, label: 'Packages' },
   { id: 'bookings', path: 'bookings', icon: Calendar, label: 'Bookings' },

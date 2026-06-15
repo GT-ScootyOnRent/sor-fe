@@ -52,17 +52,20 @@ const BookingsList: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const navigate = useNavigate();
 
-    // Staff is restricted to bookings starting within the last 7 days (incl. today).
-    // Compute the window once per render — cheap and stays correct across midnight.
-    const { todayYmd, minYmd } = useMemo(() => {
+    // Staff is restricted to bookings starting within the last 7 days (incl. today)
+    // and the next 7 days. Compute the window once per render — cheap and stays
+    // correct across midnight.
+    const { minYmd, maxYmd } = useMemo(() => {
         const today = new Date();
         const min = new Date();
         min.setDate(today.getDate() - 6); // 6 days ago + today = 7 days
-        return { todayYmd: toYmd(today), minYmd: toYmd(min) };
+        const max = new Date();
+        max.setDate(today.getDate() + 7); // next 7 days
+        return { minYmd: toYmd(min), maxYmd: toYmd(max) };
     }, []);
 
     const [startDate, setStartDate] = useState(minYmd);
-    const [endDate, setEndDate] = useState(todayYmd);
+    const [endDate, setEndDate] = useState(maxYmd);
 
     const { data: bookings = [], isLoading } = useGetStaffBookingsQuery({});
 
@@ -99,8 +102,8 @@ const BookingsList: React.FC = () => {
             <div className="flex items-start gap-2 mb-4 lg:mb-5 px-3 lg:px-4 py-2 lg:py-3 rounded-lg bg-primary-50 border border-primary-100 text-xs lg:text-sm text-primary-700">
                 <Info className="w-4 h-4 mt-0.5 shrink-0" />
                 <span>
-                    Showing bookings from the last 7 days only. Contact an administrator
-                    if you need access to older bookings.
+                    Showing bookings from the last 7 days and the next 7 days only.
+                    Contact an administrator if you need access to older bookings.
                 </span>
             </div>
 
@@ -146,7 +149,7 @@ const BookingsList: React.FC = () => {
                             type="date"
                             value={startDate}
                             min={minYmd}
-                            max={endDate || todayYmd}
+                            max={endDate || maxYmd}
                             onChange={(e) => setStartDate(e.target.value)}
                             className="px-2 lg:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm"
                         />
@@ -157,7 +160,7 @@ const BookingsList: React.FC = () => {
                             type="date"
                             value={endDate}
                             min={startDate || minYmd}
-                            max={todayYmd}
+                            max={maxYmd}
                             onChange={(e) => setEndDate(e.target.value)}
                             className="px-2 lg:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-sm"
                         />
@@ -166,7 +169,7 @@ const BookingsList: React.FC = () => {
             </div>
 
             <p className="text-xs text-gray-500 mb-4 lg:mb-6">
-                Date range is restricted to the last 7 days ({minYmd} → {todayYmd}).
+                Date range is restricted to the last 7 days and next 7 days ({minYmd} → {maxYmd}).
             </p>
 
             {/* Bookings Table */}
@@ -523,7 +526,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                 </div>
                 <h2 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h2>
                 <p className="text-gray-600 mb-6">
-                    This booking is older than 7 days and cannot be accessed.
+                    This booking is outside the allowed 7-day window and cannot be accessed.
                     Please contact an administrator if you need this information.
                 </p>
                 <button

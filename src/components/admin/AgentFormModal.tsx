@@ -53,12 +53,28 @@ const buildCode = (name: string, discountValue: string): string => {
 
 const toDateInput = (iso?: string | null): string => {
   if (!iso) return '';
+  // Treat the value as a pure calendar date: take the leading yyyy-MM-dd
+  // verbatim so no timezone conversion can shift it by a day.
+  const datePart = iso.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toISOString().slice(0, 10);
 };
 
-const todayInput = () => new Date().toISOString().slice(0, 10);
+// Local "today" as yyyy-MM-dd (matches what the user sees, no UTC drift).
+const todayInput = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+// Convert a yyyy-MM-dd date input into an ISO timestamp anchored at noon UTC.
+// Noon UTC keeps the same calendar date in every timezone (-12..+14), so the
+// date can never drift by a day on round-trips through the backend.
+const dateToIso = (ymd: string): string => `${ymd}T12:00:00.000Z`;
 
 export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDraft, onSuccess }: Props) {
   const isEdit = !!agent;
@@ -169,8 +185,8 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
           ? parseFloat(form.maxDiscountAmount)
           : null,
       minOrderAmount: parseFloat(form.minOrderAmount) || 0,
-      validFrom: new Date(form.validFrom).toISOString(),
-      validUntil: form.validUntil ? new Date(form.validUntil).toISOString() : null,
+      validFrom: dateToIso(form.validFrom),
+      validUntil: form.validUntil ? dateToIso(form.validUntil) : null,
       commissionType: form.commissionType,
       commissionValue: commissionValueNum,
       isActive: form.isActive,
