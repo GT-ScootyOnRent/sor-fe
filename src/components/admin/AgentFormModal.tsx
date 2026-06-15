@@ -1,12 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { X, Loader2, Save, Globe, User, Mail, Tag, FileText } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { X, Loader2, Save, Globe, User, Mail, Tag, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useCreateAgentMutation,
   useUpdateAgentMutation,
+  useLazyCheckAgentCodeQuery,
   type Agent,
 } from '../../store/api/agentApi';
 import { useGetCitiesQuery } from '../../store/api/cityApi';
+
+const DUPLICATE_CODE_MESSAGE = 'This coupon code name already exists. Please enter a unique coupon name.';
 
 // The full form snapshot — also the shape persisted as a draft (localStorage).
 export type AgentFormData = {
@@ -71,16 +74,23 @@ const todayInput = () => {
   return `${y}-${m}-${day}`;
 };
 
-// Convert a yyyy-MM-dd date input into an ISO timestamp anchored at noon UTC.
-// Noon UTC keeps the same calendar date in every timezone (-12..+14), so the
-// date can never drift by a day on round-trips through the backend.
-const dateToIso = (ymd: string): string => `${ymd}T12:00:00.000Z`;
+// Convert a yyyy-MM-dd date input into ISO timestamps at the day's boundaries.
+// validFrom uses START of day so a coupon dated "today" is valid immediately;
+// validUntil uses END of day so it stays valid through the whole last day.
+// toDateInput() reads back the leading yyyy-MM-dd verbatim, so there is no
+// timezone day-drift on round-trips regardless of the time component.
+const dateToIsoStart = (ymd: string): string => `${ymd}T00:00:00.000Z`;
+const dateToIsoEnd = (ymd: string): string => `${ymd}T23:59:59.999Z`;
 
 export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDraft, onSuccess }: Props) {
   const isEdit = !!agent;
   const { data: allCities = [], isLoading: citiesLoading } = useGetCitiesQuery({ page: 1, size: 100 });
   const [createAgent, { isLoading: creating }] = useCreateAgentMutation();
   const [updateAgent, { isLoading: updating }] = useUpdateAgentMutation();
+  const [checkAgentCode] = useLazyCheckAgentCodeQuery();
+
+  // Live coupon-code uniqueness state.
+  const [codeStatus, setCodeStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
 
   const [form, setForm] = useState<FormState>(() => {
     if (agent) {
@@ -134,11 +144,42 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
   // name has a first word and a valid discount value is entered. When editing, the
   // code already exists, so it's always shown.
   const canShowCode = isEdit || autoCode !== '';
+
+  // Auto-fill the code from name+discount (unless the user edited it). On create we ask
+  // the API for a UNIQUE suggestion (e.g. ASHU-2 → ASHU-2-1 when ASHU-2 is taken).
   useEffect(() => {
-    if (!form.codeEditedManually) {
-      setForm((f) => ({ ...f, code: autoCode }));
-    }
-  }, [autoCode, form.codeEditedManually]);
+    if (form.codeEditedManually || !autoCode) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await checkAgentCode({ code: autoCode, excludeId: agent?.id }).unwrap();
+        if (!cancelled) setForm((f) => (f.codeEditedManually ? f : { ...f, code: res.suggestion || autoCode }));
+      } catch {
+        if (!cancelled) setForm((f) => (f.codeEditedManually ? f : { ...f, code: autoCode }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [autoCode, form.codeEditedManually, agent?.id, checkAgentCode]);
+
+  // Debounced live uniqueness check on whatever code is currently in the field.
+  const codeCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const code = form.code.trim();
+    if (codeCheckTimer.current) clearTimeout(codeCheckTimer.current);
+    if (!code) { setCodeStatus('idle'); return; }
+    // Editing without changing the original code → it's trivially available.
+    if (isEdit && agent && code.toUpperCase() === agent.code.toUpperCase()) { setCodeStatus('available'); return; }
+    setCodeStatus('checking');
+    codeCheckTimer.current = setTimeout(async () => {
+      try {
+        const res = await checkAgentCode({ code, excludeId: agent?.id }).unwrap();
+        setCodeStatus(res.available ? 'available' : 'taken');
+      } catch {
+        setCodeStatus('idle');
+      }
+    }, 400);
+    return () => { if (codeCheckTimer.current) clearTimeout(codeCheckTimer.current); };
+  }, [form.code, isEdit, agent, checkAgentCode]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -165,6 +206,7 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
       return toast.error('Percentage discount cannot exceed 100%');
     if (!form.validFrom) return toast.error('Valid From is required');
     if (!form.code.trim()) return toast.error('Coupon code is required');
+    if (codeStatus === 'taken') return toast.error(DUPLICATE_CODE_MESSAGE);
 
     // "All Cities" (global) sends an empty array; otherwise at least one city must be picked.
     const finalCityIds = form.useAllCitiesMode ? [] : form.cityIds;
@@ -185,8 +227,8 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
           ? parseFloat(form.maxDiscountAmount)
           : null,
       minOrderAmount: parseFloat(form.minOrderAmount) || 0,
-      validFrom: dateToIso(form.validFrom),
-      validUntil: form.validUntil ? dateToIso(form.validUntil) : null,
+      validFrom: dateToIsoStart(form.validFrom),
+      validUntil: form.validUntil ? dateToIsoEnd(form.validUntil) : null,
       commissionType: form.commissionType,
       commissionValue: commissionValueNum,
       isActive: form.isActive,
@@ -239,7 +281,7 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
                 type="text"
                 value={form.name}
                 onChange={(e) => set('name', e.target.value)}
-                placeholder="e.g. Vijay Tour & Travels"
+                placeholder="Enter agent name"
                 className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition"
               />
             </div>
@@ -254,7 +296,7 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
                   type="email"
                   value={form.email}
                   onChange={(e) => set('email', e.target.value)}
-                  placeholder="agent@domain.com"
+                  placeholder="Enter email address"
                   className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition"
                 />
               </div>
@@ -267,7 +309,7 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
                   type="tel"
                   value={form.phoneNumber}
                   onChange={(e) => set('phoneNumber', e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="9876543210"
+                  placeholder="Enter phone number"
                   maxLength={10}
                   className="flex-1 min-w-0 px-3 py-2.5 border border-gray-300 rounded-r-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition"
                 />
@@ -281,7 +323,7 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
               value={form.description}
               onChange={(e) => set('description', e.target.value)}
               rows={2}
-              placeholder="Notes about this agent..."
+              placeholder="Enter a short description (optional)"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition resize-none"
             />
           </div>
@@ -299,12 +341,30 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
                     setForm((f) => ({ ...f, code: e.target.value.toUpperCase(), codeEditedManually: true }))
                   }
                   placeholder="Auto-generated from name + discount"
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm font-mono uppercase focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition"
+                  className={`w-full pl-9 pr-9 py-2.5 border rounded-xl text-sm font-mono uppercase focus:ring-2 focus:border-transparent outline-none transition ${
+                    codeStatus === 'taken'
+                      ? 'border-red-400 focus:ring-red-400'
+                      : codeStatus === 'available'
+                        ? 'border-green-400 focus:ring-green-400'
+                        : 'border-gray-300 focus:ring-purple-400'
+                  }`}
                 />
+                {/* Status icon */}
+                <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {codeStatus === 'checking' && <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />}
+                  {codeStatus === 'available' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+                  {codeStatus === 'taken' && <AlertCircle className="w-4 h-4 text-red-500" />}
+                </span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Auto-generated as <span className="font-mono">FIRSTWORD-VALUE</span> (e.g. VIJAY-20). You can edit it; it must be unique.
-              </p>
+              {codeStatus === 'taken' ? (
+                <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {DUPLICATE_CODE_MESSAGE}
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">
+                  Auto-generated as <span className="font-mono">FIRSTWORD-VALUE</span> (e.g. VIJAY-20). You can edit it; it must be unique.
+                </p>
+              )}
             </div>
           )}
 
@@ -329,7 +389,7 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
                 step="0.01"
                 value={form.discountValue}
                 onChange={(e) => set('discountValue', e.target.value)}
-                placeholder={form.discountType === 'percentage' ? '10' : '100'}
+                placeholder="Enter discount value"
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition"
               />
             </div>
@@ -348,7 +408,7 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
                 value={form.maxDiscountAmount}
                 onChange={(e) => set('maxDiscountAmount', e.target.value)}
                 disabled={form.discountType !== 'percentage'}
-                placeholder="e.g. 200"
+                placeholder="Enter maximum discount"
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition disabled:bg-gray-100 disabled:text-gray-400"
               />
             </div>
@@ -360,7 +420,7 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
                 step="0.01"
                 value={form.minOrderAmount}
                 onChange={(e) => set('minOrderAmount', e.target.value)}
-                placeholder="0"
+                placeholder="Enter minimum order amount"
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition"
               />
             </div>
@@ -410,7 +470,7 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
                 step="0.01"
                 value={form.commissionValue}
                 onChange={(e) => set('commissionValue', e.target.value)}
-                placeholder={form.commissionType === 'percentage' ? '5' : '50'}
+                placeholder="Enter commission value"
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none transition"
               />
             </div>
@@ -492,8 +552,8 @@ export default function AgentFormModal({ agent, initialDraft, onClose, onSaveDra
             </button>
             <button
               onClick={handleSubmit}
-              disabled={saving}
-              className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50"
+              disabled={saving || codeStatus === 'taken' || codeStatus === 'checking'}
+              className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {isEdit ? 'Save Changes' : 'Create Agent'}

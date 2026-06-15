@@ -31,7 +31,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Role check - if user doesn't have required role
   if (allowedRoles && !allowedRoles.includes(user.userType as any)) {
     if (user.userType === 'admin' || user.userType === 'superadmin') {
-      return <Navigate to="/dashboard" replace />;
+      // /dashboard only exists in the admin app. In the customer (main) app, send
+      // an admin/superadmin session to home instead of a non-existent route (404).
+      return <Navigate to={isAdminApp ? '/dashboard' : '/'} replace />;
     }
     if (user.userType === 'user') {
       return <Navigate to="/login" replace />;

@@ -43,6 +43,8 @@ export interface CreateBookingRequest {
   totalAmount: number;
   includeSecondHelmet?: boolean;
   securityDepositMode?: 'online' | 'pickup';
+  appliedAgentCode?: string | null; // agent referral code applied at checkout (commission recorded on payment success)
+  agentOrderAmount?: number | null; // pre-discount subtotal the agent earns commission on
 }
 
 export const bookingApi = createApi({
