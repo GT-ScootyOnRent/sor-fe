@@ -111,6 +111,11 @@ export const agentApi = createApi({
       query: ({ name, discountValue }) =>
         `/Agents/generate-code?name=${encodeURIComponent(name)}&discountValue=${discountValue}`,
     }),
+    // Live uniqueness check for the form: returns { available, suggestion }.
+    checkAgentCode: builder.query<{ available: boolean; suggestion: string }, { code: string; excludeId?: number }>({
+      query: ({ code, excludeId }) =>
+        `/Agents/check-code?code=${encodeURIComponent(code)}${excludeId != null ? `&excludeId=${excludeId}` : ''}`,
+    }),
     createAgent: builder.mutation<Agent, CreateAgentDto>({
       query: (body) => ({
         url: '/Agents',
@@ -183,6 +188,7 @@ export const {
   useGetAgentsQuery,
   useGetAgentByIdQuery,
   useLazyGenerateAgentCodeQuery,
+  useLazyCheckAgentCodeQuery,
   useCreateAgentMutation,
   useUpdateAgentMutation,
   useDeleteAgentMutation,

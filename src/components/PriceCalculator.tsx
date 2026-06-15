@@ -3,8 +3,8 @@ import { Tag, AlertCircle, CheckCircle, HardHat, Gift, Sparkles, X, Wallet } fro
 import { Button } from './ui/button';
 import { toast } from 'sonner';
 import PromoCodeModal, { type CouponItem } from './PromoCodeModal';
-import { useValidatePromoCodeMutation, type PromoCodeDto } from '../store/api/promoCodeApi';
-import { useValidateAgentCodeMutation } from '../store/api/agentApi';
+import { type PromoCodeDto } from '../store/api/promoCodeApi';
+import { useValidateCouponMutation } from '../store/api/couponApi';
 import { calculatePackageBasedPrice } from '../store/api/vehiclePackageApi';
 
 const SECOND_HELMET_PRICE = 50; // ₹50 for 2nd helmet (shown as free promo)
@@ -56,9 +56,8 @@ export default function PriceCalculator({
   const [promoDiscountAmount, setPromoDiscountAmount] = useState(0);
   const [promoCode, setPromoCode] = useState('');
 
-  const [validatePromo, { isLoading: validatingPromoReq }] = useValidatePromoCodeMutation();
-  const [validateAgentCode, { isLoading: validatingAgent }] = useValidateAgentCodeMutation();
-  const validatingPromo = validatingPromoReq || validatingAgent;
+  // Single unified endpoint: resolves promo OR agent codes in one request.
+  const [validateCoupon, { isLoading: validatingPromo }] = useValidateCouponMutation();
 
   // Calculate subtotal using package-based pricing
   const subtotal = calculatePackageBasedPrice(
@@ -84,18 +83,14 @@ export default function PriceCalculator({
     }
 
     try {
-      // Agent coupons validate through the agent pipeline; regular promos through the promo one.
-      const result = promo.__isAgent
-        ? await validateAgentCode({ code: promo.code, userId, orderAmount: subtotal, cityId }).unwrap()
-        : await validatePromo({ code: promo.code, userId, orderAmount: subtotal, cityId }).unwrap();
-
+      const result = await validateCoupon({ code: promo.code, userId, orderAmount: subtotal, cityId }).unwrap();
       if (result.isValid) {
         setAppliedPromo(promo);
         setPromoDiscountAmount(result.discountAmount);
         setPromoCode('');
         setShowPromoModal(false);
         // Agent coupons must be recorded as used on payment success; promos are not.
-        onAgentApplied?.(promo.__isAgent ? { code: promo.code, orderAmount: subtotal } : null);
+        onAgentApplied?.(result.isAgent ? { code: result.code, orderAmount: subtotal } : null);
         toast.success(`Coupon "${promo.code}" applied!`);
       } else {
         toast.error(result.message || 'Coupon not applicable');
@@ -116,25 +111,14 @@ export default function PriceCalculator({
       return;
     }
 
-    // First try a regular promo code; if that fails, try an agent referral code.
+    // Single call — the backend resolves promo OR agent codes and tells us which matched.
     try {
-      const result = await validatePromo({ code, userId, orderAmount: subtotal, cityId }).unwrap();
-
+      const result = await validateCoupon({ code, userId, orderAmount: subtotal, cityId }).unwrap();
       if (result.isValid) {
-        applyCoupon(code, result.discountAmount, false);
+        applyCoupon(result.code || code, result.discountAmount, result.isAgent);
         return;
       }
-    } catch {
-      // fall through to agent code validation
-    }
-
-    try {
-      const agentResult = await validateAgentCode({ code, userId, orderAmount: subtotal, cityId }).unwrap();
-      if (agentResult.isValid) {
-        applyCoupon(code, agentResult.discountAmount, true);
-        return;
-      }
-      toast.error(agentResult.message || 'Invalid coupon code');
+      toast.error(result.message || 'Invalid coupon code');
     } catch (error: any) {
       toast.error(error?.data?.message || error?.data?.error || 'Invalid coupon code');
     }

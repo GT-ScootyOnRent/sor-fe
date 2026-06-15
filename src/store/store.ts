@@ -31,6 +31,7 @@ import { vehiclePackageApi } from './api/vehiclePackageApi';
 import { geofenceApi } from './api/geofenceApi';
 import { bookingMediaApi } from './api/bookingMediaApi';
 import { agentApi } from './api/agentApi';
+import { couponApi } from './api/couponApi';
 
 export const store = configureStore({
   reducer: {
@@ -64,6 +65,7 @@ export const store = configureStore({
     [geofenceApi.reducerPath]: geofenceApi.reducer,
     [bookingMediaApi.reducerPath]: bookingMediaApi.reducer,
     [agentApi.reducerPath]: agentApi.reducer,
+    [couponApi.reducerPath]: couponApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -90,7 +92,8 @@ export const store = configureStore({
       vehiclePackageApi.middleware,
       geofenceApi.middleware,
       bookingMediaApi.middleware,
-      agentApi.middleware
+      agentApi.middleware,
+      couponApi.middleware
     ),
 });
 

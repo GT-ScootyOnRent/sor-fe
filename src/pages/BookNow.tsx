@@ -13,7 +13,6 @@ import { LoadingSpinner } from '../components/LoadingSpinner';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { useGetVehicleByIdQuery } from '../store/api/vehicleApi';
 import { useCreateBookingMutation } from '../store/api/bookingApi';
-import { useRecordAgentUsageMutation } from '../store/api/agentApi';
 import { useGetPickupLocationByIdQuery } from '../store/api/pickupLocationApi';
 import type { PickupLocationDto } from '../store/api/pickupLocationApi';
 import { useAppSelector } from '../store/hooks';
@@ -171,7 +170,6 @@ export default function BookNow() {
   const [finalBookingAmount, setFinalBookingAmount] = useState<number>(0);
   // Agent referral code applied at checkout (recorded as used once payment succeeds)
   const [appliedAgentCode, setAppliedAgentCode] = useState<{ code: string; orderAmount: number } | null>(null);
-  const [recordAgentUsage] = useRecordAgentUsageMutation();
   const [selectedPickup, setSelectedPickup] = useState<string>(pickupLocationIdParam || '');
   const [includeSecondHelmet, setIncludeSecondHelmet] = useState(false);
   const [paySecurityAtPickup, setPaySecurityAtPickup] = useState(false); // false = pay online (default)
@@ -460,6 +458,9 @@ export default function BookNow() {
         totalAmount: amountToCharge,
         includeSecondHelmet,
         securityDepositMode: (paySecurityAtPickup ? 'pickup' : 'online') as 'pickup' | 'online',
+        // Carry the applied agent code so commission is recorded server-side on payment success.
+        appliedAgentCode: appliedAgentCode?.code ?? null,
+        agentOrderAmount: appliedAgentCode?.orderAmount ?? null,
       };
 
       const result = await createBooking(bookingRequest).unwrap();
@@ -480,17 +481,8 @@ export default function BookNow() {
     setShowPaymentModal(false);
     toast.success('Booking Confirmed!', { description: 'Your payment was successful' });
 
-    // If an agent referral code was applied, mark it as used now that payment succeeded.
-    if (appliedAgentCode && user) {
-      recordAgentUsage({
-        code: appliedAgentCode.code,
-        userId: user.id,
-        bookingId: createdBookingId ?? undefined,
-        orderAmount: appliedAgentCode.orderAmount,
-      })
-        .unwrap()
-        .catch(() => { /* non-blocking: booking already confirmed */ });
-    }
+    // Agent commission is recorded server-side during payment verification (the applied
+    // code travels on the booking), so no client-side recording is needed here.
 
     // Navigate to dynamic booking success page with all details
     const securityMode = paySecurityAtPickup ? 'pickup' : 'online';
