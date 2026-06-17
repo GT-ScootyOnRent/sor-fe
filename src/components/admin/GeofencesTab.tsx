@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Plus, Edit, Trash2, Search, MapPin, X, Save, Loader2,
-  Circle, Hexagon, Car
+  Circle, Hexagon, Car, Wand2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GoogleMap, useJsApiLoader, Polygon, Circle as GoogleCircle, DrawingManager } from '@react-google-maps/api';
@@ -15,7 +15,7 @@ import {
   type CreateGeofenceDto,
   type GeoCoordinateDto,
 } from '../../store/api/geofenceApi';
-import { useGetCitiesQuery } from '../../store/api/cityApi';
+import { useGetCitiesQuery, useGetStatesQuery } from '../../store/api/cityApi';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { FormField } from './FormField';
 
@@ -75,6 +75,7 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
   const [isDrawing, setIsDrawing] = useState(false);
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
   const [mapKey, setMapKey] = useState(0); // Force map re-render when clearing
+  const [autoFilling, setAutoFilling] = useState(false);
   
   const polygonRef = useRef<google.maps.Polygon | null>(null);
   const circleRef = useRef<google.maps.Circle | null>(null);
@@ -82,6 +83,7 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
   // API queries
   const { data: geofences = [], isLoading, refetch } = useGetGeofencesQuery();
   const { data: cities = [] } = useGetCitiesQuery({ page: 1, size: 100 });
+  const { data: states = [] } = useGetStatesQuery({ page: 1, size: 100 });
   const [createGeofence, { isLoading: creating }] = useCreateGeofenceMutation();
   const [updateGeofence, { isLoading: updating }] = useUpdateGeofenceMutation();
   const [deleteGeofence] = useDeleteGeofenceMutation();
@@ -234,6 +236,125 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
     setIsDrawing(false);
     // Force map re-render to clear any leftover overlays
     setMapKey(prev => prev + 1);
+  };
+
+  // Reduce a dense boundary ring to a manageable number of points
+  const decimate = (pts: GeoCoordinateDto[], max = 80): GeoCoordinateDto[] => {
+    if (pts.length <= max) return pts;
+    const step = Math.ceil(pts.length / max);
+    const out: GeoCoordinateDto[] = [];
+    for (let i = 0; i < pts.length; i += step) out.push(pts[i]);
+    return out;
+  };
+
+  // Auto-fill the geofence with the selected city's real boundary (OpenStreetMap/Nominatim).
+  // Falls back to the city bounding box if no boundary polygon is available.
+  const autoFillCityBoundary = async () => {
+    const city = cities.find(c => c.id === geofenceForm.cityId);
+    if (!city) { toast.error('Please select a city first'); return; }
+    const state = states.find(s => s.id === city.stateId);
+    setAutoFilling(true);
+
+    type NomResult = {
+      geojson?: { type: string; coordinates: unknown };
+      class?: string;
+      type?: string;
+      osm_type?: string;
+      addresstype?: string;
+      display_name?: string;
+      extratags?: { admin_level?: string };
+    };
+
+    const ringFromGeo = (geo?: { type: string; coordinates: unknown }): number[][] | null => {
+      if (!geo) return null;
+      if (geo.type === 'Polygon') {
+        return (geo.coordinates as number[][][])[0] ?? null;
+      }
+      if (geo.type === 'MultiPolygon') {
+        let best: number[][] = [];
+        (geo.coordinates as number[][][][]).forEach((poly) => {
+          if (poly[0] && poly[0].length > best.length) best = poly[0];
+        });
+        return best.length ? best : null;
+      }
+      return null;
+    };
+
+    // Prefer the CITY/municipal boundary (admin_level 8) over the larger
+    // district (5/6) or state (4) boundary.
+    const levelOf = (d?: NomResult): number => {
+      const lvl = Number(d?.extratags?.admin_level);
+      if (!Number.isNaN(lvl)) return lvl;
+      if (d?.addresstype === 'city' || d?.addresstype === 'municipality' || d?.addresstype === 'town') return 8;
+      return 99;
+    };
+
+    // Fetch results from a query and return the best matching boundary.
+    // Returns { ring, level } so the caller can decide if it's city-level enough.
+    const fetchBest = async (search: string): Promise<{ ring: number[][]; level: number } | null> => {
+      const qs = new URLSearchParams({
+        q: search,
+        format: 'json',
+        polygon_geojson: '1',
+        extratags: '1',
+        addressdetails: '1',
+        limit: '15',
+      });
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?${qs.toString()}`, {
+        headers: { Accept: 'application/json' },
+      });
+      const data = (await res.json()) as NomResult[];
+      const candidates = (data ?? []).filter(
+        d => d.osm_type === 'relation' && (d.class === 'boundary' || d.type === 'administrative') && ringFromGeo(d.geojson)
+      );
+      if (!candidates.length) return null;
+      // Closest to admin_level 8 (the city) wins.
+      const sorted = [...candidates].sort((a, b) => Math.abs(levelOf(a) - 8) - Math.abs(levelOf(b) - 8));
+      const best = sorted[0];
+      const ring = ringFromGeo(best.geojson)!;
+      return { ring, level: levelOf(best) };
+    };
+
+    try {
+      // Try queries in priority order. Indian city limits are usually tagged as a
+      // "Municipal Corporation" / "Nagar Nigam" (admin_level 8) relation, which a plain
+      // "City, State" search does NOT return (it returns the bigger district instead).
+      const queries = [
+        `${city.name} Municipal Corporation, ${state?.name ?? ''}, India`,
+        `${city.name} Nagar Nigam, ${state?.name ?? ''}, India`,
+        `${city.name}, ${state?.name ?? ''}, India`,
+      ].map(q => q.replace(/\s*,\s*,/g, ',').trim());
+
+      let ring: number[][] | null = null;
+      let fallbackRing: number[][] | null = null;
+
+      for (const q of queries) {
+        const result = await fetchBest(q);
+        if (!result) continue;
+        if (!fallbackRing) fallbackRing = result.ring; // remember first hit as a backup
+        if (result.level === 8) { ring = result.ring; break; } // exact city boundary
+      }
+
+      // Use the city-level boundary if found, else the best thing we got.
+      ring = ring ?? fallbackRing;
+
+      if (ring && ring.length >= 3) {
+        const coords = decimate(ring.map(([lng, lat]) => ({ lat, lng })));
+        const cLat = coords.reduce((s, c) => s + c.lat, 0) / coords.length;
+        const cLng = coords.reduce((s, c) => s + c.lng, 0) / coords.length;
+        setGeofenceForm(prev => ({ ...prev, fenceType: 'polygon', coordinates: coords }));
+        setMapCenter({ lat: cLat, lng: cLng });
+        setMapKey(k => k + 1);
+        toast.success(`Auto-filled ${city.name} boundary (${coords.length} points). Drag points to adjust if needed.`);
+        return;
+      }
+
+      toast.error(`Exact boundary not found for ${city.name}. Please draw it manually.`);
+    } catch {
+      toast.error('Failed to fetch city boundary');
+    } finally {
+      setAutoFilling(false);
+    }
   };
 
   // Update map center when city changes
@@ -444,6 +565,18 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
                     Draw Geofence on Map
                   </label>
                   <div className="flex gap-2">
+                    {geofenceForm.fenceType === 'polygon' && (
+                      <button
+                        type="button"
+                        onClick={autoFillCityBoundary}
+                        disabled={autoFilling || !geofenceForm.cityId}
+                        title={geofenceForm.cityId ? 'Auto-select the city boundary' : 'Select a city first'}
+                        className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                      >
+                        {autoFilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                        Auto-fill City
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setIsDrawing(true)}
@@ -517,10 +650,26 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
                       />
                     )}
 
-                    {/* Show existing polygon */}
+                    {/* Show existing polygon (editable: drag vertices to fine-tune) */}
                     {!isDrawing && geofenceForm.fenceType === 'polygon' && geofenceForm.coordinates && geofenceForm.coordinates.length > 0 && (
                       <Polygon
+                        editable
                         paths={geofenceForm.coordinates.map(c => ({ lat: c.lat, lng: c.lng }))}
+                        onLoad={(polygon) => {
+                          const sync = () => {
+                            const path = polygon.getPath();
+                            const coords: GeoCoordinateDto[] = [];
+                            for (let i = 0; i < path.getLength(); i++) {
+                              const p = path.getAt(i);
+                              coords.push({ lat: p.lat(), lng: p.lng() });
+                            }
+                            setGeofenceForm(prev => ({ ...prev, coordinates: coords }));
+                          };
+                          const path = polygon.getPath();
+                          path.addListener('set_at', sync);
+                          path.addListener('insert_at', sync);
+                          path.addListener('remove_at', sync);
+                        }}
                         options={{
                           fillColor: '#8B5CF6',
                           fillOpacity: 0.3,

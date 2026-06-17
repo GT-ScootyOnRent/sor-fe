@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Plus, Edit, Trash2, Search, CheckCircle, XCircle, Clock,
   Image, MapPin, X, Save, Loader2, Star, Eye, Package, FileText, Shield, Ghost,
@@ -57,6 +58,10 @@ interface VehicleDraft {
 
 const VehiclesTab: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const highlightId = Number(searchParams.get('highlight')) || null;
+  const [flashId, setFlashId] = useState<number | null>(null);
+  const highlightRowRef = useRef<HTMLTableRowElement | null>(null);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<VehicleDto | null>(null);
   const [vehicleForm, setVehicleForm] = useState<Omit<VehicleDto, 'id'>>(EMPTY_VEHICLE);
@@ -148,6 +153,17 @@ const VehiclesTab: React.FC = () => {
   const { data: vehicles = [], isLoading: vehiclesLoading, refetch: refetchVehicles } = useGetVehiclesForAdminQuery(
     { cityId: cityIdParam }
   );
+
+  // Flash + scroll to the row referenced by the ?highlight query param
+  useEffect(() => {
+    if (!highlightId || vehiclesLoading) return;
+    setFlashId(highlightId);
+    const scrollTimer = setTimeout(() => {
+      highlightRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    const clearTimer = setTimeout(() => setFlashId(null), 3000);
+    return () => { clearTimeout(scrollTimer); clearTimeout(clearTimer); };
+  }, [highlightId, vehiclesLoading]);
   const { data: cities = [] } = useGetCitiesQuery({ page: 1, size: 100 });
   const { data: vehiclePackages = [] } = useGetVehiclePackagesQuery();
 
@@ -383,7 +399,11 @@ const VehiclesTab: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filteredVehicles.map((vehicle) => (
-                  <tr key={vehicle.id} className="hover:bg-gray-50 transition">
+                  <tr
+                    key={vehicle.id}
+                    ref={vehicle.id === highlightId ? highlightRowRef : undefined}
+                    className={`transition-colors duration-700 ${flashId === vehicle.id ? 'bg-yellow-100 ring-2 ring-yellow-400' : 'hover:bg-gray-50'}`}
+                  >
                     <td className="px-4 lg:px-6 py-3 lg:py-4">
                       <p className="font-medium text-gray-900 text-sm lg:text-base">{vehicle.name}</p>
                       <p className="text-xs text-gray-500">{vehicle.model}</p>

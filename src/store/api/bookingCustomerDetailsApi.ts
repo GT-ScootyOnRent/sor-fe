@@ -33,6 +33,13 @@ export const bookingCustomerDetailsApi = createApi({
                 { type: 'BookingCustomerDetails', id: bookingId },
             ],
         }),
+        // Admin/SuperAdmin: view customer details for ANY booking
+        getAdminBookingCustomerDetails: builder.query<UserBookingDetailsResponse, number>({
+            query: (bookingId) => `/admin/bookings/${bookingId}/customer-details`,
+            providesTags: (_result, _error, bookingId) => [
+                { type: 'BookingCustomerDetails', id: bookingId },
+            ],
+        }),
         upsertBookingCustomerDetails: builder.mutation<
             UserBookingDetailsResponse,
             { bookingId: number; data: UserBookingDetailsRequest }
@@ -51,5 +58,6 @@ export const bookingCustomerDetailsApi = createApi({
 
 export const {
     useGetBookingCustomerDetailsQuery,
+    useGetAdminBookingCustomerDetailsQuery,
     useUpsertBookingCustomerDetailsMutation,
 } = bookingCustomerDetailsApi;

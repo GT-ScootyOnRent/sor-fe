@@ -21,6 +21,10 @@ export interface StaffLoginResponse {
 
 const mutex = new Mutex();
 
+// Shared so other staff-scoped API slices (e.g. offlineBookingApi) serialize refreshes
+// against the SAME lock and don't trigger concurrent refresh races.
+export const staffRefreshMutex = mutex;
+
 export interface StaffProfileDto {
     id: number;
     username: string;
