@@ -100,6 +100,13 @@ export const bookingApi = createApi({
       }),
       invalidatesTags: ['Booking'],
     }),
+    superAdminCancelBooking: builder.mutation<{ message: string }, number>({
+      query: (id) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/${id}/admin-cancel`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Booking'],
+    }),
   }),
 });
 
@@ -111,4 +118,5 @@ export const {
   useUpdateBookingMutation,
   useDeleteBookingMutation,
   useCancelBookingMutation,
+  useSuperAdminCancelBookingMutation,
 } = bookingApi;

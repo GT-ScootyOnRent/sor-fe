@@ -12,7 +12,7 @@ import { Button } from '../components/ui/button';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { setCredentials } from '../store/slices/authSlice';
 import { logout } from '../store/slices/authSlice';
-import { useGetBookingsByUserIdQuery } from '../store/api/bookingApi';
+import { useGetBookingsByUserIdQuery, useCancelBookingMutation } from '../store/api/bookingApi';
 import type { BookingDto } from '../store/api/bookingApi';
 import {
   useDeleteMyDocumentMutation,
@@ -1447,6 +1447,7 @@ export default function ProfilePage() {
     isError: isBookingsError,
     refetch: refetchBookings,
   } = useGetBookingsByUserIdQuery(user?.id ?? 0, { skip: !user?.id });
+  const [cancelBooking, { isLoading: isCancellingBooking }] = useCancelBookingMutation();
 
   const drivingLicenseDocument = getLatestProfileDocument(userDocuments, 'driving_license');
   const aadhaarDocument = getLatestProfileDocument(userDocuments, 'aadhaar');
@@ -1518,16 +1519,38 @@ export default function ProfilePage() {
     const timeRemaining = getPendingTimeRemaining(booking.createdAt);
 
     if (timeRemaining.expired) {
-      toast.error('This booking has expired. Please create a new booking.');
-      refetchBookings();
-      if (selectedBooking?.id === booking.id) {
-        setSelectedBooking(null);
-      }
+      // Free the vehicle immediately by cancelling the expired pending booking,
+      // then send the user to rebook instead of leaving the vehicle blocked.
+      void handleCancelPendingBooking(booking, { silent: true }).then(() => {
+        toast.error('This booking expired and was released. Please book again.');
+      });
       return;
     }
 
     setSelectedBooking(null);
     setPaymentBooking(booking);
+  };
+
+  const handleCancelPendingBooking = async (
+    booking: BookingDto,
+    opts?: { silent?: boolean }
+  ) => {
+    if (booking.id == null) return;
+    try {
+      await cancelBooking(booking.id).unwrap();
+      if (selectedBooking?.id === booking.id) {
+        setSelectedBooking(null);
+      }
+      await refetchBookings();
+      if (!opts?.silent) {
+        toast.success('Booking cancelled. The vehicle is now available to rebook.');
+      }
+    } catch (err: any) {
+      await refetchBookings();
+      if (!opts?.silent) {
+        toast.error(err?.data?.error ?? 'Could not cancel booking. Please try again.');
+      }
+    }
   };
 
   const handlePaymentSuccess = async () => {
@@ -1922,6 +1945,13 @@ export default function ProfilePage() {
                                 className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition"
                               >
                                 <CreditCard className="w-3.5 h-3.5" /> Pay
+                              </button>
+                              <button
+                                onClick={() => handleCancelPendingBooking(booking)}
+                                disabled={isCancellingBooking}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
+                              >
+                                <XCircle className="w-3.5 h-3.5" /> Cancel
                               </button>
                             </>
                           )}

@@ -32,7 +32,6 @@ export const API_ENDPOINTS = {
   BOOKINGS: '/Bookings',
   BOOKING_BY_ID: (id: number) => `/Bookings/${id}`,
   BOOKINGS_BY_USER: (userId: number) => `/Bookings/user/${userId}`,
-
   // Locations
   LOCATIONS: '/Locations',
   LOCATIONS_BY_CITY: (cityId: number) => `/Locations/city/${cityId}`,
