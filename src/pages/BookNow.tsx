@@ -433,8 +433,8 @@ export default function BookNow() {
     }
 
     const duration = calculateTotalHours();
-    if (duration < vehicleData.minBookingHours) {
-      toast.error(`Minimum booking duration is ${vehicleData.minBookingHours} hours`);
+    if (duration <= 0) {
+      toast.error('Please select a valid booking duration');
       return;
     }
 

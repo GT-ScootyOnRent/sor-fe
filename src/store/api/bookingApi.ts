@@ -107,6 +107,14 @@ export const bookingApi = createApi({
       }),
       invalidatesTags: ['Booking'],
     }),
+    superAdminRestoreBooking: builder.mutation<{ message: string }, { id: number; status: 0 | 1 }>({
+      query: ({ id, status }) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/${id}/admin-restore`,
+        method: 'POST',
+        body: { status },
+      }),
+      invalidatesTags: ['Booking'],
+    }),
   }),
 });
 
@@ -119,4 +127,5 @@ export const {
   useDeleteBookingMutation,
   useCancelBookingMutation,
   useSuperAdminCancelBookingMutation,
+  useSuperAdminRestoreBookingMutation,
 } = bookingApi;
