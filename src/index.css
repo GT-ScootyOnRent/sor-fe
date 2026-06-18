@@ -1,5 +1,35 @@
 @import "tailwindcss";
 
+/* iOS Safari fix: the dynamic browser toolbar makes 100vh taller than the
+   visible viewport, hiding content under the URL bar. Use dynamic viewport
+   units (dvh) where supported so full-height layouts fit the real screen. */
+@supports (height: 100dvh) {
+    .min-h-screen {
+        min-height: 100dvh;
+    }
+
+    .h-screen {
+        height: 100dvh;
+    }
+}
+
+/* iOS safe-area helpers for fixed/sticky bars on notched iPhones (viewport-fit=cover). */
+.pt-safe {
+    padding-top: env(safe-area-inset-top);
+}
+
+.pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Admin/Staff layouts: offset main content below the fixed mobile header + notch.
+   Desktop (lg) overrides this with its own pt-8, so scope to mobile only. */
+@media (max-width: 1023px) {
+    .main-content-safe {
+        padding-top: calc(4rem + env(safe-area-inset-top));
+    }
+}
+
 /* Hide the floating reCAPTCHA v3 badge. Footer carries the required
    "protected by reCAPTCHA" disclosure as required by Google's terms. */
 .grecaptcha-badge {

@@ -11,6 +11,9 @@ import {
   useUpdateBookingMutation,
   useSuperAdminCancelBookingMutation,
   useSuperAdminRestoreBookingMutation,
+  useGetRestoreRequestsQuery,
+  useApproveRestoreRequestMutation,
+  useRejectRestoreRequestMutation,
   type BookingDto,
 } from '../../store/api/bookingApi';
 import { useGetUsersQuery, type UserDto } from '../../store/api/userApi';
@@ -91,6 +94,14 @@ const BookingsTab: React.FC = () => {
   const [superAdminCancelBooking, { isLoading: isCancelling }] = useSuperAdminCancelBookingMutation();
   const [superAdminRestoreBooking, { isLoading: isRestoring }] = useSuperAdminRestoreBookingMutation();
 
+  // Staff-raised restore requests awaiting SuperAdmin review.
+  const { data: restoreRequests = [] } = useGetRestoreRequestsQuery(
+    { status: 'pending' },
+    { skip: !isSuperAdmin },
+  );
+  const [approveRestoreRequest, { isLoading: isApproving }] = useApproveRestoreRequestMutation();
+  const [rejectRestoreRequest, { isLoading: isRejecting }] = useRejectRestoreRequestMutation();
+
   // userId → user map (single fetch, no N+1)
   const userMap = useMemo(() => {
     const m = new Map<number, UserDto>();
@@ -132,6 +143,28 @@ const BookingsTab: React.FC = () => {
       refetchBookings();
     } catch (err: any) {
       toast.error(err?.data?.error ?? 'Failed to restore booking');
+    }
+  };
+
+  const handleApproveRestoreRequest = async (requestId: number, status: 0 | 1) => {
+    const label = status === 1 ? 'Confirmed' : 'Pending';
+    if (!window.confirm(`Approve and restore this booking as ${label}? The vehicle will be reserved again.`)) return;
+    try {
+      await approveRestoreRequest({ requestId, status }).unwrap();
+      toast.success(`Booking restored as ${label}.`);
+      refetchBookings();
+    } catch (err: any) {
+      toast.error(err?.data?.error ?? 'Failed to approve restore request');
+    }
+  };
+
+  const handleRejectRestoreRequest = async (requestId: number) => {
+    if (!window.confirm('Reject this restore request? The booking will stay cancelled.')) return;
+    try {
+      await rejectRestoreRequest(requestId).unwrap();
+      toast.success('Restore request rejected.');
+    } catch (err: any) {
+      toast.error(err?.data?.error ?? 'Failed to reject restore request');
     }
   };
 
@@ -185,6 +218,69 @@ const BookingsTab: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Staff restore requests (SuperAdmin review) */}
+      {isSuperAdmin && restoreRequests.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5">
+          <div className="flex items-center gap-2 mb-3">
+            <RotateCcw className="w-5 h-5 text-amber-600" />
+            <h2 className="text-sm font-bold text-amber-800">
+              Restore requests from staff ({restoreRequests.length})
+            </h2>
+          </div>
+          <div className="space-y-3">
+            {restoreRequests.map((req) => {
+              const b = bookings.find((x) => x.id === req.bookingId);
+              const user = b?.userId != null ? userMap.get(b.userId) : undefined;
+              return (
+                <div
+                  key={req.id}
+                  className="flex flex-col gap-3 rounded-xl bg-white border border-amber-100 p-3 lg:flex-row lg:items-center lg:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      Booking #{req.bookingId}
+                      {b && <span className="font-normal text-gray-600"> · {b.vehicleName ?? 'Vehicle'} · {customerLabel(user, b.userId)}</span>}
+                    </p>
+                    {b && (
+                      <p className="text-xs text-gray-500">
+                        {fmtDate(b.bookingStartDate)} → {fmtDate(b.bookingEndDate)}
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-600">
+                      <span className="font-medium text-gray-400">Reason:</span>{' '}
+                      {req.reason?.trim() ? req.reason : 'No reason provided'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleApproveRestoreRequest(req.id, 0)}
+                      disabled={isApproving || isRejecting}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Approve as Pending
+                    </button>
+                    <button
+                      onClick={() => handleApproveRestoreRequest(req.id, 1)}
+                      disabled={isApproving || isRejecting}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" /> Approve as Confirmed
+                    </button>
+                    <button
+                      onClick={() => handleRejectRestoreRequest(req.id)}
+                      disabled={isApproving || isRejecting}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Ban className="w-3.5 h-3.5" /> Reject
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Toolbar: search + status tabs */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-5">

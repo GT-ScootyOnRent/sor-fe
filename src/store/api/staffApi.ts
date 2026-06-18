@@ -19,6 +19,18 @@ export interface StaffLoginResponse {
     message?: string;
 }
 
+export interface BookingRestoreRequestDto {
+    id: number;
+    bookingId: number;
+    requestedByStaffId?: number | null;
+    reason?: string | null;
+    status: 'pending' | 'approved' | 'rejected';
+    restoredStatus?: number | null;
+    resolvedByAdminId?: number | null;
+    resolvedAt?: string | null;
+    createdAt: string;
+}
+
 const mutex = new Mutex();
 
 // Shared so other staff-scoped API slices (e.g. offlineBookingApi) serialize refreshes
@@ -174,7 +186,7 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 export const staffApi = createApi({
     reducerPath: 'staffApi',
     baseQuery: baseQueryWithReauth,
-    tagTypes: ['StaffProfile', 'Booking', 'BookingDocument', 'BookingMedia'],
+    tagTypes: ['StaffProfile', 'Booking', 'BookingDocument', 'BookingMedia', 'RestoreRequest'],
     endpoints: (builder) => ({
         // ── Auth ───────────────────────────────────────────────────────────
         staffLogin: builder.mutation<StaffLoginResponse, StaffLoginRequest>({
@@ -246,6 +258,23 @@ export const staffApi = createApi({
             providesTags: (_result, _error, id) => [{ type: 'Booking', id }],
         }),
 
+        // ── Restore requests ───────────────────────────────────────────────
+        getStaffRestoreRequests: builder.query<BookingRestoreRequestDto[], string | void>({
+            query: (status) => `/staff/bookings/restore-requests${status ? `?status=${status}` : ''}`,
+            providesTags: ['RestoreRequest'],
+        }),
+        requestBookingRestore: builder.mutation<
+            { message: string },
+            { bookingId: number; reason?: string }
+        >({
+            query: ({ bookingId, reason }) => ({
+                url: `/staff/bookings/${bookingId}/restore-request`,
+                method: 'POST',
+                body: { reason },
+            }),
+            invalidatesTags: ['RestoreRequest'],
+        }),
+
         // ── Documents ──────────────────────────────────────────────────────
         getBookingDocuments: builder.query<BookingDocumentDto[], number>({
             query: (bookingId) => `/staff/bookings/${bookingId}/documents`,
@@ -305,6 +334,9 @@ export const {
     // Bookings
     useGetStaffBookingsQuery,
     useGetStaffBookingByIdQuery,
+    // Restore requests
+    useGetStaffRestoreRequestsQuery,
+    useRequestBookingRestoreMutation,
     // Documents
     useGetBookingDocumentsQuery,
     useUploadBookingDocumentMutation,

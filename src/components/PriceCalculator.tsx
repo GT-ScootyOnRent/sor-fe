@@ -38,7 +38,6 @@ export default function PriceCalculator({
   onProceedToPayment,
   isLoading = false,
   isLoggedIn = false,
-  minBookingHours = 0,
   includeSecondHelmet = false,
   onSecondHelmetChange,
   paySecurityAtPickup = false,

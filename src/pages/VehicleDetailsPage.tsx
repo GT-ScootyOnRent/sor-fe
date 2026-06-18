@@ -450,7 +450,7 @@ const VehicleDetailsPage: React.FC = () => {
                       value={bookingDates.startDate || ''}
                       onChange={(e) => handleDateChange({ ...bookingDates, startDate: e.target.value })}
                       min={new Date().toISOString().split('T')[0]}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                      className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                     <input
                       type="time"
@@ -458,7 +458,7 @@ const VehicleDetailsPage: React.FC = () => {
                       onChange={(e) => handleDateChange({ ...bookingDates, startTime: e.target.value })}
                       min={bookingDates.startDate === new Date().toISOString().split('T')[0] ? (() => { const now = new Date(); now.setHours(now.getHours() + 1); return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`; })() : '06:00'}
                       max="23:30"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                      className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                   </div>
                 </div>
@@ -475,7 +475,7 @@ const VehicleDetailsPage: React.FC = () => {
                       value={bookingDates.endDate || ''}
                       onChange={(e) => handleDateChange({ ...bookingDates, endDate: e.target.value })}
                       min={bookingDates.startDate || new Date().toISOString().split('T')[0]}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                      className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                     <input
                       type="time"
@@ -495,7 +495,7 @@ const VehicleDetailsPage: React.FC = () => {
                         return '06:00';
                       })()}
                       max="23:30"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                      className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                     />
                   </div>
                 </div>
