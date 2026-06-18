@@ -172,8 +172,22 @@ function ProfileDocumentUploadModal({
   const [isCameraStarting, setIsCameraStarting] = useState(false);
   const [uploadMyDocument, { isLoading: isUploading }] = useUploadMyDocumentMutation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
+
+  // Live preview (getUserMedia) only works in a secure context (HTTPS/localhost) and full
+  // browsers. On http://, in-app webviews, or unsupported browsers we fall back to the native
+  // device camera via <input capture>.
+  const canUseLiveCamera =
+    typeof navigator !== 'undefined' &&
+    !!navigator.mediaDevices?.getUserMedia &&
+    typeof window !== 'undefined' &&
+    window.isSecureContext;
+
+  const openNativeCamera = () => {
+    nativeCameraInputRef.current?.click();
+  };
 
   const stopCameraStream = () => {
     if (!cameraStreamRef.current) {
@@ -342,7 +356,12 @@ function ProfileDocumentUploadModal({
               type="button"
               onClick={() => {
                 setSelectedFile(null);
-                setInputMode('camera');
+                setCameraError(null);
+                if (canUseLiveCamera) {
+                  setInputMode('camera');
+                } else {
+                  openNativeCamera();
+                }
               }}
               className={`px-3 py-2 rounded-lg border text-sm font-medium transition ${inputMode === 'camera'
                 ? 'border-primary-600 bg-primary-50 text-primary-700'
@@ -353,25 +372,53 @@ function ProfileDocumentUploadModal({
             </button>
           </div>
 
+          <input
+            ref={nativeCameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              if (file) {
+                setSelectedFile(file);
+                setInputMode('upload');
+              }
+              if (nativeCameraInputRef.current) {
+                nativeCameraInputRef.current.value = '';
+              }
+            }}
+          />
+
           {inputMode === 'camera' ? (
             <div className="space-y-3 rounded-xl border border-gray-200 p-3">
-              <div className="overflow-hidden rounded-lg bg-gray-900 aspect-[4/3] flex items-center justify-center">
+              <div className="relative overflow-hidden rounded-lg bg-gray-900 aspect-[4/3] flex items-center justify-center">
+                <video
+                  ref={videoPreviewRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="h-full w-full object-cover"
+                />
                 {cameraError ? (
-                  <p className="px-4 text-center text-sm text-white/85">{cameraError}</p>
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900 px-4 text-center">
+                    <div className="space-y-2">
+                      <p className="text-sm text-white/85">{cameraError}</p>
+                      <button
+                        type="button"
+                        onClick={openNativeCamera}
+                        className="px-3 py-1.5 bg-white/15 text-white text-sm rounded-lg hover:bg-white/25 transition"
+                      >
+                        Use device camera
+                      </button>
+                    </div>
+                  </div>
                 ) : isCameraStarting ? (
-                  <div className="flex items-center text-sm text-white/85">
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-sm text-white/85">
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Starting camera...
                   </div>
-                ) : (
-                  <video
-                    ref={videoPreviewRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="h-full w-full object-cover"
-                  />
-                )}
+                ) : null}
               </div>
               <div className="flex gap-2 flex-wrap">
                 <button
