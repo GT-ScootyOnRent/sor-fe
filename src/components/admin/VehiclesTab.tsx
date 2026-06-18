@@ -35,6 +35,7 @@ import { FormField } from './FormField';
 const EMPTY_VEHICLE: Omit<VehicleDto, 'id'> = {
   name: '', make: '', model: '', registrationNumber: '', cityId: 0,
   isAvailable: true, featured: false, isComingSoon: false, isDummy: false,
+  dummyAvailableInDays: 3,
   pricePerHour: 0, pricePerDay: 0, minBookingHours: 4,
   kmLimit: 100, excessKmCharge: 5, lateReturnCharge: 80,
   rating: 0, fuelType: 'Petrol', vehicleType: 'Scooter',
@@ -219,6 +220,7 @@ const VehiclesTab: React.FC = () => {
       specs: vehicle.specs ?? EMPTY_VEHICLE.specs,
       isComingSoon: vehicle.isComingSoon ?? false,
       isDummy: vehicle.isDummy ?? false,
+      dummyAvailableInDays: vehicle.dummyAvailableInDays ?? 3,
     });
     setVehicleModalTab('details');
     setShowVehicleModal(true);
@@ -722,6 +724,19 @@ const VehiclesTab: React.FC = () => {
                         <span className="text-sm text-gray-700">Dummy Vehicle</span>
                       </label>
                     </div>
+                    {vehicleForm.isDummy && (
+                      <div className="mt-4 max-w-xs">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Available after (days)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={vehicleForm.dummyAvailableInDays}
+                          onChange={(e) => setVehicleForm({ ...vehicleForm, dummyAvailableInDays: Math.max(1, Number(e.target.value) || 1) })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Shows “Available from” as the search end date plus this many days.</p>
+                      </div>
+                    )}
                   </div>
                 </>
               )}

@@ -14,6 +14,7 @@ import {
     Download,
     Info,
     ShieldAlert,
+    RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -23,6 +24,8 @@ import {
     useGetBookingMediaQuery,
     useUploadBookingDocumentMutation,
     useUploadBookingMediaMutation,
+    useGetStaffRestoreRequestsQuery,
+    useRequestBookingRestoreMutation,
 } from '../../store/api/staffApi';
 
 const StaffBookingsPage: React.FC = () => {
@@ -68,6 +71,34 @@ const BookingsList: React.FC = () => {
     const [endDate, setEndDate] = useState(maxYmd);
 
     const { data: bookings = [], isLoading } = useGetStaffBookingsQuery({});
+
+    // Track which cancelled bookings already have a pending restore request so we
+    // show a "Requested" badge instead of the button.
+    const { data: restoreRequests = [] } = useGetStaffRestoreRequestsQuery();
+    const [requestBookingRestore, { isLoading: isRequesting }] = useRequestBookingRestoreMutation();
+    const pendingRestoreIds = useMemo(
+        () => new Set(restoreRequests.filter((r) => r.status === 'pending').map((r) => r.bookingId)),
+        [restoreRequests],
+    );
+    const [restoreModalBooking, setRestoreModalBooking] = useState<number | null>(null);
+    const [restoreReason, setRestoreReason] = useState('');
+
+    const submitRestoreRequest = async () => {
+        if (restoreModalBooking == null) return;
+        try {
+            await requestBookingRestore({
+                bookingId: restoreModalBooking,
+                reason: restoreReason.trim() || undefined,
+            }).unwrap();
+            toast.success('Restore request sent to SuperAdmin');
+            setRestoreModalBooking(null);
+            setRestoreReason('');
+        } catch (err) {
+            const message =
+                (err as { data?: { error?: string } })?.data?.error ?? 'Failed to send restore request';
+            toast.error(message);
+        }
+    };
 
     const filteredBookings = bookings.filter((b) => {
         const matchesSearch =
@@ -247,18 +278,83 @@ const BookingsList: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-3 lg:px-5 py-3 lg:py-4">
-                                            <button
-                                                onClick={() => navigate(`/bookings/${booking.id}`)}
-                                                className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
-                                                title="View Details"
-                                            >
-                                                <Eye className="w-4 h-4" />
-                                            </button>
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    onClick={() => navigate(`/bookings/${booking.id}`)}
+                                                    className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
+                                                    title="View Details"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                </button>
+                                                {booking.status === 'cancelled' && (
+                                                    pendingRestoreIds.has(booking.id) ? (
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
+                                                            <RotateCcw className="w-3 h-3" /> Restore requested
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => {
+                                                                setRestoreReason('');
+                                                                setRestoreModalBooking(booking.id);
+                                                            }}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition"
+                                                            title="Request SuperAdmin to undo cancellation"
+                                                        >
+                                                            <RotateCcw className="w-3.5 h-3.5" /> Request restore
+                                                        </button>
+                                                    )
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+
+            {/* Restore request modal */}
+            {restoreModalBooking != null && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                    <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+                        <div className="mb-3 flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-gray-900">Request restore</h3>
+                            <button
+                                onClick={() => setRestoreModalBooking(null)}
+                                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <p className="mb-3 text-sm text-gray-600">
+                            Ask a SuperAdmin to undo the cancellation of booking #{restoreModalBooking}.
+                            Add a short reason (optional).
+                        </p>
+                        <textarea
+                            value={restoreReason}
+                            onChange={(e) => setRestoreReason(e.target.value)}
+                            rows={3}
+                            maxLength={500}
+                            placeholder="Why should this booking be restored?"
+                            className="w-full resize-none rounded-lg border border-gray-300 p-3 text-sm outline-none focus:border-transparent focus:ring-2 focus:ring-primary-500"
+                        />
+                        <div className="mt-4 flex justify-end gap-2">
+                            <button
+                                onClick={() => setRestoreModalBooking(null)}
+                                className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={submitRestoreRequest}
+                                disabled={isRequesting}
+                                className="inline-flex items-center gap-1 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
+                            >
+                                {isRequesting && <Loader2 className="h-4 w-4 animate-spin" />}
+                                Send request
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -47,10 +47,22 @@ export interface CreateBookingRequest {
   agentOrderAmount?: number | null; // pre-discount subtotal the agent earns commission on
 }
 
+export interface BookingRestoreRequestDto {
+  id: number;
+  bookingId: number;
+  requestedByStaffId?: number | null;
+  reason?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  restoredStatus?: number | null;
+  resolvedByAdminId?: number | null;
+  resolvedAt?: string | null;
+  createdAt: string;
+}
+
 export const bookingApi = createApi({
   reducerPath: 'bookingApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Booking'],
+  tagTypes: ['Booking', 'RestoreRequest'],
   endpoints: (builder) => ({
     getBookings: builder.query<BookingDto[], { page?: number; size?: number; cityId?: number }>({
       query: ({ page = 1, size = 10, cityId }) => {
@@ -107,6 +119,36 @@ export const bookingApi = createApi({
       }),
       invalidatesTags: ['Booking'],
     }),
+    superAdminRestoreBooking: builder.mutation<{ message: string }, { id: number; status: 0 | 1 }>({
+      query: ({ id, status }) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/${id}/admin-restore`,
+        method: 'POST',
+        body: { status },
+      }),
+      invalidatesTags: ['Booking'],
+    }),
+    getRestoreRequests: builder.query<BookingRestoreRequestDto[], { status?: string } | void>({
+      query: (arg) => {
+        const status = arg && 'status' in arg ? arg.status : undefined;
+        return `${API_ENDPOINTS.BOOKINGS}/restore-requests${status ? `?status=${status}` : ''}`;
+      },
+      providesTags: ['RestoreRequest'],
+    }),
+    approveRestoreRequest: builder.mutation<{ message: string }, { requestId: number; status: 0 | 1 }>({
+      query: ({ requestId, status }) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/restore-requests/${requestId}/approve`,
+        method: 'POST',
+        body: { status },
+      }),
+      invalidatesTags: ['Booking', 'RestoreRequest'],
+    }),
+    rejectRestoreRequest: builder.mutation<{ message: string }, number>({
+      query: (requestId) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/restore-requests/${requestId}/reject`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['RestoreRequest'],
+    }),
   }),
 });
 
@@ -119,4 +161,8 @@ export const {
   useDeleteBookingMutation,
   useCancelBookingMutation,
   useSuperAdminCancelBookingMutation,
+  useSuperAdminRestoreBookingMutation,
+  useGetRestoreRequestsQuery,
+  useApproveRestoreRequestMutation,
+  useRejectRestoreRequestMutation,
 } = bookingApi;

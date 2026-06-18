@@ -40,6 +40,7 @@ export interface VehicleDto {
   featured: boolean;
   isComingSoon: boolean;
   isDummy: boolean;
+  dummyAvailableInDays: number;
   pricePerHour: number;
   pricePerDay: number;
   minBookingHours: number;

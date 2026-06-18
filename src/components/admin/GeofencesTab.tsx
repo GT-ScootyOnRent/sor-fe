@@ -5,6 +5,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { GoogleMap, useJsApiLoader, Polygon, Circle as GoogleCircle, DrawingManager } from '@react-google-maps/api';
+import union from '@turf/union';
+import difference from '@turf/difference';
+import { polygon as turfPolygon, featureCollection } from '@turf/helpers';
 
 import {
   useGetGeofencesQuery,
@@ -67,6 +70,14 @@ interface GeofencesTabProps {
   isSuperAdmin?: boolean;
 }
 
+// A searchable area result with a usable boundary ring (from Nominatim/OSM)
+interface AreaSearchResult {
+  id: string;
+  label: string;
+  kind: string;
+  ring: GeoCoordinateDto[];
+}
+
 const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperAdmin = false }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -76,7 +87,14 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
   const [mapCenter, setMapCenter] = useState(DEFAULT_CENTER);
   const [mapKey, setMapKey] = useState(0); // Force map re-render when clearing
   const [autoFilling, setAutoFilling] = useState(false);
-  
+
+  // Area search (highlight an arbitrary place, then use it as the boundary)
+  const [areaQuery, setAreaQuery] = useState('');
+  const [areaSearching, setAreaSearching] = useState(false);
+  const [areaResults, setAreaResults] = useState<AreaSearchResult[]>([]);
+  const [highlightedArea, setHighlightedArea] = useState<GeoCoordinateDto[] | null>(null);
+  const [highlightedLabel, setHighlightedLabel] = useState('');
+
   const polygonRef = useRef<google.maps.Polygon | null>(null);
   const circleRef = useRef<google.maps.Circle | null>(null);
 
@@ -115,6 +133,10 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
   const handleOpenAdd = () => {
     setEditingGeofence(null);
     setGeofenceForm(EMPTY_GEOFENCE);
+    setAreaQuery('');
+    setAreaResults([]);
+    setHighlightedArea(null);
+    setHighlightedLabel('');
     setShowModal(true);
   };
 
@@ -138,7 +160,11 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
     } else if (geofence.coordinates && geofence.coordinates.length > 0) {
       setMapCenter({ lat: geofence.coordinates[0].lat, lng: geofence.coordinates[0].lng });
     }
-    
+
+    setAreaQuery('');
+    setAreaResults([]);
+    setHighlightedArea(null);
+    setHighlightedLabel('');
     setShowModal(true);
   };
 
@@ -342,6 +368,14 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
         const coords = decimate(ring.map(([lng, lat]) => ({ lat, lng })));
         const cLat = coords.reduce((s, c) => s + c.lat, 0) / coords.length;
         const cLng = coords.reduce((s, c) => s + c.lng, 0) / coords.length;
+        if (geofenceForm.fenceType === 'circle') {
+          const { center, radius } = ringToCircle(coords);
+          setGeofenceForm(prev => ({ ...prev, centerLat: center.lat, centerLng: center.lng, radiusMeters: radius }));
+          setMapCenter(center);
+          setMapKey(k => k + 1);
+          toast.success(`Auto-filled ${city.name} as a circle (~${(radius / 1000).toFixed(1)} km). Adjust the radius if needed.`);
+          return;
+        }
         setGeofenceForm(prev => ({ ...prev, fenceType: 'polygon', coordinates: coords }));
         setMapCenter({ lat: cLat, lng: cLng });
         setMapKey(k => k + 1);
@@ -355,6 +389,250 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
     } finally {
       setAutoFilling(false);
     }
+  };
+
+  // ── Area search: find any place by name and highlight its boundary ──────
+
+  // Convert a polygon ring into a bounding circle (centroid + max distance).
+  const ringToCircle = (ring: GeoCoordinateDto[]): { center: GeoCoordinateDto; radius: number } => {
+    const cLat = ring.reduce((s, c) => s + c.lat, 0) / ring.length;
+    const cLng = ring.reduce((s, c) => s + c.lng, 0) / ring.length;
+    const center = { lat: cLat, lng: cLng };
+    const R = 6371000; // earth radius (m)
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    let radius = 0;
+    ring.forEach((p) => {
+      const dLat = toRad(p.lat - cLat);
+      const dLng = toRad(p.lng - cLng);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(cLat)) * Math.cos(toRad(p.lat)) * Math.sin(dLng / 2) ** 2;
+      const dist = 2 * R * Math.asin(Math.sqrt(a));
+      if (dist > radius) radius = dist;
+    });
+    return { center, radius: Math.round(Math.min(Math.max(radius, 50), 50000)) };
+  };
+
+  const ringFromAnyGeo = (geo?: { type: string; coordinates: unknown }): number[][] | null => {
+    if (!geo) return null;
+    if (geo.type === 'Polygon') {
+      return (geo.coordinates as number[][][])[0] ?? null;
+    }
+    if (geo.type === 'MultiPolygon') {
+      let best: number[][] = [];
+      (geo.coordinates as number[][][][]).forEach((poly) => {
+        if (poly[0] && poly[0].length > best.length) best = poly[0];
+      });
+      return best.length ? best : null;
+    }
+    return null;
+  };
+
+  const searchArea = async () => {
+    const q = areaQuery.trim();
+    if (!q) { toast.error('Type an area or place name to search'); return; }
+    setAreaSearching(true);
+    setAreaResults([]);
+
+    type NomSearch = {
+      place_id?: number;
+      display_name?: string;
+      type?: string;
+      addresstype?: string;
+      lat?: string;
+      lon?: string;
+      boundingbox?: [string, string, string, string]; // [south, north, west, east]
+      geojson?: { type: string; coordinates: unknown };
+    };
+
+    const queryNominatim = async (search: string): Promise<NomSearch[]> => {
+      const qs = new URLSearchParams({
+        q: search,
+        format: 'json',
+        polygon_geojson: '1',
+        addressdetails: '1',
+        limit: '10',
+      });
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?${qs.toString()}`, {
+        headers: { Accept: 'application/json' },
+      });
+      return (await res.json()) as NomSearch[];
+    };
+
+    // Build a rectangular ring from a bounding box (fallback when no polygon)
+    const boxRing = (south: number, north: number, west: number, east: number): GeoCoordinateDto[] => ([
+      { lat: south, lng: west },
+      { lat: south, lng: east },
+      { lat: north, lng: east },
+      { lat: north, lng: west },
+    ]);
+
+    const toResults = (data: NomSearch[]): AreaSearchResult[] => {
+      const results: AreaSearchResult[] = [];
+      (data ?? []).forEach((d, idx) => {
+        let ring: GeoCoordinateDto[] | null = null;
+        const raw = ringFromAnyGeo(d.geojson);
+        if (raw && raw.length >= 3) {
+          ring = decimate(raw.map(([lng, lat]) => ({ lat, lng })));
+        } else if (d.boundingbox && d.boundingbox.length === 4) {
+          const [s, n, w, e] = d.boundingbox.map(Number);
+          ring = boxRing(s, n, w, e);
+        } else if (d.lat && d.lon) {
+          const lat = Number(d.lat);
+          const lng = Number(d.lon);
+          const dLat = 0.009; // ~1 km
+          const dLng = 0.009 / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+          ring = boxRing(lat - dLat, lat + dLat, lng - dLng, lng + dLng);
+        }
+        if (!ring || ring.length < 3) return;
+        results.push({
+          id: String(d.place_id ?? idx),
+          label: d.display_name ?? q,
+          kind: d.addresstype ?? d.type ?? 'area',
+          ring,
+        });
+      });
+      return results;
+    };
+
+    try {
+      const city = cities.find(c => c.id === geofenceForm.cityId);
+      const state = city ? states.find(s => s.id === city.stateId) : undefined;
+      const suffix = [city?.name, state?.name, 'India'].filter(Boolean).join(', ');
+
+      // Pass 1: search the term as typed (anywhere). If the user already typed a
+      // place outside the city, this finds it.
+      let results = toResults(await queryNominatim(q));
+
+      // Pass 2: if nothing found, bias towards the selected city/state to help
+      // short/ambiguous local names resolve.
+      if (!results.length && suffix) {
+        results = toResults(await queryNominatim(`${q}, ${suffix}`));
+      }
+
+      if (!results.length) {
+        toast.error('No results found for that search. Try a more specific name.');
+      }
+      setAreaResults(results);
+    } catch {
+      toast.error('Failed to search area');
+    } finally {
+      setAreaSearching(false);
+    }
+  };
+
+  const selectAreaResult = (result: AreaSearchResult) => {
+    setHighlightedArea(result.ring);
+    setHighlightedLabel(result.label);
+    setAreaResults([]);
+    const cLat = result.ring.reduce((s, c) => s + c.lat, 0) / result.ring.length;
+    const cLng = result.ring.reduce((s, c) => s + c.lng, 0) / result.ring.length;
+    setMapCenter({ lat: cLat, lng: cLng });
+    setMapKey(k => k + 1);
+  };
+
+  const useHighlightedAsBoundary = () => {
+    if (!highlightedArea) return;
+    if (geofenceForm.fenceType === 'circle') {
+      const { center, radius } = ringToCircle(highlightedArea);
+      setGeofenceForm(prev => ({ ...prev, centerLat: center.lat, centerLng: center.lng, radiusMeters: radius }));
+      setHighlightedArea(null);
+      setHighlightedLabel('');
+      setMapCenter(center);
+      setMapKey(k => k + 1);
+      toast.success(`Circle set from search (~${(radius / 1000).toFixed(1)} km). Adjust the radius if needed.`);
+      return;
+    }
+    setGeofenceForm(prev => ({ ...prev, fenceType: 'polygon', coordinates: highlightedArea }));
+    setHighlightedArea(null);
+    setHighlightedLabel('');
+    setMapKey(k => k + 1);
+    toast.success('Boundary set from search. Drag points to adjust if needed.');
+  };
+
+  // Convert a ring (open) into a closed GeoJSON polygon feature for turf.
+  const ringToTurf = (ring: GeoCoordinateDto[]) => {
+    const coords = ring.map(c => [c.lng, c.lat] as [number, number]);
+    if (coords.length && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) {
+      coords.push(coords[0]); // close the ring
+    }
+    return turfPolygon([coords]);
+  };
+
+  // From a turf geometry pick the largest outer ring as a flat GeoCoordinateDto[].
+  const largestRingFromTurf = (geom: ReturnType<typeof union>): GeoCoordinateDto[] | null => {
+    if (!geom) return null;
+    const g = geom.geometry;
+    let best: number[][] = [];
+    if (g.type === 'Polygon') {
+      best = g.coordinates[0] as number[][];
+    } else if (g.type === 'MultiPolygon') {
+      (g.coordinates as number[][][][]).forEach(poly => {
+        if (poly[0] && poly[0].length > best.length) best = poly[0] as number[][];
+      });
+    }
+    if (best.length < 4) return null;
+    return decimate(best.map(([lng, lat]) => ({ lat, lng })));
+  };
+
+  const addHighlightedToGeofence = () => {
+    if (!highlightedArea) return;
+    const existing = geofenceForm.coordinates;
+    // No existing polygon → behave like "use as boundary".
+    if (!existing || existing.length < 3) {
+      useHighlightedAsBoundary();
+      return;
+    }
+    try {
+      const merged = union(featureCollection([ringToTurf(existing), ringToTurf(highlightedArea)]));
+      if (!merged) { toast.error('Could not merge the areas'); return; }
+      // A geofence stores a SINGLE ring. If the searched area does not touch/overlap
+      // the existing polygon, union returns a MultiPolygon which we cannot store.
+      if (merged.geometry.type === 'MultiPolygon' && merged.geometry.coordinates.length > 1) {
+        toast.error('That area is separate from the current geofence. It must touch or overlap to be added.');
+        return;
+      }
+      const ring = largestRingFromTurf(merged);
+      if (!ring) { toast.error('Could not merge the areas'); return; }
+      setGeofenceForm(prev => ({ ...prev, fenceType: 'polygon', coordinates: ring }));
+      setHighlightedArea(null);
+      setHighlightedLabel('');
+      setMapKey(k => k + 1);
+      toast.success('Area added to geofence.');
+    } catch {
+      toast.error('Failed to add area to geofence');
+    }
+  };
+
+  const removeHighlightedFromGeofence = () => {
+    if (!highlightedArea) return;
+    const existing = geofenceForm.coordinates;
+    if (!existing || existing.length < 3) {
+      toast.error('Nothing to remove from — draw or set a boundary first');
+      return;
+    }
+    try {
+      const diff = difference(featureCollection([ringToTurf(existing), ringToTurf(highlightedArea)]));
+      if (!diff) {
+        toast.error('Removing this area would leave nothing');
+        return;
+      }
+      const ring = largestRingFromTurf(diff);
+      if (!ring) { toast.error('Could not subtract the area'); return; }
+      setGeofenceForm(prev => ({ ...prev, fenceType: 'polygon', coordinates: ring }));
+      setHighlightedArea(null);
+      setHighlightedLabel('');
+      setMapKey(k => k + 1);
+      toast.success('Area removed from geofence.');
+    } catch {
+      toast.error('Failed to remove area from geofence');
+    }
+  };
+
+  const clearHighlight = () => {
+    setHighlightedArea(null);
+    setHighlightedLabel('');
+    setMapKey(k => k + 1);
   };
 
   // Update map center when city changes
@@ -565,18 +843,16 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
                     Draw Geofence on Map
                   </label>
                   <div className="flex gap-2">
-                    {geofenceForm.fenceType === 'polygon' && (
-                      <button
-                        type="button"
-                        onClick={autoFillCityBoundary}
-                        disabled={autoFilling || !geofenceForm.cityId}
-                        title={geofenceForm.cityId ? 'Auto-select the city boundary' : 'Select a city first'}
-                        className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
-                      >
-                        {autoFilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-                        Auto-fill City
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={autoFillCityBoundary}
+                      disabled={autoFilling || !geofenceForm.cityId}
+                      title={geofenceForm.cityId ? 'Auto-select the city boundary' : 'Select a city first'}
+                      className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                    >
+                      {autoFilling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                      Auto-fill City
+                    </button>
                     <button
                       type="button"
                       onClick={() => setIsDrawing(true)}
@@ -593,6 +869,105 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
                     </button>
                   </div>
                 </div>
+
+                {/* Area search — find any place and highlight its boundary */}
+                <div className="mb-3">
+                  <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={areaQuery}
+                          onChange={(e) => setAreaQuery(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchArea(); } }}
+                          placeholder="Search an area, locality or place to highlight…"
+                          className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={searchArea}
+                        disabled={areaSearching || !areaQuery.trim()}
+                        className="px-3 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                      >
+                        {areaSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                        Search
+                      </button>
+                    </div>
+
+                    {/* Results dropdown */}
+                    {areaResults.length > 0 && (
+                      <div className="mt-2 border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto bg-white shadow-sm">
+                        {areaResults.map((r) => (
+                          <button
+                            key={r.id}
+                            type="button"
+                            onClick={() => selectAreaResult(r)}
+                            className="w-full text-left px-3 py-2 hover:bg-gray-50 transition flex items-start gap-2"
+                          >
+                            <MapPin className="w-4 h-4 text-primary-500 mt-0.5 flex-shrink-0" />
+                            <span className="min-w-0">
+                              <span className="block text-sm text-gray-800 truncate">{r.label}</span>
+                              <span className="block text-xs text-gray-400 capitalize">{r.kind}</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Highlighted-area action banner */}
+                    {highlightedArea && (
+                      <div className="mt-2 bg-orange-50 border border-orange-200 rounded-lg p-3 flex items-center justify-between gap-3">
+                        <p className="text-sm text-orange-800 min-w-0">
+                          <span className="font-semibold">Previewing:</span>{' '}
+                          <span className="truncate">{highlightedLabel}</span>
+                        </p>
+                        <div className="flex gap-2 flex-shrink-0">
+                          {geofenceForm.fenceType === 'circle' ? (
+                            <button
+                              type="button"
+                              onClick={useHighlightedAsBoundary}
+                              className="px-3 py-1.5 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+                            >
+                              Use as boundary
+                            </button>
+                          ) : geofenceForm.coordinates && geofenceForm.coordinates.length >= 3 ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={addHighlightedToGeofence}
+                                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                              >
+                                Add to geofence
+                              </button>
+                              <button
+                                type="button"
+                                onClick={removeHighlightedFromGeofence}
+                                className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                              >
+                                Remove from geofence
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={useHighlightedAsBoundary}
+                              className="px-3 py-1.5 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+                            >
+                              Use as boundary
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={clearHighlight}
+                            className="px-3 py-1.5 text-sm border border-orange-300 text-orange-700 rounded-lg hover:bg-orange-100 transition"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                 {loadError && (
                   <div className="w-full h-[400px] bg-gray-100 rounded-xl flex items-center justify-center">
@@ -689,6 +1064,21 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
                           fillOpacity: 0.3,
                           strokeColor: '#3B82F6',
                           strokeWeight: 2,
+                        }}
+                      />
+                    )}
+
+                    {/* Highlighted area preview from search (non-editable) */}
+                    {highlightedArea && highlightedArea.length > 0 && (
+                      <Polygon
+                        paths={highlightedArea.map(c => ({ lat: c.lat, lng: c.lng }))}
+                        options={{
+                          fillColor: '#F97316',
+                          fillOpacity: 0.15,
+                          strokeColor: '#F97316',
+                          strokeWeight: 2,
+                          clickable: false,
+                          zIndex: 5,
                         }}
                       />
                     )}

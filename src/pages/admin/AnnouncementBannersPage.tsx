@@ -164,9 +164,24 @@ export default function AnnouncementBannersPage() {
     if (!banners) return;
     const idx = banners.findIndex((b) => b.id === id);
     if (idx === -1) return;
-    const newOrder = direction === 'up' ? idx : idx + 2;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= banners.length) return; // already at the edge
+
+    const current = banners[idx];
+    const neighbor = banners[swapIdx];
+    // Swap the two banners' display orders. If they happen to share the same
+    // order (legacy data), nudge so the move still takes effect.
+    let currentTarget = neighbor.displayOrder;
+    let neighborTarget = current.displayOrder;
+    if (currentTarget === neighborTarget) {
+      currentTarget = direction === 'up' ? neighborTarget - 1 : neighborTarget + 1;
+    }
+
     try {
-      await reorderBanner({ id, displayOrder: newOrder }).unwrap();
+      await Promise.all([
+        reorderBanner({ id: current.id, displayOrder: currentTarget }).unwrap(),
+        reorderBanner({ id: neighbor.id, displayOrder: neighborTarget }).unwrap(),
+      ]);
       refetch();
     } catch {
       toast.error('Failed to reorder');

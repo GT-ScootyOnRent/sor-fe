@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Eye, Download, Search, X, Ban, CheckCircle, Check,
-  ArrowUpRight, Bike,
+  ArrowUpRight, Bike, RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -10,6 +10,10 @@ import {
   useGetBookingsQuery,
   useUpdateBookingMutation,
   useSuperAdminCancelBookingMutation,
+  useSuperAdminRestoreBookingMutation,
+  useGetRestoreRequestsQuery,
+  useApproveRestoreRequestMutation,
+  useRejectRestoreRequestMutation,
   type BookingDto,
 } from '../../store/api/bookingApi';
 import { useGetUsersQuery, type UserDto } from '../../store/api/userApi';
@@ -67,6 +71,8 @@ const fmtDateTime = (d?: string, time?: string) => {
 const customerLabel = (u?: UserDto, userId?: number) =>
   u?.name?.trim() || u?.userNumber || `Customer #${userId ?? '—'}`;
 
+const SECURITY_DEPOSIT = 2000; // ₹2000 refundable security deposit
+
 const BookingsTab: React.FC = () => {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<'all' | 0 | 1 | 2 | 3>('all');
@@ -86,6 +92,15 @@ const BookingsTab: React.FC = () => {
   const { data: users = [] } = useGetUsersQuery({ page: 1, size: 1000 });
   const [updateBooking] = useUpdateBookingMutation();
   const [superAdminCancelBooking, { isLoading: isCancelling }] = useSuperAdminCancelBookingMutation();
+  const [superAdminRestoreBooking, { isLoading: isRestoring }] = useSuperAdminRestoreBookingMutation();
+
+  // Staff-raised restore requests awaiting SuperAdmin review.
+  const { data: restoreRequests = [] } = useGetRestoreRequestsQuery(
+    { status: 'pending' },
+    { skip: !isSuperAdmin },
+  );
+  const [approveRestoreRequest, { isLoading: isApproving }] = useApproveRestoreRequestMutation();
+  const [rejectRestoreRequest, { isLoading: isRejecting }] = useRejectRestoreRequestMutation();
 
   // userId → user map (single fetch, no N+1)
   const userMap = useMemo(() => {
@@ -115,6 +130,41 @@ const BookingsTab: React.FC = () => {
       refetchBookings();
     } catch (err: any) {
       toast.error(err?.data?.error ?? 'Failed to cancel booking');
+    }
+  };
+
+  const handleSuperAdminRestore = async (bookingId: number, status: 0 | 1) => {
+    const label = status === 1 ? 'Confirmed' : 'Pending';
+    if (!window.confirm(`Restore this booking as ${label}? The vehicle will be reserved again.`)) return;
+    try {
+      await superAdminRestoreBooking({ id: bookingId, status }).unwrap();
+      toast.success(`Booking restored as ${label}.`);
+      setSelectedBooking(null);
+      refetchBookings();
+    } catch (err: any) {
+      toast.error(err?.data?.error ?? 'Failed to restore booking');
+    }
+  };
+
+  const handleApproveRestoreRequest = async (requestId: number, status: 0 | 1) => {
+    const label = status === 1 ? 'Confirmed' : 'Pending';
+    if (!window.confirm(`Approve and restore this booking as ${label}? The vehicle will be reserved again.`)) return;
+    try {
+      await approveRestoreRequest({ requestId, status }).unwrap();
+      toast.success(`Booking restored as ${label}.`);
+      refetchBookings();
+    } catch (err: any) {
+      toast.error(err?.data?.error ?? 'Failed to approve restore request');
+    }
+  };
+
+  const handleRejectRestoreRequest = async (requestId: number) => {
+    if (!window.confirm('Reject this restore request? The booking will stay cancelled.')) return;
+    try {
+      await rejectRestoreRequest(requestId).unwrap();
+      toast.success('Restore request rejected.');
+    } catch (err: any) {
+      toast.error(err?.data?.error ?? 'Failed to reject restore request');
     }
   };
 
@@ -169,6 +219,69 @@ const BookingsTab: React.FC = () => {
         </div>
       </div>
 
+      {/* Staff restore requests (SuperAdmin review) */}
+      {isSuperAdmin && restoreRequests.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-5">
+          <div className="flex items-center gap-2 mb-3">
+            <RotateCcw className="w-5 h-5 text-amber-600" />
+            <h2 className="text-sm font-bold text-amber-800">
+              Restore requests from staff ({restoreRequests.length})
+            </h2>
+          </div>
+          <div className="space-y-3">
+            {restoreRequests.map((req) => {
+              const b = bookings.find((x) => x.id === req.bookingId);
+              const user = b?.userId != null ? userMap.get(b.userId) : undefined;
+              return (
+                <div
+                  key={req.id}
+                  className="flex flex-col gap-3 rounded-xl bg-white border border-amber-100 p-3 lg:flex-row lg:items-center lg:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      Booking #{req.bookingId}
+                      {b && <span className="font-normal text-gray-600"> · {b.vehicleName ?? 'Vehicle'} · {customerLabel(user, b.userId)}</span>}
+                    </p>
+                    {b && (
+                      <p className="text-xs text-gray-500">
+                        {fmtDate(b.bookingStartDate)} → {fmtDate(b.bookingEndDate)}
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-600">
+                      <span className="font-medium text-gray-400">Reason:</span>{' '}
+                      {req.reason?.trim() ? req.reason : 'No reason provided'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleApproveRestoreRequest(req.id, 0)}
+                      disabled={isApproving || isRejecting}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Approve as Pending
+                    </button>
+                    <button
+                      onClick={() => handleApproveRestoreRequest(req.id, 1)}
+                      disabled={isApproving || isRejecting}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" /> Approve as Confirmed
+                    </button>
+                    <button
+                      onClick={() => handleRejectRestoreRequest(req.id)}
+                      disabled={isApproving || isRejecting}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Ban className="w-3.5 h-3.5" /> Reject
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Toolbar: search + status tabs */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-5">
         <div className="flex flex-col lg:flex-row lg:items-center gap-3">
@@ -210,11 +323,12 @@ const BookingsTab: React.FC = () => {
         <>
           {/* Column header (desktop) */}
           <div className="hidden lg:grid px-5 mb-2 gap-4 items-center text-[11px] font-bold uppercase tracking-wide text-gray-400"
-               style={{ gridTemplateColumns: '260px 1.3fr 1.1fr 1fr 0.9fr 80px' }}>
+               style={{ gridTemplateColumns: '260px 1.3fr 1.1fr 1fr 1fr 0.9fr 80px' }}>
             <span>Booking / Vehicle</span>
             <span>Customer</span>
             <span>Dates</span>
             <span>Phone</span>
+            <span>Security</span>
             <span className="text-right">Amount</span>
             <span className="text-right">Action</span>
           </div>
@@ -226,7 +340,7 @@ const BookingsTab: React.FC = () => {
               const muted = booking.status === 2 || booking.status === 3;
               return (
                 <div key={booking.id} className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition ${muted ? 'opacity-80' : ''}`}>
-                  <div className={`border-l-4 ${meta.stripe} px-5 py-4 grid gap-3 lg:gap-4 items-center grid-cols-1 lg:[grid-template-columns:260px_1.3fr_1.1fr_1fr_0.9fr_80px]`}>
+                  <div className={`border-l-4 ${meta.stripe} px-5 py-4 grid gap-3 lg:gap-4 items-center grid-cols-1 lg:[grid-template-columns:260px_1.3fr_1.1fr_1fr_1fr_0.9fr_80px]`}>
                     {/* Booking / Vehicle */}
                     <div className="flex items-center gap-3">
                       <div className={`w-11 h-11 rounded-xl ${meta.iconBg} flex items-center justify-center shrink-0`}>
@@ -260,16 +374,27 @@ const BookingsTab: React.FC = () => {
                     <div>
                       <p className="lg:hidden text-[11px] uppercase text-gray-400 font-semibold">Dates</p>
                       <p className="font-medium text-gray-800 text-sm">{fmtDate(booking.bookingStartDate)} → {fmtDate(booking.bookingEndDate)}</p>
+                      {(booking.startTime || booking.endTime) && (
+                        <p className="text-xs text-gray-500">{booking.startTime || '—'} → {booking.endTime || '—'}</p>
+                      )}
                     </div>
                     {/* Phone */}
                     <div className="min-w-0">
                       <p className="lg:hidden text-[11px] uppercase text-gray-400 font-semibold">Phone</p>
                       <p className="font-medium text-gray-800 text-sm truncate">{user?.userNumber ?? booking.friendFamilyContactNumber ?? '—'}</p>
                     </div>
+                    {/* Security */}
+                    <div className="min-w-0">
+                      <p className="lg:hidden text-[11px] uppercase text-gray-400 font-semibold">Security</p>
+                      <p className="font-medium text-gray-800 text-sm">₹{SECURITY_DEPOSIT}</p>
+                      <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full ${booking.securityDepositMode === 'online' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {booking.securityDepositMode === 'online' ? 'Online' : 'At pickup'}
+                      </span>
+                    </div>
                     {/* Amount */}
                     <div className="lg:text-right">
                       <p className="lg:hidden text-[11px] uppercase text-gray-400 font-semibold">Amount</p>
-                      <p className="font-bold text-gray-900">₹{booking.totalAmount}</p>
+                      <p className="font-bold text-gray-900">₹{booking.totalAmount.toFixed(2)}</p>
                     </div>
                     {/* Action */}
                     <div className="flex lg:justify-end">
@@ -301,9 +426,11 @@ const BookingsTab: React.FC = () => {
           user={selectedBooking.userId != null ? userMap.get(selectedBooking.userId) : undefined}
           isSuperAdmin={!!isSuperAdmin}
           isCancelling={isCancelling}
+          isRestoring={isRestoring}
           onClose={() => setSelectedBooking(null)}
           onUpdateStatus={handleUpdateBookingStatus}
           onSuperAdminCancel={handleSuperAdminCancel}
+          onSuperAdminRestore={handleSuperAdminRestore}
           onOpenUser={goToUser}
           onOpenVehicle={goToVehicle}
         />
@@ -318,9 +445,11 @@ interface DrawerProps {
   user?: UserDto;
   isSuperAdmin: boolean;
   isCancelling: boolean;
+  isRestoring: boolean;
   onClose: () => void;
   onUpdateStatus: (id: number, status: 0 | 1 | 2 | 3) => void;
   onSuperAdminCancel: (id: number) => void;
+  onSuperAdminRestore: (id: number, status: 0 | 1) => void;
   onOpenUser: (id: number) => void;
   onOpenVehicle: (id: number) => void;
 }
@@ -333,14 +462,15 @@ const DetailRow: React.FC<{ label: string; value?: React.ReactNode }> = ({ label
 );
 
 const BookingDetailDrawer: React.FC<DrawerProps> = ({
-  booking, user, isSuperAdmin, isCancelling, onClose,
-  onUpdateStatus, onSuperAdminCancel, onOpenUser, onOpenVehicle,
+  booking, user, isSuperAdmin, isCancelling, isRestoring, onClose,
+  onUpdateStatus, onSuperAdminCancel, onSuperAdminRestore, onOpenUser, onOpenVehicle,
 }) => {
   const meta = statusMeta(booking.status);
   const { data: details, isLoading: detailsLoading, isError: detailsError } =
     useGetAdminBookingCustomerDetailsQuery(booking.id as number, { skip: booking.id == null });
 
   const canCancel = isSuperAdmin && (booking.status === 0 || booking.status === 1) && isBookingActive(booking.bookingEndDate);
+  const canRestore = isSuperAdmin && booking.status === 3 && isBookingActive(booking.bookingEndDate);
 
   return (
     <>
@@ -459,7 +589,17 @@ const BookingDetailDrawer: React.FC<DrawerProps> = ({
                 <Ban className="w-4 h-4" /> Cancel & Free
               </button>
             )}
-            {(booking.status === 2 || booking.status === 3) && (
+            {canRestore && (
+              <>
+                <button onClick={() => onSuperAdminRestore(booking.id as number, 0)} disabled={isRestoring} className="flex-1 min-w-[120px] px-4 py-2.5 text-sm font-semibold rounded-xl bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 inline-flex items-center justify-center gap-1">
+                  <RotateCcw className="w-4 h-4" /> Restore as Pending
+                </button>
+                <button onClick={() => onSuperAdminRestore(booking.id as number, 1)} disabled={isRestoring} className="flex-1 min-w-[120px] px-4 py-2.5 text-sm font-semibold rounded-xl bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 inline-flex items-center justify-center gap-1">
+                  <CheckCircle className="w-4 h-4" /> Restore as Confirmed
+                </button>
+              </>
+            )}
+            {(booking.status === 2 || (booking.status === 3 && !canRestore)) && (
               <p className="text-sm text-gray-400 italic w-full text-center py-2">No actions available for {meta.label.toLowerCase()} bookings.</p>
             )}
           </div>

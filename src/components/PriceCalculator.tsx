@@ -38,7 +38,6 @@ export default function PriceCalculator({
   onProceedToPayment,
   isLoading = false,
   isLoggedIn = false,
-  minBookingHours = 0,
   includeSecondHelmet = false,
   onSecondHelmetChange,
   paySecurityAtPickup = false,
@@ -73,7 +72,7 @@ export default function PriceCalculator({
   const subtotalAfterHelmet = subtotal + helmetCharge - helmetDiscount; // Helmet cancels out
   const total = subtotalAfterHelmet - promoDiscountAmount + securityDeposit;
 
-  const canProceed = hours > 0 && hours >= minBookingHours;
+  const canProceed = hours > 0;
 
   const handleSelectPromo = async (promo: CouponItem) => {
     if (!cityId || !userId) {
@@ -354,16 +353,6 @@ export default function PriceCalculator({
           currentOrderAmount={subtotal}
           isApplying={validatingPromo}
         />
-      )}
-
-      {/* Validation Warning */}
-      {hours > 0 && hours < minBookingHours && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-3 flex items-start">
-          <AlertCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-red-800">
-            Minimum booking duration is {minBookingHours} hours. Please adjust your dates.
-          </p>
-        </div>
       )}
 
       {/* Additional Info */}
