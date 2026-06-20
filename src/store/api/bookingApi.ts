@@ -59,10 +59,22 @@ export interface BookingRestoreRequestDto {
   createdAt: string;
 }
 
+export interface BookingUploadPermissionRequestDto {
+  id: number;
+  bookingId: number;
+  requestedByStaffId?: number | null;
+  reason?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  resolvedByAdminId?: number | null;
+  resolvedAt?: string | null;
+  expiresAt?: string | null;
+  createdAt: string;
+}
+
 export const bookingApi = createApi({
   reducerPath: 'bookingApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Booking', 'RestoreRequest'],
+  tagTypes: ['Booking', 'RestoreRequest', 'UploadPermission'],
   endpoints: (builder) => ({
     getBookings: builder.query<BookingDto[], { page?: number; size?: number; cityId?: number }>({
       query: ({ page = 1, size = 10, cityId }) => {
@@ -149,6 +161,27 @@ export const bookingApi = createApi({
       }),
       invalidatesTags: ['RestoreRequest'],
     }),
+    getUploadPermissionRequests: builder.query<BookingUploadPermissionRequestDto[], { status?: string } | void>({
+      query: (arg) => {
+        const status = arg && 'status' in arg ? arg.status : undefined;
+        return `${API_ENDPOINTS.BOOKINGS}/upload-permission-requests${status ? `?status=${status}` : ''}`;
+      },
+      providesTags: ['UploadPermission'],
+    }),
+    approveUploadPermissionRequest: builder.mutation<{ message: string }, number>({
+      query: (requestId) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/upload-permission-requests/${requestId}/approve`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['UploadPermission'],
+    }),
+    rejectUploadPermissionRequest: builder.mutation<{ message: string }, number>({
+      query: (requestId) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/upload-permission-requests/${requestId}/reject`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['UploadPermission'],
+    }),
   }),
 });
 
@@ -165,4 +198,7 @@ export const {
   useGetRestoreRequestsQuery,
   useApproveRestoreRequestMutation,
   useRejectRestoreRequestMutation,
+  useGetUploadPermissionRequestsQuery,
+  useApproveUploadPermissionRequestMutation,
+  useRejectUploadPermissionRequestMutation,
 } = bookingApi;

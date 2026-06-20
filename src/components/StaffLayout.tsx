@@ -5,6 +5,7 @@ import {
     Calendar,
     LogOut,
     User,
+    Users,
     FileText,
     Menu,
     X,
@@ -23,6 +24,7 @@ type NavItem = {
 const baseNavItems: NavItem[] = [
     { id: 'dashboard', path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'bookings', path: '/bookings', icon: Calendar, label: 'Bookings' },
+    { id: 'customers', path: '/customers', icon: Users, label: 'Customers' },
 ];
 
 /**

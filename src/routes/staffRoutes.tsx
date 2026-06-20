@@ -8,6 +8,7 @@ import StaffLayout from '../components/StaffLayout';
 import StaffLogin from '../pages/staff/StaffLogin';
 import StaffDashboard from '../pages/staff/StaffDashboard';
 import StaffBookingsPage from '../pages/staff/StaffBookingsPage';
+import StaffCustomersPage from '../pages/staff/StaffCustomersPage';
 import StaffProfilePage from '../pages/staff/StaffProfilePage';
 import StaffChangePasswordPage from '../pages/staff/StaffChangePasswordPage';
 import StaffOfflineBookingPage from '../pages/staff/StaffOfflineBookingPage';
@@ -30,6 +31,7 @@ export const staffRoutes: RouteObject[] = [
             { path: '/dashboard', element: <StaffDashboard /> },
             { path: '/bookings', element: <StaffBookingsPage /> },
             { path: '/bookings/:id', element: <StaffBookingsPage /> },
+            { path: '/customers', element: <StaffCustomersPage /> },
             { path: '/profile', element: <StaffProfilePage /> },
             { path: '/offline-booking', element: <StaffOfflineBookingPage /> },
         ],

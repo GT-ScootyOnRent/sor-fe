@@ -17,6 +17,7 @@ import type { BookingDto } from '../store/api/bookingApi';
 import {
   useDeleteMyDocumentMutation,
   useGetMyDocumentsQuery,
+  useLogoutMutation,
   useSendPhoneChangeOtpMutation,
   useUpdateProfileMutation,
   useUploadMyDocumentMutation,
@@ -1486,6 +1487,7 @@ export default function ProfilePage() {
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
 
   const [updateProfile, { isLoading: isUpdating }] = useUpdateProfileMutation();
+  const [logoutApi] = useLogoutMutation();
   const { data: userDocuments = [] } = useGetMyDocumentsQuery(undefined, { skip: !user });
   const {
     data: bookings,
@@ -1521,7 +1523,14 @@ export default function ProfilePage() {
   //   navigate('/');
   // };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Clear the HttpOnly auth cookies on the server first so the session
+      // can't be silently restored via Auth/refresh.
+      await logoutApi().unwrap();
+    } catch {
+      // Ignore network/server errors and still clear local state.
+    }
     dispatch(logout());
     toast.success('Logged out successfully');
     navigate('/');

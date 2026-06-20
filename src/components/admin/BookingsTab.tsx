@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Eye, Download, Search, X, Ban, CheckCircle, Check,
-  ArrowUpRight, Bike, RotateCcw,
+  ArrowUpRight, Bike, RotateCcw, ShieldCheck,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -14,6 +14,9 @@ import {
   useGetRestoreRequestsQuery,
   useApproveRestoreRequestMutation,
   useRejectRestoreRequestMutation,
+  useGetUploadPermissionRequestsQuery,
+  useApproveUploadPermissionRequestMutation,
+  useRejectUploadPermissionRequestMutation,
   type BookingDto,
 } from '../../store/api/bookingApi';
 import { useGetUsersQuery, type UserDto } from '../../store/api/userApi';
@@ -59,13 +62,24 @@ const fmtDate = (d?: string) => {
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 };
 
+// Convert a 24-hour "HH:mm[:ss]" time string into 12-hour with AM/PM.
+const fmtTime = (time?: string) => {
+  if (!time) return '';
+  const [h, m] = time.split(':');
+  const hour = Number(h);
+  if (Number.isNaN(hour)) return time;
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${hour12}:${m ?? '00'} ${period}`;
+};
+
 const fmtDateTime = (d?: string, time?: string) => {
   if (!d) return '—';
   const date = new Date(d);
   const base = Number.isNaN(date.getTime())
     ? String(d)
     : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-  return time ? `${base}, ${time}` : base;
+  return time ? `${base}, ${fmtTime(time)}` : base;
 };
 
 const customerLabel = (u?: UserDto, userId?: number) =>
@@ -101,6 +115,14 @@ const BookingsTab: React.FC = () => {
   );
   const [approveRestoreRequest, { isLoading: isApproving }] = useApproveRestoreRequestMutation();
   const [rejectRestoreRequest, { isLoading: isRejecting }] = useRejectRestoreRequestMutation();
+
+  // Staff-raised upload-permission requests (booking ended >48h ago) awaiting review.
+  const { data: uploadPermissionRequests = [] } = useGetUploadPermissionRequestsQuery(
+    { status: 'pending' },
+    { skip: !isSuperAdmin },
+  );
+  const [approveUploadPermission, { isLoading: isApprovingUpload }] = useApproveUploadPermissionRequestMutation();
+  const [rejectUploadPermission, { isLoading: isRejectingUpload }] = useRejectUploadPermissionRequestMutation();
 
   // userId → user map (single fetch, no N+1)
   const userMap = useMemo(() => {
@@ -165,6 +187,26 @@ const BookingsTab: React.FC = () => {
       toast.success('Restore request rejected.');
     } catch (err: any) {
       toast.error(err?.data?.error ?? 'Failed to reject restore request');
+    }
+  };
+
+  const handleApproveUploadPermission = async (requestId: number) => {
+    if (!window.confirm('Grant upload permission? Staff can upload/delete on this booking for 12 hours.')) return;
+    try {
+      await approveUploadPermission(requestId).unwrap();
+      toast.success('Upload permission granted for 12 hours.');
+    } catch (err: any) {
+      toast.error(err?.data?.error ?? 'Failed to approve upload permission');
+    }
+  };
+
+  const handleRejectUploadPermission = async (requestId: number) => {
+    if (!window.confirm('Reject this upload-permission request?')) return;
+    try {
+      await rejectUploadPermission(requestId).unwrap();
+      toast.success('Upload-permission request rejected.');
+    } catch (err: any) {
+      toast.error(err?.data?.error ?? 'Failed to reject upload-permission request');
     }
   };
 
@@ -282,6 +324,66 @@ const BookingsTab: React.FC = () => {
         </div>
       )}
 
+      {/* Staff upload-permission requests (SuperAdmin review) */}
+      {isSuperAdmin && uploadPermissionRequests.length > 0 && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 mb-5">
+          <div className="flex items-center gap-2 mb-3">
+            <ShieldCheck className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-sm font-bold text-indigo-800">
+              Upload-permission requests from staff ({uploadPermissionRequests.length})
+            </h2>
+          </div>
+          <p className="text-xs text-indigo-700/80 mb-3">
+            These bookings ended more than 48 hours ago. Approving grants the requesting staff a
+            12-hour window to upload or delete documents and media.
+          </p>
+          <div className="space-y-3">
+            {uploadPermissionRequests.map((req) => {
+              const b = bookings.find((x) => x.id === req.bookingId);
+              const user = b?.userId != null ? userMap.get(b.userId) : undefined;
+              return (
+                <div
+                  key={req.id}
+                  className="flex flex-col gap-3 rounded-xl bg-white border border-indigo-100 p-3 lg:flex-row lg:items-center lg:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      Booking #{req.bookingId}
+                      {b && <span className="font-normal text-gray-600"> · {b.vehicleName ?? 'Vehicle'} · {customerLabel(user, b.userId)}</span>}
+                    </p>
+                    {b && (
+                      <p className="text-xs text-gray-500">
+                        {fmtDate(b.bookingStartDate)} → {fmtDate(b.bookingEndDate)}
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-gray-600">
+                      <span className="font-medium text-gray-400">Reason:</span>{' '}
+                      {req.reason?.trim() ? req.reason : 'No reason provided'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleApproveUploadPermission(req.id)}
+                      disabled={isApprovingUpload || isRejectingUpload}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" /> Grant 12h Access
+                    </button>
+                    <button
+                      onClick={() => handleRejectUploadPermission(req.id)}
+                      disabled={isApprovingUpload || isRejectingUpload}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Ban className="w-3.5 h-3.5" /> Reject
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Toolbar: search + status tabs */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-5">
         <div className="flex flex-col lg:flex-row lg:items-center gap-3">
@@ -375,7 +477,7 @@ const BookingsTab: React.FC = () => {
                       <p className="lg:hidden text-[11px] uppercase text-gray-400 font-semibold">Dates</p>
                       <p className="font-medium text-gray-800 text-sm">{fmtDate(booking.bookingStartDate)} → {fmtDate(booking.bookingEndDate)}</p>
                       {(booking.startTime || booking.endTime) && (
-                        <p className="text-xs text-gray-500">{booking.startTime || '—'} → {booking.endTime || '—'}</p>
+                        <p className="text-xs text-gray-500">{fmtTime(booking.startTime) || '—'} → {fmtTime(booking.endTime) || '—'}</p>
                       )}
                     </div>
                     {/* Phone */}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Search,
     Calendar,
@@ -15,6 +15,8 @@ import {
     Info,
     ShieldAlert,
     RotateCcw,
+    Trash2,
+    Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -23,9 +25,13 @@ import {
     useGetBookingDocumentsQuery,
     useGetBookingMediaQuery,
     useUploadBookingDocumentMutation,
+    useDeleteBookingDocumentMutation,
     useUploadBookingMediaMutation,
+    useDeleteBookingMediaMutation,
     useGetStaffRestoreRequestsQuery,
     useRequestBookingRestoreMutation,
+    useGetStaffUploadPermissionRequestsQuery,
+    useRequestUploadPermissionMutation,
 } from '../../store/api/staffApi';
 
 const StaffBookingsPage: React.FC = () => {
@@ -51,8 +57,9 @@ const toYmd = (d: Date): string => {
 };
 
 const BookingsList: React.FC = () => {
+    const [searchParams] = useSearchParams();
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all');
     const navigate = useNavigate();
 
     // Staff is restricted to bookings starting within the last 7 days (incl. today)
@@ -119,11 +126,23 @@ const BookingsList: React.FC = () => {
     });
 
     const formatDate = (iso: string) =>
-        new Date(iso).toLocaleDateString('en-IN', {
+        new Date(iso).toLocaleString('en-IN', {
             day: '2-digit',
             month: 'short',
             year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
         });
+
+    // A cancelled booking whose rental period has already ended cannot be restored.
+    const isBookingOver = (endDateIso: string) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const end = new Date(endDateIso);
+        end.setHours(0, 0, 0, 0);
+        return end < today;
+    };
 
     return (
         <div>
@@ -286,7 +305,7 @@ const BookingsList: React.FC = () => {
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </button>
-                                                {booking.status === 'cancelled' && (
+                                                {booking.status === 'cancelled' && !isBookingOver(booking.endDate) && (
                                                     pendingRestoreIds.has(booking.id) ? (
                                                         <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
                                                             <RotateCcw className="w-3 h-3" /> Restore requested
@@ -377,10 +396,35 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
     const { data: documents = [], refetch: refetchDocs } = useGetBookingDocumentsQuery(bookingId);
     const { data: media = [], refetch: refetchMedia } = useGetBookingMediaQuery(bookingId);
     const [uploadDocument, { isLoading: uploadingDoc }] = useUploadBookingDocumentMutation();
+    const [deleteDocument] = useDeleteBookingDocumentMutation();
     const [uploadMedia, { isLoading: uploadingMedia }] = useUploadBookingMediaMutation();
+    const [deleteMedia] = useDeleteBookingMediaMutation();
+
+    // Upload permission (uploads/deletes lock once a booking ended >48h ago).
+    const { data: uploadPermissions = [] } = useGetStaffUploadPermissionRequestsQuery();
+    const [requestUploadPermission, { isLoading: requestingPermission }] = useRequestUploadPermissionMutation();
+    const [showPermissionModal, setShowPermissionModal] = useState(false);
+    const [permissionReason, setPermissionReason] = useState('');
+
+    const submitUploadPermission = async () => {
+        try {
+            await requestUploadPermission({
+                bookingId,
+                reason: permissionReason.trim() || undefined,
+            }).unwrap();
+            toast.success('Upload permission request sent to SuperAdmin');
+            setShowPermissionModal(false);
+            setPermissionReason('');
+        } catch (err) {
+            const message =
+                (err as { data?: { error?: string } })?.data?.error ?? 'Failed to send request';
+            toast.error(message);
+        }
+    };
 
     const [showUploadModal, setShowUploadModal] = useState<'document' | 'media' | null>(null);
     const [uploadType, setUploadType] = useState<string>('');
+    const [documentSide, setDocumentSide] = useState<string>('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [uploadInputMode, setUploadInputMode] = useState<UploadInputMode>('upload');
     const [cameraError, setCameraError] = useState<string | null>(null);
@@ -413,6 +457,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
         setShowUploadModal(null);
         setSelectedFile(null);
         setUploadType('');
+        setDocumentSide('');
         setUploadInputMode('upload');
         setCameraError(null);
         setIsCameraStarting(false);
@@ -582,6 +627,10 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
     }, []);
 
     const handleUpload = async () => {
+        if (uploadsLocked) {
+            toast.error('Uploads are locked. Request SuperAdmin permission first.');
+            return;
+        }
         if (!selectedFile || !uploadType) {
             toast.error('Please select a file and type');
             return;
@@ -593,6 +642,9 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
         try {
             if (showUploadModal === 'document') {
                 formData.append('documentType', uploadType);
+                if (documentSide) {
+                    formData.append('side', documentSide);
+                }
                 await uploadDocument({ bookingId, formData }).unwrap();
                 refetchDocs();
                 toast.success('Document uploaded successfully');
@@ -608,13 +660,50 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
         }
     };
 
+    const handleDeleteDocument = async (documentId: number) => {
+        if (uploadsLocked) {
+            toast.error('Deletes are locked. Request SuperAdmin permission first.');
+            return;
+        }
+        if (!window.confirm('Delete this document? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            await deleteDocument({ bookingId, documentId }).unwrap();
+            refetchDocs();
+            toast.success('Document deleted');
+        } catch (err: any) {
+            toast.error(err?.data?.error || 'Failed to delete document');
+        }
+    };
+
+    const handleDeleteMedia = async (mediaId: number) => {
+        if (uploadsLocked) {
+            toast.error('Deletes are locked. Request SuperAdmin permission first.');
+            return;
+        }
+        if (!window.confirm('Delete this media? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            await deleteMedia({ bookingId, mediaId }).unwrap();
+            refetchMedia();
+            toast.success('Media deleted');
+        } catch (err: any) {
+            toast.error(err?.data?.error || 'Failed to delete media');
+        }
+    };
+
     const formatDate = (iso: string) =>
-        new Date(iso).toLocaleDateString('en-IN', {
+        new Date(iso).toLocaleString('en-IN', {
             day: '2-digit',
             month: 'short',
             year: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
+            hour12: true,
         });
 
     if (bookingLoading) {
@@ -661,6 +750,17 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
         );
     }
 
+    // Uploads/deletes lock 48h after the booking's end date unless a SuperAdmin
+    // has granted an unexpired upload permission.
+    const UPLOAD_LOCK_MS = 48 * 60 * 60 * 1000;
+    const bookingPermissions = uploadPermissions.filter((p) => p.bookingId === bookingId);
+    const activePermission = bookingPermissions.find(
+        (p) => p.status === 'approved' && p.expiresAt != null && new Date(p.expiresAt) > new Date(),
+    );
+    const pendingPermission = bookingPermissions.find((p) => p.status === 'pending');
+    const lockedByAge = new Date(booking.endDate).getTime() + UPLOAD_LOCK_MS < Date.now();
+    const uploadsLocked = lockedByAge && !activePermission;
+
     return (
         <div>
             <button
@@ -671,11 +771,49 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                 Back to Bookings
             </button>
 
+            {/* Upload lock / permission status (booking ended >48h ago) */}
+            {lockedByAge && (
+                activePermission ? (
+                    <div className="flex items-start gap-2 mb-6 px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800">
+                        <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0 text-green-600" />
+                        <span>
+                            Upload access granted by SuperAdmin. You can upload/delete until{' '}
+                            <strong>{formatDate(activePermission.expiresAt as string)}</strong>.
+                        </span>
+                    </div>
+                ) : pendingPermission ? (
+                    <div className="flex items-start gap-2 mb-6 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+                        <Lock className="w-5 h-5 mt-0.5 shrink-0 text-amber-600" />
+                        <span>
+                            This booking ended more than 48 hours ago. Your upload-permission request
+                            is <strong>pending SuperAdmin approval</strong>.
+                        </span>
+                    </div>
+                ) : (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
+                        <span className="flex items-start gap-2">
+                            <Lock className="w-5 h-5 mt-0.5 shrink-0 text-red-600" />
+                            <span>
+                                Uploads and deletes are locked because this booking ended more than
+                                48 hours ago. Request permission from a SuperAdmin to make changes.
+                            </span>
+                        </span>
+                        <button
+                            onClick={() => setShowPermissionModal(true)}
+                            className="shrink-0 inline-flex items-center justify-center gap-1.5 bg-red-600 text-white px-3.5 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition"
+                        >
+                            <ShieldAlert className="w-4 h-4" /> Request Upload Permission
+                        </button>
+                    </div>
+                )
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Booking Info */}
                 <div className="lg:col-span-2 space-y-6">
+                    {/* Header */}
                     <div className="bg-white rounded-xl shadow-md p-6">
-                        <div className="flex justify-between items-start mb-4">
+                        <div className="flex justify-between items-start">
                             <div>
                                 <h2 className="text-xl font-bold text-gray-900">Booking #{booking.id}</h2>
                                 {booking.isOfflineBooking && (
@@ -697,40 +835,101 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                                 {booking.status}
                             </span>
                         </div>
+                    </div>
 
+                    {/* Customer */}
+                    <div className="bg-white rounded-xl shadow-md p-6">
+                        <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-4">Customer</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <p className="text-sm text-gray-500">Vehicle</p>
-                                <p className="font-medium">{booking.vehicleName}</p>
-                                <p className="text-sm text-gray-500">{booking.vehicleNumber}</p>
+                                <p className="text-sm text-gray-500">Name</p>
+                                <p className="font-medium text-gray-900">{booking.userName || 'N/A'}</p>
                             </div>
                             <div>
-                                <p className="text-sm text-gray-500">Customer</p>
-                                <p className="font-medium">{booking.userName || 'N/A'}</p>
-                                <p className="text-sm text-gray-500">{booking.userPhone}</p>
+                                <p className="text-sm text-gray-500">Phone</p>
+                                <p className="font-medium text-gray-900">{booking.userPhone || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-500">Email</p>
+                                <p className="font-medium text-gray-900 break-words">{booking.userEmail || 'N/A'}</p>
                             </div>
                             <div>
                                 <p className="text-sm text-gray-500">F&amp;F Contact</p>
-                                <p className="font-medium">
-                                    {booking.friendFamilyContactNumber || 'N/A'}
-                                </p>
+                                <p className="font-medium text-gray-900">{booking.friendFamilyContactNumber || 'N/A'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Vehicle */}
+                    <div className="bg-white rounded-xl shadow-md p-6">
+                        <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-4">Vehicle</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <p className="text-sm text-gray-500">Name</p>
+                                <p className="font-medium text-gray-900">{booking.vehicleName || 'N/A'}</p>
                             </div>
                             <div>
+                                <p className="text-sm text-gray-500">Number</p>
+                                <p className="font-medium text-gray-900">{booking.vehicleNumber || 'N/A'}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Trip */}
+                    <div className="bg-white rounded-xl shadow-md p-6">
+                        <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-4">Trip</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
                                 <p className="text-sm text-gray-500">Start Date</p>
-                                <p className="font-medium">{formatDate(booking.startDate)}</p>
+                                <p className="font-medium text-gray-900">{formatDate(booking.startDate)}</p>
                             </div>
                             <div>
                                 <p className="text-sm text-gray-500">End Date</p>
-                                <p className="font-medium">{formatDate(booking.endDate)}</p>
+                                <p className="font-medium text-gray-900">{formatDate(booking.endDate)}</p>
                             </div>
                             <div>
                                 <p className="text-sm text-gray-500">Pickup Location</p>
-                                <p className="font-medium">{booking.pickupLocationName || 'N/A'}</p>
+                                <p className="font-medium text-gray-900">{booking.pickupLocationName || 'N/A'}</p>
                             </div>
-                            <div>
-                                <p className="text-sm text-gray-500">Total Amount</p>
-                                <p className="font-medium text-lg">₹{booking.totalAmount}</p>
+                        </div>
+                    </div>
+
+                    {/* Submitted Details */}
+                    <div className="bg-white rounded-xl shadow-md p-6">
+                        <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-4">Submitted Details</h3>
+                        {!booking.guestAddress &&
+                        !booking.hotelName &&
+                        !booking.hotelAddress &&
+                        !booking.drivingLicenseNo ? (
+                            <p className="text-sm text-gray-400">No customer details submitted for this booking.</p>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-2">
+                                    <p className="text-sm text-gray-500">Guest Address</p>
+                                    <p className="font-medium text-gray-900 break-words">{booking.guestAddress || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Hotel Name</p>
+                                    <p className="font-medium text-gray-900 break-words">{booking.hotelName || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Hotel Address</p>
+                                    <p className="font-medium text-gray-900 break-words">{booking.hotelAddress || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Driving License No.</p>
+                                    <p className="font-medium text-gray-900 break-words">{booking.drivingLicenseNo || 'N/A'}</p>
+                                </div>
                             </div>
+                        )}
+                    </div>
+
+                    {/* Payment */}
+                    <div className="bg-white rounded-xl shadow-md p-6">
+                        <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-4">Payment</h3>
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-500">Total Amount</span>
+                            <span className="font-bold text-lg text-gray-900">₹{booking.totalAmount}</span>
                         </div>
                     </div>
 
@@ -740,7 +939,8 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                             <h3 className="text-lg font-bold text-gray-900">Documents</h3>
                             <button
                                 onClick={() => setShowUploadModal('document')}
-                                className="flex items-center text-sm bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition"
+                                disabled={uploadsLocked}
+                                className="flex items-center text-sm bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <Upload className="w-4 h-4 mr-1" />
                                 Upload
@@ -760,19 +960,40 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                                             <FileText className="w-5 h-5 text-primary-600" />
                                             <div>
                                                 <p className="font-medium text-gray-900 capitalize">
-                                                    {doc.documentType.replace('_', ' ')}
+                                                    {doc.documentType.replaceAll('_', ' ')}
                                                 </p>
-                                                <p className="text-xs text-gray-500">{formatDate(doc.uploadedAt)}</p>
+                                                <p className="text-xs text-gray-500">{formatDate(doc.createdAt)}</p>
                                             </div>
                                         </div>
-                                        <a
-                                            href={doc.documentUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
-                                        >
-                                            <Download className="w-4 h-4" />
-                                        </a>
+                                        <div className="flex items-center gap-1">
+                                            <a
+                                                href={doc.fileUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                title="View"
+                                                className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
+                                            >
+                                                <Eye className="w-4 h-4" />
+                                            </a>
+                                            <a
+                                                href={doc.fileUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                download
+                                                title="Download"
+                                                className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                            </a>
+                                            <button
+                                                onClick={() => handleDeleteDocument(doc.id)}
+                                                disabled={uploadsLocked}
+                                                title="Delete"
+                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -785,7 +1006,8 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                             <h3 className="text-lg font-bold text-gray-900">Media (Photos & Videos)</h3>
                             <button
                                 onClick={() => setShowUploadModal('media')}
-                                className="flex items-center text-sm bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition"
+                                disabled={uploadsLocked}
+                                className="flex items-center text-sm bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <Upload className="w-4 h-4 mr-1" />
                                 Upload
@@ -797,28 +1019,58 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                         ) : (
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 {media.map((m) => (
-                                    <a
-                                        key={m.id}
-                                        href={m.mediaUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="relative group"
-                                    >
-                                        {m.mediaType.includes('video') ? (
-                                            <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
-                                                <Video className="w-8 h-8 text-gray-400" />
-                                            </div>
-                                        ) : (
-                                            <img
-                                                src={m.mediaUrl}
-                                                alt={m.mediaType}
-                                                className="aspect-video object-cover rounded-lg"
-                                            />
-                                        )}
-                                        <span className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded capitalize">
-                                            {m.mediaType.replace('_', ' ')}
-                                        </span>
-                                    </a>
+                                    <div key={m.id} className="relative group">
+                                        <a
+                                            href={m.fileUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="block"
+                                        >
+                                            {m.mediaType.includes('video') ? (
+                                                <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+                                                    <Video className="w-8 h-8 text-gray-400" />
+                                                </div>
+                                            ) : (
+                                                <img
+                                                    src={m.fileUrl}
+                                                    alt={m.mediaType}
+                                                    className="aspect-video object-cover rounded-lg"
+                                                />
+                                            )}
+                                            <span className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded capitalize">
+                                                {m.mediaType.replace('_', ' ')}
+                                            </span>
+                                        </a>
+                                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                            <a
+                                                href={m.fileUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                title="View"
+                                                className="p-1.5 bg-white/90 text-primary-600 hover:bg-white rounded-md shadow"
+                                            >
+                                                <Eye className="w-4 h-4" />
+                                            </a>
+                                            <a
+                                                href={m.fileUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                download
+                                                title="Download"
+                                                className="p-1.5 bg-white/90 text-primary-600 hover:bg-white rounded-md shadow"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                            </a>
+                                            <button
+                                                onClick={() => handleDeleteMedia(m.id)}
+                                                disabled={uploadsLocked}
+                                                title="Delete"
+                                                className="p-1.5 bg-white/90 text-red-600 hover:bg-white rounded-md shadow disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
                         )}
@@ -829,14 +1081,14 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                 <div className="space-y-6">
                     <div className="bg-white rounded-xl shadow-md p-6">
                         <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Upload</h3>
-                        <div className="space-y-3">
+                        <fieldset disabled={uploadsLocked} className="space-y-3 disabled:opacity-50">
                             <button
                                 onClick={() => {
                                     setUploadType('driving_license');
                                     setUploadInputMode('upload');
                                     setShowUploadModal('document');
                                 }}
-                                className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                                className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:cursor-not-allowed"
                             >
                                 <FileText className="w-5 h-5 text-primary-600 mr-3" />
                                 <span>Upload Driving License</span>
@@ -896,7 +1148,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                                 <Camera className="w-5 h-5 text-blue-600 mr-3" />
                                 <span>Photo After Return</span>
                             </button>
-                        </div>
+                        </fieldset>
                     </div>
                 </div>
             </div>
@@ -945,6 +1197,43 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                                     )}
                                 </select>
                             </div>
+
+                            {showUploadModal === 'document' && (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Side <span className="text-gray-400 font-normal">(optional)</span>
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {['front', 'back'].map((side) => (
+                                            <label
+                                                key={side}
+                                                className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border cursor-pointer transition ${documentSide === side
+                                                    ? 'border-primary-600 bg-primary-50 text-primary-700'
+                                                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="documentSide"
+                                                    value={side}
+                                                    checked={documentSide === side}
+                                                    onChange={(e) => setDocumentSide(e.target.value)}
+                                                    className="w-4 h-4 text-primary-600 focus:ring-primary-500"
+                                                />
+                                                <span className="text-sm font-medium capitalize">{side}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    {documentSide && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setDocumentSide('')}
+                                            className="mt-2 text-xs text-gray-500 hover:text-gray-700 underline"
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
+                            )}
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
@@ -1098,6 +1387,51 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                                     Upload
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Upload permission request modal */}
+            {showPermissionModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold text-gray-900">Request Upload Permission</h3>
+                            <button
+                                onClick={() => setShowPermissionModal(false)}
+                                className="p-1 text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <p className="text-sm text-gray-500 mb-4">
+                            This booking ended more than 48 hours ago. Explain why you need to upload
+                            or delete files; a SuperAdmin will review your request.
+                        </p>
+                        <textarea
+                            value={permissionReason}
+                            onChange={(e) => setPermissionReason(e.target.value)}
+                            rows={4}
+                            placeholder="Reason (e.g. customer returned the vehicle late and damage photos were missed)"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none resize-none"
+                        />
+                        <div className="flex gap-3 pt-4">
+                            <button
+                                type="button"
+                                onClick={() => setShowPermissionModal(false)}
+                                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={submitUploadPermission}
+                                disabled={requestingPermission}
+                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                            >
+                                {requestingPermission && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                Send Request
+                            </button>
                         </div>
                     </div>
                 </div>

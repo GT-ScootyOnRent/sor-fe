@@ -76,6 +76,9 @@ interface AreaSearchResult {
   label: string;
   kind: string;
   ring: GeoCoordinateDto[];
+  // For 'location' (pinpoint) results, the searched point so the ring can be
+  // rebuilt when the radius slider changes.
+  center?: GeoCoordinateDto;
 }
 
 const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperAdmin = false }) => {
@@ -94,6 +97,11 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
   const [areaResults, setAreaResults] = useState<AreaSearchResult[]>([]);
   const [highlightedArea, setHighlightedArea] = useState<GeoCoordinateDto[] | null>(null);
   const [highlightedLabel, setHighlightedLabel] = useState('');
+  // Search mode: 'area' highlights a whole locality boundary; 'location' drops a
+  // pinpoint and builds a circle of `locationRadius` metres around it.
+  const [searchMode, setSearchMode] = useState<'area' | 'location'>('area');
+  const [locationRadius, setLocationRadius] = useState(500);
+  const [highlightedCenter, setHighlightedCenter] = useState<GeoCoordinateDto | null>(null);
 
   const polygonRef = useRef<google.maps.Polygon | null>(null);
   const circleRef = useRef<google.maps.Circle | null>(null);
@@ -137,6 +145,7 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
     setAreaResults([]);
     setHighlightedArea(null);
     setHighlightedLabel('');
+    setHighlightedCenter(null);
     setShowModal(true);
   };
 
@@ -165,6 +174,7 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
     setAreaResults([]);
     setHighlightedArea(null);
     setHighlightedLabel('');
+    setHighlightedCenter(null);
     setShowModal(true);
   };
 
@@ -413,6 +423,33 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
     return { center, radius: Math.round(Math.min(Math.max(radius, 50), 50000)) };
   };
 
+  // Build a 32-point circular ring around a center point with the given radius
+  // (metres). Used by the "Location (pinpoint)" search mode.
+  const circleRing = (center: GeoCoordinateDto, radiusMeters: number, steps = 32): GeoCoordinateDto[] => {
+    const R = 6371000; // earth radius (m)
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const toDeg = (r: number) => (r * 180) / Math.PI;
+    const latR = toRad(center.lat);
+    const lngR = toRad(center.lng);
+    const angDist = radiusMeters / R;
+    const ring: GeoCoordinateDto[] = [];
+    for (let i = 0; i < steps; i++) {
+      const bearing = (i / steps) * 2 * Math.PI;
+      const lat = Math.asin(
+        Math.sin(latR) * Math.cos(angDist) +
+        Math.cos(latR) * Math.sin(angDist) * Math.cos(bearing),
+      );
+      const lng =
+        lngR +
+        Math.atan2(
+          Math.sin(bearing) * Math.sin(angDist) * Math.cos(latR),
+          Math.cos(angDist) - Math.sin(latR) * Math.sin(lat),
+        );
+      ring.push({ lat: toDeg(lat), lng: toDeg(lng) });
+    }
+    return ring;
+  };
+
   const ringFromAnyGeo = (geo?: { type: string; coordinates: unknown }): number[][] | null => {
     if (!geo) return null;
     if (geo.type === 'Polygon') {
@@ -433,6 +470,72 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
     if (!q) { toast.error('Type an area or place name to search'); return; }
     setAreaSearching(true);
     setAreaResults([]);
+
+    // ── Location (pinpoint) mode ──────────────────────────────────────────────
+    // Use Google Places Text Search (the `places` library is already loaded for
+    // the map). Google's POI database covers landmarks/spots that OpenStreetMap
+    // (used for Area mode) often misses, so a single place like "Rayta hills"
+    // resolves correctly.
+    if (searchMode === 'location') {
+      try {
+        const city = cities.find(c => c.id === geofenceForm.cityId);
+        const state = city ? states.find(s => s.id === city.stateId) : undefined;
+        const suffix = [city?.name, state?.name, 'India'].filter(Boolean).join(', ');
+
+        let lastStatus: string = 'UNKNOWN';
+        const placesText = (query: string): Promise<google.maps.places.PlaceResult[]> =>
+          new Promise((resolve) => {
+            try {
+              const svc = new google.maps.places.PlacesService(document.createElement('div'));
+              svc.textSearch({ query }, (res, status) => {
+                lastStatus = String(status);
+                if (status === google.maps.places.PlacesServiceStatus.OK && res) resolve(res);
+                else resolve([]);
+              });
+            } catch (err) {
+              lastStatus = err instanceof Error ? err.message : 'EXCEPTION';
+              resolve([]);
+            }
+          });
+
+        const toLocationResults = (res: google.maps.places.PlaceResult[]): AreaSearchResult[] =>
+          res
+            .filter(r => r.geometry?.location)
+            .slice(0, 10)
+            .map((r, idx) => {
+              const center = {
+                lat: r.geometry!.location!.lat(),
+                lng: r.geometry!.location!.lng(),
+              };
+              return {
+                id: r.place_id ?? String(idx),
+                label: [r.name, r.formatted_address].filter(Boolean).join(' · ') || q,
+                kind: (r.types && r.types[0]) ? r.types[0].replace(/_/g, ' ') : 'location',
+                ring: circleRing(center, locationRadius),
+                center,
+              } as AreaSearchResult;
+            });
+
+        // Pass 1: as typed. Pass 2: bias to the selected city/state if empty.
+        let results = toLocationResults(await placesText(q));
+        if (!results.length && suffix) {
+          results = toLocationResults(await placesText(`${q}, ${suffix}`));
+        }
+        if (!results.length) {
+          // Keep the user-facing message generic; log the real status for devs.
+          if (lastStatus !== 'ZERO_RESULTS' && lastStatus !== 'OK') {
+            console.warn('[Geofence] Places search failed:', lastStatus);
+          }
+          toast.error('No place found. Try the exact name shown on Google Maps.');
+        }
+        setAreaResults(results);
+      } catch {
+        toast.error('Failed to search location');
+      } finally {
+        setAreaSearching(false);
+      }
+      return;
+    }
 
     type NomSearch = {
       place_id?: number;
@@ -524,12 +627,22 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
   const selectAreaResult = (result: AreaSearchResult) => {
     setHighlightedArea(result.ring);
     setHighlightedLabel(result.label);
+    setHighlightedCenter(result.center ?? null);
     setAreaResults([]);
     const cLat = result.ring.reduce((s, c) => s + c.lat, 0) / result.ring.length;
     const cLng = result.ring.reduce((s, c) => s + c.lng, 0) / result.ring.length;
     setMapCenter({ lat: cLat, lng: cLng });
     setMapKey(k => k + 1);
   };
+
+  // Pinpoint mode: when the radius slider changes after a location is selected,
+  // rebuild the highlighted circle around the same center.
+  useEffect(() => {
+    if (searchMode !== 'location' || !highlightedCenter) return;
+    setHighlightedArea(circleRing(highlightedCenter, locationRadius));
+    setMapKey(k => k + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationRadius]);
 
   const useHighlightedAsBoundary = () => {
     if (!highlightedArea) return;
@@ -538,6 +651,7 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
       setGeofenceForm(prev => ({ ...prev, centerLat: center.lat, centerLng: center.lng, radiusMeters: radius }));
       setHighlightedArea(null);
       setHighlightedLabel('');
+      setHighlightedCenter(null);
       setMapCenter(center);
       setMapKey(k => k + 1);
       toast.success(`Circle set from search (~${(radius / 1000).toFixed(1)} km). Adjust the radius if needed.`);
@@ -546,6 +660,7 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
     setGeofenceForm(prev => ({ ...prev, fenceType: 'polygon', coordinates: highlightedArea }));
     setHighlightedArea(null);
     setHighlightedLabel('');
+    setHighlightedCenter(null);
     setMapKey(k => k + 1);
     toast.success('Boundary set from search. Drag points to adjust if needed.');
   };
@@ -597,6 +712,7 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
       setGeofenceForm(prev => ({ ...prev, fenceType: 'polygon', coordinates: ring }));
       setHighlightedArea(null);
       setHighlightedLabel('');
+      setHighlightedCenter(null);
       setMapKey(k => k + 1);
       toast.success('Area added to geofence.');
     } catch {
@@ -622,6 +738,7 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
       setGeofenceForm(prev => ({ ...prev, fenceType: 'polygon', coordinates: ring }));
       setHighlightedArea(null);
       setHighlightedLabel('');
+      setHighlightedCenter(null);
       setMapKey(k => k + 1);
       toast.success('Area removed from geofence.');
     } catch {
@@ -632,6 +749,7 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
   const clearHighlight = () => {
     setHighlightedArea(null);
     setHighlightedLabel('');
+    setHighlightedCenter(null);
     setMapKey(k => k + 1);
   };
 
@@ -870,8 +988,29 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
                   </div>
                 </div>
 
-                {/* Area search — find any place and highlight its boundary */}
+                {/* Area / Location search — find a place and highlight a boundary */}
                 <div className="mb-3">
+                  {/* Mode toggle: whole area vs single pinpoint + radius */}
+                  <div className="inline-flex rounded-lg border border-gray-200 p-0.5 mb-2 bg-gray-50">
+                    <button
+                      type="button"
+                      onClick={() => { setSearchMode('area'); setAreaResults([]); clearHighlight(); }}
+                      className={`px-3 py-1 text-xs font-medium rounded-md transition ${
+                        searchMode === 'area' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      Area
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSearchMode('location'); setAreaResults([]); clearHighlight(); }}
+                      className={`px-3 py-1 text-xs font-medium rounded-md transition ${
+                        searchMode === 'location' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      Location (pinpoint)
+                    </button>
+                  </div>
                   <div className="flex gap-2">
                       <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -880,10 +1019,27 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
                           value={areaQuery}
                           onChange={(e) => setAreaQuery(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchArea(); } }}
-                          placeholder="Search an area, locality or place to highlight…"
+                          placeholder={searchMode === 'location'
+                            ? 'Search a place, address or landmark to pinpoint…'
+                            : 'Search an area, locality or place to highlight…'}
                           className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                         />
                       </div>
+                      {searchMode === 'location' && (
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min={50}
+                            max={50000}
+                            step={50}
+                            value={locationRadius}
+                            onChange={(e) => setLocationRadius(Math.min(50000, Math.max(50, Number(e.target.value) || 0)))}
+                            title="Radius in metres around the pinpoint"
+                            className="w-24 pl-3 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">m</span>
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={searchArea}
@@ -894,6 +1050,12 @@ const GeofencesTab: React.FC<GeofencesTabProps> = ({ adminCityIds = [], isSuperA
                         Search
                       </button>
                     </div>
+                    {searchMode === 'location' && (
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        Drops a circle of {locationRadius >= 1000 ? `${(locationRadius / 1000).toFixed(1)} km` : `${locationRadius} m`} around the chosen point. Use it to add or exclude a spot that isn’t a full area.
+                      </p>
+                    )}
+
 
                     {/* Results dropdown */}
                     {areaResults.length > 0 && (

@@ -41,6 +41,7 @@ export interface VehicleDto {
   isComingSoon: boolean;
   isDummy: boolean;
   dummyAvailableInDays: number;
+  dummyAvailableInTime: string;
   pricePerHour: number;
   pricePerDay: number;
   minBookingHours: number;
