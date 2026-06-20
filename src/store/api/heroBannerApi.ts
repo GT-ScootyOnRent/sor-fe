@@ -14,6 +14,10 @@ export interface HeroBanner {
   cityIds: number[]; // empty = global (all cities)
   cityNames: string[];
 
+  // Title/subtitle overlay position (0-100 percentages). 50/50 = centred.
+  textPositionX: number;
+  textPositionY: number;
+
   objectPosition?: {
     x: number;
     y: number;
@@ -28,6 +32,8 @@ const normalizeHeroBanner = (b: any): HeroBanner => ({
   ...b,
   cityIds: b.cityIds ?? (b.cityId != null ? [b.cityId] : []),
   cityNames: b.cityNames ?? (b.cityName ? [b.cityName] : []),
+  textPositionX: b.textPositionX ?? 50,
+  textPositionY: b.textPositionY ?? 50,
 });
 
 export const heroBannerApi = createApi({

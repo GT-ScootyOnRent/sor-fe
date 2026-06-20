@@ -31,6 +31,18 @@ export interface BookingRestoreRequestDto {
     createdAt: string;
 }
 
+export interface BookingUploadPermissionRequestDto {
+    id: number;
+    bookingId: number;
+    requestedByStaffId?: number | null;
+    reason?: string | null;
+    status: 'pending' | 'approved' | 'rejected';
+    resolvedByAdminId?: number | null;
+    resolvedAt?: string | null;
+    expiresAt?: string | null;
+    createdAt: string;
+}
+
 const mutex = new Mutex();
 
 // Shared so other staff-scoped API slices (e.g. offlineBookingApi) serialize refreshes
@@ -65,16 +77,33 @@ export interface BookingDto {
     createdAt: string;
     userName?: string;
     userPhone?: string;
+    userEmail?: string;
     friendFamilyContactNumber?: string | null;
+    guestAddress?: string | null;
+    hotelName?: string | null;
+    hotelAddress?: string | null;
+    drivingLicenseNo?: string | null;
     isOfflineBooking: boolean;
+}
+
+export interface StaffCustomerDto {
+    id: number;
+    name?: string;
+    phone?: string;
+    email?: string;
+    cityId?: number;
+    createdAt: string;
 }
 
 export interface BookingDocumentDto {
     id: number;
     bookingId: number;
     documentType: string;
-    documentUrl: string;
-    uploadedAt: string;
+    fileUrl: string;
+    fileType: string;
+    label?: string;
+    uploadedByName?: string;
+    createdAt: string;
     uploadedByStaffId?: number;
     uploadedByAdminId?: number;
 }
@@ -83,9 +112,15 @@ export interface BookingMediaDto {
     id: number;
     bookingId: number;
     mediaType: string;
-    mediaUrl: string;
-    uploadedAt: string;
-    uploadedByStaffId: number;
+    fileUrl: string;
+    fileName?: string;
+    fileSizeBytes?: number;
+    uploadedByName?: string;
+    uploaderType?: string;
+    createdAt: string;
+    uploadedByStaffId?: number;
+    uploadedByAdminId?: number;
+    uploadedByUserId?: number;
 }
 
 // ── Mutex for token refresh ────────────────────────────────────────────────
@@ -186,7 +221,7 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 export const staffApi = createApi({
     reducerPath: 'staffApi',
     baseQuery: baseQueryWithReauth,
-    tagTypes: ['StaffProfile', 'Booking', 'BookingDocument', 'BookingMedia', 'RestoreRequest'],
+    tagTypes: ['StaffProfile', 'Booking', 'BookingDocument', 'BookingMedia', 'RestoreRequest', 'UploadPermission', 'Customer'],
     endpoints: (builder) => ({
         // ── Auth ───────────────────────────────────────────────────────────
         staffLogin: builder.mutation<StaffLoginResponse, StaffLoginRequest>({
@@ -275,6 +310,23 @@ export const staffApi = createApi({
             invalidatesTags: ['RestoreRequest'],
         }),
 
+        // ── Upload permission requests ─────────────────────────────────────
+        getStaffUploadPermissionRequests: builder.query<BookingUploadPermissionRequestDto[], string | void>({
+            query: (status) => `/staff/bookings/upload-permission-requests${status ? `?status=${status}` : ''}`,
+            providesTags: ['UploadPermission'],
+        }),
+        requestUploadPermission: builder.mutation<
+            { message: string },
+            { bookingId: number; reason?: string }
+        >({
+            query: ({ bookingId, reason }) => ({
+                url: `/staff/bookings/${bookingId}/upload-permission-request`,
+                method: 'POST',
+                body: { reason },
+            }),
+            invalidatesTags: ['UploadPermission'],
+        }),
+
         // ── Documents ──────────────────────────────────────────────────────
         getBookingDocuments: builder.query<BookingDocumentDto[], number>({
             query: (bookingId) => `/staff/bookings/${bookingId}/documents`,
@@ -296,8 +348,18 @@ export const staffApi = createApi({
                 { type: 'BookingDocument', id: bookingId },
             ],
         }),
-
-        // ── Media (Before/After photos & videos) ───────────────────────────
+        deleteBookingDocument: builder.mutation<
+            { success: boolean },
+            { bookingId: number; documentId: number }
+        >({
+            query: ({ bookingId, documentId }) => ({
+                url: `/staff/bookings/${bookingId}/documents/${documentId}`,
+                method: 'DELETE',
+            }),
+            invalidatesTags: (_result, _error, { bookingId }) => [
+                { type: 'BookingDocument', id: bookingId },
+            ],
+        }),
         getBookingMedia: builder.query<BookingMediaDto[], number>({
             query: (bookingId) => `/staff/bookings/${bookingId}/media`,
             providesTags: (_result, _error, bookingId) => [
@@ -318,6 +380,24 @@ export const staffApi = createApi({
                 { type: 'BookingMedia', id: bookingId },
             ],
         }),
+        deleteBookingMedia: builder.mutation<
+            { success: boolean },
+            { bookingId: number; mediaId: number }
+        >({
+            query: ({ bookingId, mediaId }) => ({
+                url: `/staff/bookings/${bookingId}/media/${mediaId}`,
+                method: 'DELETE',
+            }),
+            invalidatesTags: (_result, _error, { bookingId }) => [
+                { type: 'BookingMedia', id: bookingId },
+            ],
+        }),
+
+        // ── Customers ──────────────────────────────────────────────────────
+        getStaffCustomers: builder.query<StaffCustomerDto[], void>({
+            query: () => '/staff/customers',
+            providesTags: ['Customer'],
+        }),
     }),
 });
 
@@ -337,10 +417,17 @@ export const {
     // Restore requests
     useGetStaffRestoreRequestsQuery,
     useRequestBookingRestoreMutation,
+    // Upload permission requests
+    useGetStaffUploadPermissionRequestsQuery,
+    useRequestUploadPermissionMutation,
     // Documents
     useGetBookingDocumentsQuery,
     useUploadBookingDocumentMutation,
+    useDeleteBookingDocumentMutation,
     // Media
     useGetBookingMediaQuery,
     useUploadBookingMediaMutation,
+    useDeleteBookingMediaMutation,
+    // Customers
+    useGetStaffCustomersQuery,
 } = staffApi;

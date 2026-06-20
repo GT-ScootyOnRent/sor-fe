@@ -36,6 +36,7 @@ const EMPTY_VEHICLE: Omit<VehicleDto, 'id'> = {
   name: '', make: '', model: '', registrationNumber: '', cityId: 0,
   isAvailable: true, featured: false, isComingSoon: false, isDummy: false,
   dummyAvailableInDays: 3,
+  dummyAvailableInTime: '06:00',
   pricePerHour: 0, pricePerDay: 0, minBookingHours: 4,
   kmLimit: 100, excessKmCharge: 5, lateReturnCharge: 80,
   rating: 0, fuelType: 'Petrol', vehicleType: 'Scooter',
@@ -45,6 +46,22 @@ const EMPTY_VEHICLE: Omit<VehicleDto, 'id'> = {
   packages: { fourHours: 0, oneDay: 0, threeDays: 0, sevenDays: 0, fifteenDays: 0, monthly: 0 },
   specs: { mileage: '', engineCapacity: '', topSpeed: '', weight: '' },
 };
+
+// Business-hours time slots in 30-minute steps from 06:00 AM to 11:30 PM.
+// Value is "HH:mm" (24h, what the backend stores); label is shown in 12h with AM/PM.
+const DUMMY_TIME_SLOTS: { value: string; label: string }[] = (() => {
+  const slots: { value: string; label: string }[] = [];
+  for (let minutes = 6 * 60; minutes <= 23 * 60 + 30; minutes += 30) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const label = `${h12}:${String(m).padStart(2, '0')} ${period}`;
+    slots.push({ value, label });
+  }
+  return slots;
+})();
 
 type VehicleModalTab = 'details' | 'images';
 
@@ -221,6 +238,7 @@ const VehiclesTab: React.FC = () => {
       isComingSoon: vehicle.isComingSoon ?? false,
       isDummy: vehicle.isDummy ?? false,
       dummyAvailableInDays: vehicle.dummyAvailableInDays ?? 3,
+      dummyAvailableInTime: vehicle.dummyAvailableInTime ?? '06:00',
     });
     setVehicleModalTab('details');
     setShowVehicleModal(true);
@@ -725,16 +743,30 @@ const VehiclesTab: React.FC = () => {
                       </label>
                     </div>
                     {vehicleForm.isDummy && (
-                      <div className="mt-4 max-w-xs">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Available after (days)</label>
-                        <input
-                          type="number"
-                          min={1}
-                          value={vehicleForm.dummyAvailableInDays}
-                          onChange={(e) => setVehicleForm({ ...vehicleForm, dummyAvailableInDays: Math.max(1, Number(e.target.value) || 1) })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                        />
-                        <p className="text-xs text-gray-400 mt-1">Shows “Available from” as the search end date plus this many days.</p>
+                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Available after (days)</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={vehicleForm.dummyAvailableInDays}
+                            onChange={(e) => setVehicleForm({ ...vehicleForm, dummyAvailableInDays: Math.max(1, Number(e.target.value) || 1) })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Available at (time)</label>
+                          <select
+                            value={vehicleForm.dummyAvailableInTime}
+                            onChange={(e) => setVehicleForm({ ...vehicleForm, dummyAvailableInTime: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                          >
+                            {DUMMY_TIME_SLOTS.map((slot) => (
+                              <option key={slot.value} value={slot.value}>{slot.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <p className="sm:col-span-2 text-xs text-gray-400">Shows “Available from” as the search end date plus this many days, at the selected time.</p>
                       </div>
                     )}
                   </div>
