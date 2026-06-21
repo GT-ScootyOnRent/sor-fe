@@ -575,10 +575,20 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
 
         try {
             recordedChunksRef.current = [];
-            const preferredMimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-                ? 'video/webm;codecs=vp8,opus'
-                : 'video/webm';
-            const recorder = new MediaRecorder(cameraStreamRef.current, { mimeType: preferredMimeType });
+            // Safari's MediaRecorder only supports MP4, not WebM. Pick the first
+            // format the browser actually supports so recording works everywhere.
+            const candidateMimeTypes = [
+                'video/webm;codecs=vp8,opus',
+                'video/webm',
+                'video/mp4;codecs=h264,aac',
+                'video/mp4',
+            ];
+            const supportedMimeType = candidateMimeTypes.find((type) =>
+                MediaRecorder.isTypeSupported(type)
+            );
+            const recorder = supportedMimeType
+                ? new MediaRecorder(cameraStreamRef.current, { mimeType: supportedMimeType })
+                : new MediaRecorder(cameraStreamRef.current);
 
             recorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
@@ -587,9 +597,11 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
             };
 
             recorder.onstop = () => {
-                const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'video/webm' });
-                const file = new File([blob], `${uploadType || 'capture'}-${Date.now()}.webm`, {
-                    type: blob.type || 'video/webm',
+                const recordedType = recorder.mimeType || supportedMimeType || 'video/webm';
+                const blob = new Blob(recordedChunksRef.current, { type: recordedType });
+                const fileExtension = recordedType.includes('mp4') ? 'mp4' : 'webm';
+                const file = new File([blob], `${uploadType || 'capture'}-${Date.now()}.${fileExtension}`, {
+                    type: blob.type || recordedType,
                 });
 
                 setSelectedFile(file);
