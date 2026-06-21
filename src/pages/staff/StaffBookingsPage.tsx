@@ -1053,7 +1053,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                                                 {m.mediaType.replace('_', ' ')}
                                             </span>
                                         </a>
-                                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition">
                                             <a
                                                 href={m.fileUrl}
                                                 target="_blank"
@@ -1115,6 +1115,18 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                             >
                                 <FileText className="w-5 h-5 text-primary-600 mr-3" />
                                 <span>Upload Aadhar Card</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setUploadType('customer_pic');
+                                    setDocumentSide('');
+                                    setUploadInputMode('upload');
+                                    setShowUploadModal('document');
+                                }}
+                                className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                            >
+                                <Camera className="w-5 h-5 text-primary-600 mr-3" />
+                                <span>Upload Customer Picture</span>
                             </button>
                             <button
                                 onClick={() => {
@@ -1198,6 +1210,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                                         <>
                                             <option value="driving_license">Driving License</option>
                                             <option value="aadhar_card">Aadhar Card</option>
+                                            <option value="customer_pic">Customer Picture</option>
                                         </>
                                     ) : (
                                         <>
@@ -1210,7 +1223,7 @@ const BookingDetail: React.FC<BookingDetailProps> = ({ bookingId, onBack }) => {
                                 </select>
                             </div>
 
-                            {showUploadModal === 'document' && (
+                            {showUploadModal === 'document' && uploadType !== 'customer_pic' && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Side <span className="text-gray-400 font-normal">(optional)</span>

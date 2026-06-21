@@ -604,9 +604,14 @@ function BookingVideoSection({ bookingId, booking }: { bookingId: number; bookin
       return;
     }
 
-    // Validate file type
+    // Validate file type. Safari often hands files to <input type="file"> with an
+    // empty or generic MIME type, so fall back to checking the file extension.
     const allowedTypes = ['video/mp4', 'video/quicktime', 'video/webm', 'video/3gpp', 'video/x-msvideo'];
-    if (!allowedTypes.includes(file.type)) {
+    const allowedExtensions = ['.mp4', '.mov', '.webm', '.3gp', '.3gpp', '.avi', '.m4v'];
+    const fileExt = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    const hasAllowedType = !!file.type && allowedTypes.includes(file.type);
+    const hasAllowedExt = allowedExtensions.includes(fileExt);
+    if (!hasAllowedType && !hasAllowedExt) {
       toast.error('Only video files (MP4, MOV, WebM, 3GP, AVI) are allowed');
       return;
     }
