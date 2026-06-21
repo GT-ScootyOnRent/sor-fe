@@ -14,8 +14,13 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Company Info */}
 <div>
-  <h3 className="text-xl md:text-2xl mb-1">
-    Scooty<span className="text-primary-500">onrent</span>
+  <h3 className="text-2xl md:text-3xl font-bold mb-1 flex items-center gap-2">
+    <img
+      src="/logo-3d.svg"
+      alt="ScootyOnRent"
+      className="h-16 w-16 md:h-20 md:w-20 rounded-xl shrink-0"
+    />
+    <span>Scooty<span className="text-primary-500">onrent</span></span>
   </h3>
 
   <p className="text-gray-400 text-sm md:text-base leading-snug mb-3">

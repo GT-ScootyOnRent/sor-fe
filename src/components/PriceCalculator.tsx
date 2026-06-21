@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Tag, AlertCircle, CheckCircle, HardHat, Gift, Sparkles, X } from 'lucide-react';
+import { Tag, AlertCircle, CheckCircle, HardHat, Gift, Sparkles, X, Wallet } from 'lucide-react';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
-import PromoCodeModal from './PromoCodeModal';
-import { useValidatePromoCodeMutation, type PromoCodeDto } from '../store/api/promoCodeApi';
+import PromoCodeModal, { type CouponItem } from './PromoCodeModal';
+import { type PromoCodeDto } from '../store/api/promoCodeApi';
+import { useValidateCouponMutation } from '../store/api/couponApi';
 import { calculatePackageBasedPrice } from '../store/api/vehiclePackageApi';
 
 const SECOND_HELMET_PRICE = 50; // ₹50 for 2nd helmet (shown as free promo)
+const SECURITY_DEPOSIT = 2000; // ₹2000 refundable security deposit
 
 interface PriceCalculatorProps {
   hours: number; // total hours
@@ -17,8 +19,12 @@ interface PriceCalculatorProps {
   minBookingHours?: number;
   includeSecondHelmet?: boolean;
   onSecondHelmetChange?: (value: boolean) => void;
+  paySecurityAtPickup?: boolean;
+  onSecurityDepositModeChange?: (payAtPickup: boolean) => void;
   cityId?: number;
   userId?: number;
+  // Fired when an agent referral code is applied (so the parent can record usage on payment success)
+  onAgentApplied?: (info: { code: string; orderAmount: number } | null) => void;
   // Package-based pricing
   selectedDurations?: number[];
   priceOverrides?: Record<string, number>;
@@ -32,11 +38,13 @@ export default function PriceCalculator({
   onProceedToPayment,
   isLoading = false,
   isLoggedIn = false,
-  minBookingHours = 0,
   includeSecondHelmet = false,
   onSecondHelmetChange,
+  paySecurityAtPickup = false,
+  onSecurityDepositModeChange,
   cityId,
   userId,
+  onAgentApplied,
   selectedDurations = [],
   priceOverrides = {},
   pricePerHour = 0,
@@ -47,7 +55,8 @@ export default function PriceCalculator({
   const [promoDiscountAmount, setPromoDiscountAmount] = useState(0);
   const [promoCode, setPromoCode] = useState('');
 
-  const [validatePromo, { isLoading: validatingPromo }] = useValidatePromoCodeMutation();
+  // Single unified endpoint: resolves promo OR agent codes in one request.
+  const [validateCoupon, { isLoading: validatingPromo }] = useValidateCouponMutation();
 
   // Calculate subtotal using package-based pricing
   const subtotal = calculatePackageBasedPrice(
@@ -59,12 +68,13 @@ export default function PriceCalculator({
   );
   const helmetCharge = includeSecondHelmet ? SECOND_HELMET_PRICE : 0;
   const helmetDiscount = includeSecondHelmet ? SECOND_HELMET_PRICE : 0; // Free promo!
+  const securityDeposit = paySecurityAtPickup ? 0 : SECURITY_DEPOSIT; // Add to online payment if not paying at pickup
   const subtotalAfterHelmet = subtotal + helmetCharge - helmetDiscount; // Helmet cancels out
-  const total = subtotalAfterHelmet - promoDiscountAmount;
+  const total = subtotalAfterHelmet - promoDiscountAmount + securityDeposit;
 
-  const canProceed = hours > 0 && hours >= minBookingHours;
+  const canProceed = hours > 0;
 
-  const handleSelectPromo = async (promo: PromoCodeDto) => {
+  const handleSelectPromo = async (promo: CouponItem) => {
     if (!cityId || !userId) {
       toast.error('Please login to apply promo code');
       setShowPromoModal(false);
@@ -72,18 +82,14 @@ export default function PriceCalculator({
     }
 
     try {
-      const result = await validatePromo({
-        code: promo.code,
-        userId,
-        orderAmount: subtotal,
-        cityId,
-      }).unwrap();
-
+      const result = await validateCoupon({ code: promo.code, userId, orderAmount: subtotal, cityId }).unwrap();
       if (result.isValid) {
         setAppliedPromo(promo);
         setPromoDiscountAmount(result.discountAmount);
         setPromoCode('');
         setShowPromoModal(false);
+        // Agent coupons must be recorded as used on payment success; promos are not.
+        onAgentApplied?.(result.isAgent ? { code: result.code, orderAmount: subtotal } : null);
         toast.success(`Coupon "${promo.code}" applied!`);
       } else {
         toast.error(result.message || 'Coupon not applicable');
@@ -94,7 +100,8 @@ export default function PriceCalculator({
   };
 
   const handleApplyManualPromo = async () => {
-    if (!promoCode.trim()) {
+    const code = promoCode.trim().toUpperCase();
+    if (!code) {
       toast.error('Please enter a promo code');
       return;
     }
@@ -103,37 +110,39 @@ export default function PriceCalculator({
       return;
     }
 
+    // Single call — the backend resolves promo OR agent codes and tells us which matched.
     try {
-      const result = await validatePromo({
-        code: promoCode.trim().toUpperCase(),
-        userId,
-        orderAmount: subtotal,
-        cityId,
-      }).unwrap();
-
+      const result = await validateCoupon({ code, userId, orderAmount: subtotal, cityId }).unwrap();
       if (result.isValid) {
-        setAppliedPromo({
-          id: 0,
-          code: promoCode.trim().toUpperCase(),
-          discountType: 'flat',
-          discountValue: result.discountAmount,
-          minOrderAmount: 0,
-          isActive: true,
-        } as PromoCodeDto);
-        setPromoDiscountAmount(result.discountAmount);
-        setPromoCode('');
-        toast.success(`Coupon applied! You save ₹${result.discountAmount}`);
-      } else {
-        toast.error(result.message || 'Invalid promo code');
+        applyCoupon(result.code || code, result.discountAmount, result.isAgent);
+        return;
       }
+      toast.error(result.message || 'Invalid coupon code');
     } catch (error: any) {
-      toast.error(error?.data?.message || 'Failed to apply coupon');
+      toast.error(error?.data?.message || error?.data?.error || 'Invalid coupon code');
     }
+  };
+
+  // Shared helper to set applied coupon state. isAgent => report to parent for usage recording.
+  const applyCoupon = (code: string, discountAmount: number, isAgent: boolean) => {
+    setAppliedPromo({
+      id: 0,
+      code,
+      discountType: 'flat',
+      discountValue: discountAmount,
+      minOrderAmount: 0,
+      isActive: true,
+    } as PromoCodeDto);
+    setPromoDiscountAmount(discountAmount);
+    setPromoCode('');
+    onAgentApplied?.(isAgent ? { code, orderAmount: subtotal } : null);
+    toast.success(`Coupon applied! You save ₹${discountAmount}`);
   };
 
   const handleRemovePromo = () => {
     setAppliedPromo(null);
     setPromoDiscountAmount(0);
+    onAgentApplied?.(null);
     toast.success('Coupon removed');
   };
 
@@ -179,6 +188,36 @@ export default function PriceCalculator({
         </div>
       )}
 
+      {/* Security Deposit Option */}
+      {onSecurityDepositModeChange && (
+        <div className="mb-6 pb-6 border-b border-gray-200">
+          <div className="flex items-center gap-2 mb-3">
+            <Wallet className="w-5 h-5 text-primary-600" />
+            <h4 className="font-semibold text-gray-900">Security Deposit</h4>
+          </div>
+
+          <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-primary-300 hover:bg-primary-50/30 transition-colors">
+            <input
+              type="checkbox"
+              checked={paySecurityAtPickup}
+              onChange={(e) => onSecurityDepositModeChange(e.target.checked)}
+              className="mt-1 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+            />
+            <div className="flex-1">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-gray-900">Pay ₹{SECURITY_DEPOSIT} at pickup (Cash)</span>
+              </div>
+              <p className="text-sm text-gray-600 mt-0.5">
+                {paySecurityAtPickup 
+                  ? 'Carry ₹2,000 cash to pay at pickup location' 
+                  : 'Security deposit included in online payment'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Fully refundable after ride completion</p>
+            </div>
+          </label>
+        </div>
+      )}
+
       {/* Price Breakdown */}
       <div className="space-y-3 mb-6">
         <div className="flex justify-between">
@@ -212,6 +251,20 @@ export default function PriceCalculator({
             <span>-₹{promoDiscountAmount.toFixed(2)}</span>
           </div>
         )}
+
+        {/* Security Deposit */}
+        <div className="flex justify-between">
+          <span className="text-gray-600 flex items-center gap-1">
+            <Wallet className="w-3.5 h-3.5" />
+            Security Deposit
+            <span className="text-xs text-gray-400">(refundable)</span>
+          </span>
+          {paySecurityAtPickup ? (
+            <span className="text-amber-600 text-sm">Pay at pickup</span>
+          ) : (
+            <span className="text-black">₹{SECURITY_DEPOSIT.toFixed(2)}</span>
+          )}
+        </div>
 
         <div className="pt-3 border-t border-gray-200">
           <div className="flex justify-between items-center">
@@ -302,22 +355,16 @@ export default function PriceCalculator({
         />
       )}
 
-      {/* Validation Warning */}
-      {hours > 0 && hours < minBookingHours && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-3 flex items-start">
-          <AlertCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-red-800">
-            Minimum booking duration is {minBookingHours} hours. Please adjust your dates.
-          </p>
-        </div>
-      )}
-
       {/* Additional Info */}
       <div className="bg-primary-50 rounded-lg p-4 mb-6">
         <h4 className="text-sm font-medium text-black mb-2">Important Information</h4>
         <ul className="text-sm text-gray-600 space-y-1">
           <li>• Valid driving license and ID proof required at pickup</li>
-          <li>• Security Deposit: ₹2000 collected at pickup (refundable)</li>
+          {paySecurityAtPickup ? (
+            <li>• Carry ₹2,000 cash as refundable security deposit</li>
+          ) : (
+            <li>• Security deposit (₹2,000) included - refund within 3 working days after ride</li>
+          )}
         </ul>
       </div>
 

@@ -5,6 +5,7 @@ import authReducer from './slices/authSlice';
 import adminAuthReducer from './slices/adminAuthSlice';
 import staffAuthReducer from './slices/staffAuthSlice';
 import cityReducer from './slices/citySlice';
+import dashboardCityReducer from './slices/dashboardCitySlice';
 
 import { vehicleApi } from './api/vehicleApi';
 import { vehicleImageApi } from './api/vehicleImageApi';
@@ -27,6 +28,10 @@ import { heroBannerApi } from './api/heroBannerApi';
 import { announcementBannerApi } from './api/announcementBannerApi';
 import { bookingCustomerDetailsApi } from './api/bookingCustomerDetailsApi';
 import { vehiclePackageApi } from './api/vehiclePackageApi';
+import { geofenceApi } from './api/geofenceApi';
+import { bookingMediaApi } from './api/bookingMediaApi';
+import { agentApi } from './api/agentApi';
+import { couponApi } from './api/couponApi';
 
 export const store = configureStore({
   reducer: {
@@ -34,6 +39,7 @@ export const store = configureStore({
     adminAuth: adminAuthReducer, // ← NEW
     staffAuth: staffAuthReducer, // ← Staff auth
     city: cityReducer, // ← City selection
+    dashboardCity: dashboardCityReducer, // ← Dashboard city filter
 
     [vehicleApi.reducerPath]: vehicleApi.reducer,
     [vehicleImageApi.reducerPath]: vehicleImageApi.reducer,
@@ -56,6 +62,10 @@ export const store = configureStore({
     [announcementBannerApi.reducerPath]: announcementBannerApi.reducer,
     [bookingCustomerDetailsApi.reducerPath]: bookingCustomerDetailsApi.reducer,
     [vehiclePackageApi.reducerPath]: vehiclePackageApi.reducer,
+    [geofenceApi.reducerPath]: geofenceApi.reducer,
+    [bookingMediaApi.reducerPath]: bookingMediaApi.reducer,
+    [agentApi.reducerPath]: agentApi.reducer,
+    [couponApi.reducerPath]: couponApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(
@@ -79,7 +89,11 @@ export const store = configureStore({
       heroBannerApi.middleware,
       announcementBannerApi.middleware,
       bookingCustomerDetailsApi.middleware,
-      vehiclePackageApi.middleware
+      vehiclePackageApi.middleware,
+      geofenceApi.middleware,
+      bookingMediaApi.middleware,
+      agentApi.middleware,
+      couponApi.middleware
     ),
 });
 

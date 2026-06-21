@@ -201,10 +201,13 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
                     name: response.user.name ?? response.user.userNumber,
                     phone: response.user.userNumber,
                     email: response.user.email ?? undefined,
+                    dateOfBirth: response.user.dateOfBirth ?? undefined,
+                    anniversaryDate: response.user.anniversaryDate ?? undefined,
                     userType: 'user',
                     cityId: response.user.cityId ?? undefined,
                 },
                 token: response.token,
+                refreshToken: response.refreshToken,
             })
         );
 

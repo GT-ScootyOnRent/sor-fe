@@ -10,7 +10,6 @@ import { toast } from 'sonner';
 
 const MIN_TIME = '06:00'; // 6 AM
 const MAX_TIME = '23:30'; // 11:30 PM
-const RETURN_DEFAULT_TIME = '23:30'; // returns default to 11:30 PM
 
 // 30-min slots between 6:00 AM and 11:30 PM
 const TIME_SLOTS: string[] = (() => {
@@ -68,17 +67,25 @@ const computeDefaults = () => {
   const now = new Date();
   const candidate = roundUpTo30Min(new Date(now.getTime() + 60 * 60 * 1000));
 
+  const today = ymd(now);
+  const candidateDate = ymd(candidate);
+
   const pickupDateObj = new Date(now);
   pickupDateObj.setHours(0, 0, 0, 0);
 
   let pickupTime = hm(candidate);
 
-  if (compareTime(pickupTime, MIN_TIME) < 0) {
+  // If adding 1 hour crossed to the next day, use tomorrow
+  if (candidateDate !== today) {
+    pickupDateObj.setDate(pickupDateObj.getDate() + 1);
     pickupTime = MIN_TIME;
   }
-
-  // If calculated time is past midnight (next day territory), move to next day
-  if (compareTime(pickupTime, MAX_TIME) > 0) {
+  // If calculated time is before business hours, use min time
+  else if (compareTime(pickupTime, MIN_TIME) < 0) {
+    pickupTime = MIN_TIME;
+  }
+  // If calculated time is past business hours, move to next day
+  else if (compareTime(pickupTime, MAX_TIME) > 0) {
     pickupDateObj.setDate(pickupDateObj.getDate() + 1);
     pickupTime = MIN_TIME;
   }
@@ -90,20 +97,29 @@ const computeDefaults = () => {
     pickupDate: ymd(pickupDateObj),
     pickupTime,
     returnDate: ymd(returnDateObj),
-    returnTime: RETURN_DEFAULT_TIME,
+    // Default to a 24-hour cycle: same time as pickup, next day
+    returnTime: pickupTime,
   };
 };
 
 // Helper to get smart pickup time for a given date
 const getSmartPickupTime = (selectedDate: string): string => {
-  const today = ymd(new Date());
+  const now = new Date();
+  const today = ymd(now);
+  
   if (selectedDate === today) {
     // Today: current time + 1 hour, rounded to 30 mins
-    const now = new Date();
     const candidate = roundUpTo30Min(new Date(now.getTime() + 60 * 60 * 1000));
+    const candidateDate = ymd(candidate);
+    
+    // If +1 hour crosses to next day, today is not bookable - return null indicator
+    if (candidateDate !== today) {
+      return ''; // Empty means today is not bookable
+    }
+    
     let time = hm(candidate);
     if (compareTime(time, MIN_TIME) < 0) time = MIN_TIME;
-    if (compareTime(time, MAX_TIME) > 0) time = MIN_TIME; // Past midnight, fallback
+    if (compareTime(time, MAX_TIME) > 0) return ''; // Past business hours
     return time;
   }
   // Future date: default to 6 AM
@@ -231,11 +247,25 @@ export default function DateTimePicker() {
 
   const today = ymd(new Date());
 
-  const minPickupTimeForToday = useMemo(() => {
+  // Check if today is still bookable (current time + 1hr is within business hours today)
+  const isTodayBookable = useMemo(() => {
     const now = new Date();
-    const c = hm(roundUpTo30Min(new Date(now.getTime() + 60 * 60 * 1000)));
+    const candidate = new Date(now.getTime() + 60 * 60 * 1000);
+    const candidateDate = ymd(candidate);
+    if (candidateDate !== today) return false; // Crossed to next day
+    const candidateTime = hm(roundUpTo30Min(candidate));
+    return compareTime(candidateTime, MAX_TIME) <= 0;
+  }, [today]);
+
+  const minBookableDate = isTodayBookable ? today : ymd(new Date(Date.now() + 24 * 60 * 60 * 1000));
+
+  const minPickupTimeForToday = useMemo(() => {
+    if (!isTodayBookable) return MIN_TIME; // Won't be used if today not bookable
+    const now = new Date();
+    const candidate = roundUpTo30Min(new Date(now.getTime() + 60 * 60 * 1000));
+    const c = hm(candidate);
     return compareTime(c, MIN_TIME) < 0 ? MIN_TIME : c;
-  }, []);
+  }, [isTodayBookable]);
 
   const pickupMinTime = pickupDate === today ? minPickupTimeForToday : MIN_TIME;
   const returnMinTime =
@@ -278,9 +308,22 @@ export default function DateTimePicker() {
 
   const handlePickupDateChange = (value: string) => {
     if (!value) return;
-    setPickupDate(value);
-    // Auto-set pickup time based on selected date
-    setPickupTime(getSmartPickupTime(value));
+    
+    // Check if selected date is bookable
+    const smartTime = getSmartPickupTime(value);
+    
+    if (!smartTime) {
+      // Today is not bookable (too late), push to tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = ymd(tomorrow);
+      setPickupDate(tomorrowStr);
+      setPickupTime(MIN_TIME);
+      toast.info('Too late to book for today, showing tomorrow');
+    } else {
+      setPickupDate(value);
+      setPickupTime(smartTime);
+    }
     setTimeout(() => openPicker(returnDateRef), 100);
   };
 
@@ -323,10 +366,11 @@ export default function DateTimePicker() {
 
   const valueClass = 'text-base font-bold text-primary-600 truncate';
 
-  // sr-only style for the hidden native date input — keeps it accessible &
-  // showPicker()-callable while removing it from the visual flow.
-  const visuallyHiddenInputClass =
-    'absolute h-px w-px overflow-hidden whitespace-nowrap p-0 -m-px border-0';
+  // Transparent native date input overlaid across the whole cell. Tapping the
+  // cell taps the real input directly, so iOS Safari opens its native date
+  // picker reliably (showPicker() alone is a no-op on a hidden input in iOS).
+  const dateInputOverlayClass =
+    'absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none m-0 p-0 border-0 bg-transparent';
 
   return (
     <div>
@@ -359,7 +403,7 @@ export default function DateTimePicker() {
           </button>
 
           {/* Pickup Date */}
-          <div className={cellClass} onClick={() => openPicker(pickupDateRef)}>
+          <div className={`${cellClass} relative`} onClick={() => openPicker(pickupDateRef)}>
             <span className={`${valueClass} flex-1`}>{formatDateDDMMYYYY(pickupDate)}</span>
             <Calendar className={iconClass} />
             <input
@@ -368,9 +412,10 @@ export default function DateTimePicker() {
               type="date"
               value={pickupDate}
               onChange={(e) => handlePickupDateChange(e.target.value)}
-              min={today}
+              onClick={() => openPicker(pickupDateRef)}
+              min={minBookableDate}
               aria-label="Pickup date"
-              className={visuallyHiddenInputClass}
+              className={dateInputOverlayClass}
             />
           </div>
 
@@ -387,7 +432,7 @@ export default function DateTimePicker() {
           </div>
 
           {/* Return Date */}
-          <div className={cellClass} onClick={() => openPicker(returnDateRef)}>
+          <div className={`${cellClass} relative`} onClick={() => openPicker(returnDateRef)}>
             <span className={`${valueClass} flex-1`}>{formatDateDDMMYYYY(returnDate)}</span>
             <Calendar className={iconClass} />
             <input
@@ -396,9 +441,10 @@ export default function DateTimePicker() {
               type="date"
               value={returnDate}
               onChange={(e) => setReturnDate(e.target.value)}
-              min={pickupDate || today}
+              onClick={() => openPicker(returnDateRef)}
+              min={pickupDate || minBookableDate}
               aria-label="Return date"
-              className={visuallyHiddenInputClass}
+              className={dateInputOverlayClass}
             />
           </div>
 

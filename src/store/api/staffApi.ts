@@ -1,7 +1,8 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
+import { Mutex } from 'async-mutex';
 import { API_CONFIG } from '../../config/api.config';
-import { staffLogout, type StaffUser } from '../slices/staffAuthSlice';
+import { setStaffCredentials, staffLogout, type StaffUser } from '../slices/staffAuthSlice';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,36 @@ export interface StaffLoginResponse {
     userData: StaffUser;
     message?: string;
 }
+
+export interface BookingRestoreRequestDto {
+    id: number;
+    bookingId: number;
+    requestedByStaffId?: number | null;
+    reason?: string | null;
+    status: 'pending' | 'approved' | 'rejected';
+    restoredStatus?: number | null;
+    resolvedByAdminId?: number | null;
+    resolvedAt?: string | null;
+    createdAt: string;
+}
+
+export interface BookingUploadPermissionRequestDto {
+    id: number;
+    bookingId: number;
+    requestedByStaffId?: number | null;
+    reason?: string | null;
+    status: 'pending' | 'approved' | 'rejected';
+    resolvedByAdminId?: number | null;
+    resolvedAt?: string | null;
+    expiresAt?: string | null;
+    createdAt: string;
+}
+
+const mutex = new Mutex();
+
+// Shared so other staff-scoped API slices (e.g. offlineBookingApi) serialize refreshes
+// against the SAME lock and don't trigger concurrent refresh races.
+export const staffRefreshMutex = mutex;
 
 export interface StaffProfileDto {
     id: number;
@@ -46,16 +77,33 @@ export interface BookingDto {
     createdAt: string;
     userName?: string;
     userPhone?: string;
+    userEmail?: string;
     friendFamilyContactNumber?: string | null;
+    guestAddress?: string | null;
+    hotelName?: string | null;
+    hotelAddress?: string | null;
+    drivingLicenseNo?: string | null;
     isOfflineBooking: boolean;
+}
+
+export interface StaffCustomerDto {
+    id: number;
+    name?: string;
+    phone?: string;
+    email?: string;
+    cityId?: number;
+    createdAt: string;
 }
 
 export interface BookingDocumentDto {
     id: number;
     bookingId: number;
     documentType: string;
-    documentUrl: string;
-    uploadedAt: string;
+    fileUrl: string;
+    fileType: string;
+    label?: string;
+    uploadedByName?: string;
+    createdAt: string;
     uploadedByStaffId?: number;
     uploadedByAdminId?: number;
 }
@@ -64,9 +112,15 @@ export interface BookingMediaDto {
     id: number;
     bookingId: number;
     mediaType: string;
-    mediaUrl: string;
-    uploadedAt: string;
-    uploadedByStaffId: number;
+    fileUrl: string;
+    fileName?: string;
+    fileSizeBytes?: number;
+    uploadedByName?: string;
+    uploaderType?: string;
+    createdAt: string;
+    uploadedByStaffId?: number;
+    uploadedByAdminId?: number;
+    uploadedByUserId?: number;
 }
 
 // ── Mutex for token refresh ────────────────────────────────────────────────
@@ -92,48 +146,71 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
     api,
     extraOptions
 ) => {
-    // // Wait if another refresh is in progress
-    // await mutex.waitForUnlock();
+    await mutex.waitForUnlock();
     let result = await baseQuery(args, api, extraOptions);
 
     if (result.error && result.error.status === 401) {
-        // if (!mutex.isLocked()) {
-        //     const release = await mutex.acquire();
-        //     try {
-        //         // Try to refresh token
-        //         const refreshResult = await baseQuery(
-        //             { url: '/staff/auth/refresh', method: 'POST' },
-        //             api,
-        //             extraOptions
-        //         );
+        const isRefreshRequest = typeof args === 'object' && args.url?.includes('/staff/auth/refresh');
 
-        //         if (refreshResult.data) {
-        //             const data = refreshResult.data as { staff: StaffUser };
-        //             api.dispatch(setStaffCredentials({ staff: data.staff }));
-        //             // Retry original request
-        //             result = await baseQuery(args, api, extraOptions);
-        //         } else {
-        //             api.dispatch(staffLogout());
-        //             window.location.href = '/login';
-        //         }
-        //     } finally {
-        //         release();
-        //     }
-        // } else {
-        //     // Wait for other refresh to complete
-        //     await mutex.waitForUnlock();
-        //     result = await baseQuery(args, api, extraOptions);
-        // }
-             // Staff requirement: any 401 should force logout (no refresh/retry).
-             api.dispatch(staffLogout());
-             localStorage.removeItem('staff_token');
-             localStorage.removeItem('staff_refresh_token');
-             localStorage.removeItem('staff');
-             localStorage.removeItem('staffId');
-     
-             if (window.location.pathname !== '/login') {
-                 window.location.href = '/login';
-    }
+        if (!mutex.isLocked() && !isRefreshRequest) {
+            const release = await mutex.acquire();
+
+            try {
+                const refreshResult = await baseQuery(
+                    { url: '/staff/auth/refresh', method: 'POST' },
+                    api,
+                    extraOptions
+                );
+
+                if (refreshResult.data) {
+                    const data = refreshResult.data as StaffLoginResponse;
+
+                    if (data.success && data.token && data.userData) {
+                        localStorage.setItem('staff_token', data.token);
+                        if (data.refreshToken) {
+                            localStorage.setItem('staff_refresh_token', data.refreshToken);
+                        }
+                        api.dispatch(setStaffCredentials({ staff: data.userData }));
+                        result = await baseQuery(args, api, extraOptions);
+                    } else {
+                        api.dispatch(staffLogout());
+                        localStorage.removeItem('staff_token');
+                        localStorage.removeItem('staff_refresh_token');
+                        localStorage.removeItem('staff');
+                        localStorage.removeItem('staffId');
+
+                        if (window.location.pathname !== '/login') {
+                            window.location.href = '/login';
+                        }
+                    }
+                } else {
+                    api.dispatch(staffLogout());
+                    localStorage.removeItem('staff_token');
+                    localStorage.removeItem('staff_refresh_token');
+                    localStorage.removeItem('staff');
+                    localStorage.removeItem('staffId');
+
+                    if (window.location.pathname !== '/login') {
+                        window.location.href = '/login';
+                    }
+                }
+            } finally {
+                release();
+            }
+        } else if (!isRefreshRequest) {
+            await mutex.waitForUnlock();
+            result = await baseQuery(args, api, extraOptions);
+        } else {
+            api.dispatch(staffLogout());
+            localStorage.removeItem('staff_token');
+            localStorage.removeItem('staff_refresh_token');
+            localStorage.removeItem('staff');
+            localStorage.removeItem('staffId');
+
+            if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+            }
+        }
     }
 
     return result;
@@ -144,7 +221,7 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 export const staffApi = createApi({
     reducerPath: 'staffApi',
     baseQuery: baseQueryWithReauth,
-    tagTypes: ['StaffProfile', 'Booking', 'BookingDocument', 'BookingMedia'],
+    tagTypes: ['StaffProfile', 'Booking', 'BookingDocument', 'BookingMedia', 'RestoreRequest', 'UploadPermission', 'Customer'],
     endpoints: (builder) => ({
         // ── Auth ───────────────────────────────────────────────────────────
         staffLogin: builder.mutation<StaffLoginResponse, StaffLoginRequest>({
@@ -160,7 +237,7 @@ export const staffApi = createApi({
                 method: 'POST',
             }),
         }),
-        staffRefreshToken: builder.mutation<{ staff: StaffUser }, void>({
+        staffRefreshToken: builder.mutation<StaffLoginResponse, void>({
             query: () => ({
                 url: '/staff/auth/refresh',
                 method: 'POST',
@@ -216,6 +293,40 @@ export const staffApi = createApi({
             providesTags: (_result, _error, id) => [{ type: 'Booking', id }],
         }),
 
+        // ── Restore requests ───────────────────────────────────────────────
+        getStaffRestoreRequests: builder.query<BookingRestoreRequestDto[], string | void>({
+            query: (status) => `/staff/bookings/restore-requests${status ? `?status=${status}` : ''}`,
+            providesTags: ['RestoreRequest'],
+        }),
+        requestBookingRestore: builder.mutation<
+            { message: string },
+            { bookingId: number; reason?: string }
+        >({
+            query: ({ bookingId, reason }) => ({
+                url: `/staff/bookings/${bookingId}/restore-request`,
+                method: 'POST',
+                body: { reason },
+            }),
+            invalidatesTags: ['RestoreRequest'],
+        }),
+
+        // ── Upload permission requests ─────────────────────────────────────
+        getStaffUploadPermissionRequests: builder.query<BookingUploadPermissionRequestDto[], string | void>({
+            query: (status) => `/staff/bookings/upload-permission-requests${status ? `?status=${status}` : ''}`,
+            providesTags: ['UploadPermission'],
+        }),
+        requestUploadPermission: builder.mutation<
+            { message: string },
+            { bookingId: number; reason?: string }
+        >({
+            query: ({ bookingId, reason }) => ({
+                url: `/staff/bookings/${bookingId}/upload-permission-request`,
+                method: 'POST',
+                body: { reason },
+            }),
+            invalidatesTags: ['UploadPermission'],
+        }),
+
         // ── Documents ──────────────────────────────────────────────────────
         getBookingDocuments: builder.query<BookingDocumentDto[], number>({
             query: (bookingId) => `/staff/bookings/${bookingId}/documents`,
@@ -237,8 +348,18 @@ export const staffApi = createApi({
                 { type: 'BookingDocument', id: bookingId },
             ],
         }),
-
-        // ── Media (Before/After photos & videos) ───────────────────────────
+        deleteBookingDocument: builder.mutation<
+            { success: boolean },
+            { bookingId: number; documentId: number }
+        >({
+            query: ({ bookingId, documentId }) => ({
+                url: `/staff/bookings/${bookingId}/documents/${documentId}`,
+                method: 'DELETE',
+            }),
+            invalidatesTags: (_result, _error, { bookingId }) => [
+                { type: 'BookingDocument', id: bookingId },
+            ],
+        }),
         getBookingMedia: builder.query<BookingMediaDto[], number>({
             query: (bookingId) => `/staff/bookings/${bookingId}/media`,
             providesTags: (_result, _error, bookingId) => [
@@ -259,6 +380,24 @@ export const staffApi = createApi({
                 { type: 'BookingMedia', id: bookingId },
             ],
         }),
+        deleteBookingMedia: builder.mutation<
+            { success: boolean },
+            { bookingId: number; mediaId: number }
+        >({
+            query: ({ bookingId, mediaId }) => ({
+                url: `/staff/bookings/${bookingId}/media/${mediaId}`,
+                method: 'DELETE',
+            }),
+            invalidatesTags: (_result, _error, { bookingId }) => [
+                { type: 'BookingMedia', id: bookingId },
+            ],
+        }),
+
+        // ── Customers ──────────────────────────────────────────────────────
+        getStaffCustomers: builder.query<StaffCustomerDto[], void>({
+            query: () => '/staff/customers',
+            providesTags: ['Customer'],
+        }),
     }),
 });
 
@@ -275,10 +414,20 @@ export const {
     // Bookings
     useGetStaffBookingsQuery,
     useGetStaffBookingByIdQuery,
+    // Restore requests
+    useGetStaffRestoreRequestsQuery,
+    useRequestBookingRestoreMutation,
+    // Upload permission requests
+    useGetStaffUploadPermissionRequestsQuery,
+    useRequestUploadPermissionMutation,
     // Documents
     useGetBookingDocumentsQuery,
     useUploadBookingDocumentMutation,
+    useDeleteBookingDocumentMutation,
     // Media
     useGetBookingMediaQuery,
     useUploadBookingMediaMutation,
+    useDeleteBookingMediaMutation,
+    // Customers
+    useGetStaffCustomersQuery,
 } = staffApi;

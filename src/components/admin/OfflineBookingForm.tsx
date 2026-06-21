@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   User, Phone, Calendar, Car, FileText,
-  Hash, Shield, Loader2, CheckCircle, AlertCircle, Upload, Camera, X
+  Hash, Shield, Loader2, CheckCircle, AlertCircle, Upload, Camera, X, ChevronDown, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -11,7 +11,7 @@ import {
   type OfflineBookingDocumentDto,
 } from '../../store/api/offlineBookingApi';
 import { useGetAllPickupLocationsQuery } from '../../store/api/pickupLocationApi';
-import { useGetVehiclesQuery } from '../../store/api/vehicleApi';
+import { useGetVehiclesForAdminQuery } from '../../store/api/vehicleApi';
 
 const ID_TYPES = [
   { value: 'aadhaar', label: 'Aadhaar Card' },
@@ -22,6 +22,7 @@ const ID_TYPES = [
 
 const DOCUMENT_TYPE_OPTIONS = {
   id_proof: 'DL (Driving License)',
+  aadhaar: 'Aadhaar Card',
   vehicle_before: 'Vehicle (Before)',
   vehicle_after: 'Vehicle (After)',
   other: 'Other',
@@ -30,6 +31,7 @@ const DOCUMENT_TYPE_OPTIONS = {
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB (aligned with existing admin/staff image limits)
 const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50MB (common Supabase gateway limit; adjust if your project differs)
 const MAX_OTHER_IMAGES = 2;
+const OFFLINE_BOOKING_DRAFTS_KEY = 'offline_booking_drafts';
 
 interface FormState {
   guestPhone: string;
@@ -58,6 +60,17 @@ interface FormState {
   documents: OfflineBookingDocumentDto[];
 }
 
+interface OfflineBookingDraft {
+  id: string;
+  label: string;
+  data: FormState;
+  savedAt: string;
+  isTotalAmountEdited: boolean;
+}
+
+type DocumentInputMode = 'upload' | 'camera';
+type SingleDocumentKind = 'image' | 'video';
+
 const INITIAL_FORM: FormState = {
   guestPhone: '',
   guestName: '',
@@ -68,8 +81,8 @@ const INITIAL_FORM: FormState = {
   pickupLocationId: '',
   bookingStartDate: '',
   bookingEndDate: '',
-  startTime: '10:00',
-  endTime: '18:00',
+  startTime: '06:00',
+  endTime: '23:30',
   totalAmount: '',
   rate: '',
   primaryVehicleId: '',
@@ -99,6 +112,31 @@ const calculateBookingDays = (startDate: string, endDate: string): number | null
 
   const millisecondsPerDay = 24 * 60 * 60 * 1000;
   return Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay) + 1;
+};
+
+// Round time to nearest 30-minute slot (e.g., "10:28" → "10:30", "10:14" → "10:00")
+const roundToNearest30Min = (timeStr: string): string => {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const roundedMinutes = minutes < 15 ? 0 : minutes < 45 ? 30 : 60;
+  
+  let roundedHours = hours;
+  let finalMinutes = roundedMinutes;
+  
+  if (roundedMinutes === 60) {
+    roundedHours = hours + 1;
+    finalMinutes = 0;
+  }
+  
+  // Clamp to business hours (06:00 - 23:30)
+  if (roundedHours < 6) {
+    roundedHours = 6;
+    finalMinutes = 0;
+  } else if (roundedHours > 23 || (roundedHours === 23 && finalMinutes > 30)) {
+    roundedHours = 23;
+    finalMinutes = 30;
+  }
+  
+  return `${String(roundedHours).padStart(2, '0')}:${String(finalMinutes).padStart(2, '0')}`;
 };
 
 const calculateBookingHours = (
@@ -139,23 +177,108 @@ const syncArrayLength = (values: string[], targetLength: number): string[] => {
   return [...values, ...Array.from({ length: normalizedLength - values.length }, () => '')];
 };
 
+const hasDraftableContent = (form: FormState): boolean => {
+  return Boolean(
+    form.guestPhone
+    || form.guestName
+    || form.guestAddress
+    || form.friendFamilyContactNumber
+    || form.hotelName
+    || form.hotelAddress
+    || form.pickupLocationId
+    || form.bookingStartDate
+    || form.bookingEndDate
+    || form.startTime !== INITIAL_FORM.startTime
+    || form.endTime !== INITIAL_FORM.endTime
+    || form.totalAmount
+    || form.rate
+    || form.primaryVehicleId
+    || form.vehicleNumbers.some((value) => value.trim() !== '')
+    || form.numberOfVehicles !== INITIAL_FORM.numberOfVehicles
+    || form.numberOfDays
+    || form.openingKms.some((value) => value.trim() !== '')
+    || form.closingKms.some((value) => value.trim() !== '')
+    || form.securityAmount
+    || form.drivingLicenseNo
+    || form.idType
+    || form.idNumber
+    || form.documents.length > 0
+  );
+};
+
+const buildDraftLabel = (form: FormState): string => {
+  const primaryLabel = form.guestName.trim() || form.guestPhone.trim() || form.hotelName.trim() || 'Offline Booking';
+  const dateLabel = form.bookingStartDate || new Date().toLocaleDateString('en-CA');
+  return `${primaryLabel} - ${dateLabel}`;
+};
+
 const OfflineBookingForm: React.FC = () => {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [successData, setSuccessData] = useState<{ bookingId: number; userId: number } | null>(null);
   const [isTotalAmountEdited, setIsTotalAmountEdited] = useState(false);
+  const [drafts, setDrafts] = useState<OfflineBookingDraft[]>([]);
+  const [showDraftDropdown, setShowDraftDropdown] = useState(false);
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [showDocumentUploadModal, setShowDocumentUploadModal] = useState(false);
   const [selectedDocumentType, setSelectedDocumentType] = useState('');
+  const [documentInputMode, setDocumentInputMode] = useState<DocumentInputMode>('upload');
   const [selectedDocumentFile, setSelectedDocumentFile] = useState<File | null>(null);
   const [selectedDocumentLabel, setSelectedDocumentLabel] = useState('');
   const [selectedDocumentPreviewUrl, setSelectedDocumentPreviewUrl] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isCameraStarting, setIsCameraStarting] = useState(false);
+  const [isRecordingVideo, setIsRecordingVideo] = useState(false);
   const [otherImages, setOtherImages] = useState<File[]>([]);
   const [otherVideo, setOtherVideo] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const formRef = useRef<FormState>(INITIAL_FORM);
+  const draftsRef = useRef<OfflineBookingDraft[]>([]);
+  const currentDraftIdRef = useRef<string | null>(null);
+  const isTotalAmountEditedRef = useRef(false);
+  const successDataRef = useRef<{ bookingId: number; userId: number } | null>(null);
 
   const [createOfflineBooking, { isLoading }] = useCreateOfflineBookingMutation();
   const [uploadOfflineBookingDocument, { isLoading: isUploadingDocument }] = useUploadOfflineBookingDocumentMutation();
-  const { data: vehicles = [] } = useGetVehiclesQuery(undefined);
+  const { data: vehicles = [] } = useGetVehiclesForAdminQuery({});
   const { data: pickupLocations = [] } = useGetAllPickupLocationsQuery({ page: 1, size: 100 });
+
+  useEffect(() => {
+    const stored = localStorage.getItem(OFFLINE_BOOKING_DRAFTS_KEY);
+    if (!stored) {
+      return;
+    }
+
+    try {
+      setDrafts(JSON.parse(stored));
+    } catch {
+      setDrafts([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
+
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
+
+  useEffect(() => {
+    currentDraftIdRef.current = currentDraftId;
+  }, [currentDraftId]);
+
+  useEffect(() => {
+    isTotalAmountEditedRef.current = isTotalAmountEdited;
+  }, [isTotalAmountEdited]);
+
+  useEffect(() => {
+    successDataRef.current = successData;
+  }, [successData]);
 
   const calculatedNumberOfDays = useMemo(
     () => calculateBookingDays(form.bookingStartDate, form.bookingEndDate),
@@ -245,7 +368,14 @@ const OfflineBookingForm: React.FC = () => {
     }
 
     setForm((currentForm) => {
-      const nextForm = { ...currentForm, [name]: value };
+      let processedValue = value;
+      
+      // Round time inputs to nearest 30-minute slot
+      if (name === 'startTime' || name === 'endTime') {
+        processedValue = roundToNearest30Min(value);
+      }
+
+      const nextForm = { ...currentForm, [name]: processedValue };
 
       if (name === 'bookingStartDate' || name === 'bookingEndDate') {
         const nextCalculatedDays = calculateBookingDays(nextForm.bookingStartDate, nextForm.bookingEndDate);
@@ -283,10 +413,23 @@ const OfflineBookingForm: React.FC = () => {
   };
 
   const resetDocumentUploadState = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    recordedChunksRef.current = [];
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
     setShowDocumentUploadModal(false);
     setSelectedDocumentType('');
+    setDocumentInputMode('upload');
     setSelectedDocumentFile(null);
     setSelectedDocumentLabel('');
+    setCameraError(null);
+    setIsCameraStarting(false);
+    setIsRecordingVideo(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -304,7 +447,7 @@ const OfflineBookingForm: React.FC = () => {
       return;
     }
     const isOther = selectedDocumentType === 'other';
-    const isDl = selectedDocumentType === 'id_proof';
+    const isIdentityDocument = selectedDocumentType === 'id_proof' || selectedDocumentType === 'aadhaar';
 
     const filesToUpload: File[] = isOther
       ? [...otherImages, ...(otherVideo ? [otherVideo] : [])]
@@ -335,9 +478,9 @@ const OfflineBookingForm: React.FC = () => {
               documentType: selectedDocumentType,
               fileUrl: uploaded.fileUrl,
               fileType: uploaded.fileType,
-              // DL + Other: no label input; default to filename
+              // Identity documents + Other: no label input; default to filename
               // Vehicle before/after: preserve optional label if user typed it
-              label: isOther ? selectedDocumentLabel.trim() : (isDl ? file.name : (selectedDocumentLabel || file.name)),
+              label: isOther ? selectedDocumentLabel.trim() : (isIdentityDocument ? file.name : (selectedDocumentLabel || file.name)),
             },
           ],
         }));
@@ -360,6 +503,7 @@ const OfflineBookingForm: React.FC = () => {
 
   const openDocumentUploadModal = (documentType?: string) => {
     setSelectedDocumentType(documentType ?? '');
+    setDocumentInputMode('upload');
     setSelectedDocumentFile(null);
     setSelectedDocumentLabel('');
     setSelectedDocumentPreviewUrl(null);
@@ -387,18 +531,37 @@ const OfflineBookingForm: React.FC = () => {
     });
   }, [selectedDocumentFile]);
 
-  const setSelectedImageFile = (file: File | null) => {
+  const isVehicleVideoDocumentType = selectedDocumentType === 'vehicle_before' || selectedDocumentType === 'vehicle_after';
+  const singleDocumentKind: SingleDocumentKind = isVehicleVideoDocumentType ? 'video' : 'image';
+
+  const setSelectedSingleDocumentFile = (file: File | null) => {
     if (!file) {
       setSelectedDocumentFile(null);
       return;
     }
-    if (!file.type.startsWith('image/')) {
+
+    if (singleDocumentKind === 'video' && !file.type.startsWith('video/')) {
+      toast.error('Only video files are allowed for this upload.');
+      setSelectedDocumentFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    if (singleDocumentKind === 'image' && !file.type.startsWith('image/')) {
       toast.error('Only image files are allowed for this upload.');
       setSelectedDocumentFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+
+    if (singleDocumentKind === 'video' && file.size > MAX_VIDEO_SIZE_BYTES) {
+      toast.error('Video must be under 50MB.');
+      setSelectedDocumentFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    if (singleDocumentKind === 'image' && file.size > MAX_IMAGE_SIZE_BYTES) {
       toast.error('Image must be under 5MB.');
       setSelectedDocumentFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -406,6 +569,190 @@ const OfflineBookingForm: React.FC = () => {
     }
     setSelectedDocumentFile(file);
   };
+
+  const stopCameraStream = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    mediaRecorderRef.current = null;
+    recordedChunksRef.current = [];
+    setIsRecordingVideo(false);
+
+    if (!cameraStreamRef.current) {
+      return;
+    }
+
+    cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+
+    if (videoPreviewRef.current) {
+      videoPreviewRef.current.srcObject = null;
+    }
+  };
+
+  // Live preview (getUserMedia/MediaRecorder) needs a secure context and a full browser, and
+  // iOS Safari can't record WebM. On http://, in-app webviews, or unsupported browsers fall
+  // back to the native device camera via <input capture>.
+  const canUseLiveCamera =
+    typeof navigator !== 'undefined' &&
+    !!navigator.mediaDevices?.getUserMedia &&
+    typeof window !== 'undefined' &&
+    window.isSecureContext;
+
+  const openNativeCamera = () => {
+    nativeCameraInputRef.current?.click();
+  };
+
+  const startCameraStream = async () => {
+    if (documentInputMode !== 'camera') {
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Live capture is not supported on this device/browser.');
+      return;
+    }
+
+    try {
+      setIsCameraStarting(true);
+      setCameraError(null);
+      stopCameraStream();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+
+      cameraStreamRef.current = stream;
+
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = stream;
+        await videoPreviewRef.current.play();
+      }
+    } catch {
+      setCameraError('Camera access failed. Please allow camera permission or use Upload File.');
+    } finally {
+      setIsCameraStarting(false);
+    }
+  };
+
+  const capturePhoto = async () => {
+    const video = videoPreviewRef.current;
+    if (!video) {
+      return;
+    }
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    if (!width || !height) {
+      toast.error('Camera is not ready yet. Please try again.');
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      toast.error('Unable to capture photo.');
+      return;
+    }
+
+    context.drawImage(video, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', 0.92);
+    });
+
+    if (!blob) {
+      toast.error('Unable to capture photo.');
+      return;
+    }
+
+    const documentName = selectedDocumentType || 'capture';
+    const file = new File([blob], `${documentName}-${Date.now()}.jpg`, { type: 'image/jpeg' });
+    if (selectedDocumentType === 'other') {
+      addOtherFiles([file]);
+      return;
+    }
+
+    setSelectedSingleDocumentFile(file);
+    stopCameraStream();
+    setDocumentInputMode('upload');
+  };
+
+  const startVideoRecording = () => {
+    if (!cameraStreamRef.current) {
+      toast.error('Camera is not ready yet. Please try again.');
+      return;
+    }
+
+    if (typeof MediaRecorder === 'undefined') {
+      toast.error('Video recording is not supported on this device/browser.');
+      return;
+    }
+
+    try {
+      recordedChunksRef.current = [];
+      const preferredMimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+        ? 'video/webm;codecs=vp8,opus'
+        : 'video/webm';
+      const recorder = new MediaRecorder(cameraStreamRef.current, { mimeType: preferredMimeType });
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType || 'video/webm' });
+        const file = new File([blob], `${selectedDocumentType || 'capture'}-${Date.now()}.webm`, {
+          type: blob.type || 'video/webm',
+        });
+
+        if (selectedDocumentType === 'other') {
+          addOtherFiles([file]);
+        } else {
+          setSelectedSingleDocumentFile(file);
+          stopCameraStream();
+          setDocumentInputMode('upload');
+        }
+
+        recordedChunksRef.current = [];
+        setIsRecordingVideo(false);
+      };
+
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecordingVideo(true);
+    } catch {
+      toast.error('Unable to start video recording.');
+    }
+  };
+
+  const stopVideoRecording = () => {
+    if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
+      return;
+    }
+
+    mediaRecorderRef.current.stop();
+  };
+
+  useEffect(() => {
+    if (showDocumentUploadModal && documentInputMode === 'camera') {
+      void startCameraStream();
+      return;
+    }
+
+    stopCameraStream();
+  }, [documentInputMode, selectedDocumentType, selectedDocumentFile, showDocumentUploadModal]);
+
+  useEffect(() => () => {
+    stopCameraStream();
+  }, []);
 
   const addOtherFiles = (files: File[]) => {
     let nextImages = [...otherImages];
@@ -458,7 +805,7 @@ const OfflineBookingForm: React.FC = () => {
       return;
     }
     const file = files[0] ?? null;
-    setSelectedImageFile(file);
+    setSelectedSingleDocumentFile(file);
   };
 
   const handleDragOver: React.DragEventHandler<HTMLDivElement> = (e) => {
@@ -466,10 +813,113 @@ const OfflineBookingForm: React.FC = () => {
     e.stopPropagation();
   };
 
+  const persistDraft = (silent = false) => {
+    const currentForm = formRef.current;
+
+    if (!hasDraftableContent(currentForm) || successDataRef.current) {
+      return false;
+    }
+
+    const draftId = currentDraftIdRef.current ?? Date.now().toString();
+    const draft: OfflineBookingDraft = {
+      id: draftId,
+      label: buildDraftLabel(currentForm),
+      data: currentForm,
+      savedAt: new Date().toISOString(),
+      isTotalAmountEdited: isTotalAmountEditedRef.current,
+    };
+    const updatedDrafts = [draft, ...draftsRef.current.filter((item) => item.id !== draftId)];
+
+    draftsRef.current = updatedDrafts;
+    currentDraftIdRef.current = draftId;
+    setDrafts(updatedDrafts);
+    setCurrentDraftId(draftId);
+    setShowDraftDropdown(false);
+    localStorage.setItem(OFFLINE_BOOKING_DRAFTS_KEY, JSON.stringify(updatedDrafts));
+
+    if (!silent) {
+      toast.success(currentDraftIdRef.current === draftId && draftsRef.current.some((item) => item.id === draftId)
+        ? 'Draft updated'
+        : 'Saved as draft');
+    }
+
+    return true;
+  };
+
+  const saveDraft = () => {
+    if (!hasDraftableContent(formRef.current)) {
+      toast.error('Enter some booking details before saving a draft.');
+      return;
+    }
+
+    const hadExistingDraft = Boolean(currentDraftIdRef.current);
+    persistDraft(true);
+    toast.success(hadExistingDraft ? 'Draft updated' : 'Saved as draft');
+  };
+
+  useEffect(() => {
+    const handleAutoSave = () => {
+      persistDraft(true);
+    };
+
+    window.addEventListener('beforeunload', handleAutoSave);
+    window.addEventListener('pagehide', handleAutoSave);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleAutoSave);
+      window.removeEventListener('pagehide', handleAutoSave);
+      handleAutoSave();
+    };
+  }, []);
+
+  const loadDraft = (draft: OfflineBookingDraft) => {
+    setForm(draft.data);
+    setCurrentDraftId(draft.id);
+    currentDraftIdRef.current = draft.id;
+    setIsTotalAmountEdited(draft.isTotalAmountEdited);
+    setSuccessData(null);
+    setShowDraftDropdown(false);
+    toast.success('Draft loaded');
+  };
+
+  const deleteDraft = (draftId: string) => {
+    if (!window.confirm('Are you sure you want to delete this draft?')) return;
+
+    const updatedDrafts = drafts.filter((draft) => draft.id !== draftId);
+    setDrafts(updatedDrafts);
+    draftsRef.current = updatedDrafts;
+    localStorage.setItem(OFFLINE_BOOKING_DRAFTS_KEY, JSON.stringify(updatedDrafts));
+
+    if (currentDraftId === draftId) {
+      setCurrentDraftId(null);
+      currentDraftIdRef.current = null;
+    }
+
+    toast.success('Draft deleted');
+  };
+
+  const deleteAllDrafts = () => {
+    if (!window.confirm('Are you sure you want to delete all drafts?')) return;
+
+    setDrafts([]);
+    draftsRef.current = [];
+    setCurrentDraftId(null);
+    currentDraftIdRef.current = null;
+    setShowDraftDropdown(false);
+    localStorage.removeItem(OFFLINE_BOOKING_DRAFTS_KEY);
+    toast.success('All drafts deleted');
+  };
+
   const handleReset = () => {
     setForm(INITIAL_FORM);
+    formRef.current = INITIAL_FORM;
     setSuccessData(null);
+    successDataRef.current = null;
     setIsTotalAmountEdited(false);
+    isTotalAmountEditedRef.current = false;
+    setCurrentDraftId(null);
+    currentDraftIdRef.current = null;
+    setShowDraftDropdown(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -581,6 +1031,14 @@ const OfflineBookingForm: React.FC = () => {
     try {
       const result = await createOfflineBooking(dto).unwrap();
       if (result.success) {
+        if (currentDraftId) {
+          const updatedDrafts = drafts.filter((draft) => draft.id !== currentDraftId);
+          setDrafts(updatedDrafts);
+          draftsRef.current = updatedDrafts;
+          localStorage.setItem(OFFLINE_BOOKING_DRAFTS_KEY, JSON.stringify(updatedDrafts));
+          setCurrentDraftId(null);
+          currentDraftIdRef.current = null;
+        }
         toast.success('Offline booking created successfully!');
         setSuccessData({ bookingId: result.bookingId!, userId: result.userId! });
       } else {
@@ -612,6 +1070,71 @@ const OfflineBookingForm: React.FC = () => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={saveDraft}
+          className="px-4 py-2.5 border border-primary-200 text-primary-700 rounded-lg hover:bg-primary-50 transition font-semibold flex items-center"
+        >
+          <FileText className="w-4 h-4 mr-2" />
+          {currentDraftId ? 'Update Draft' : 'Save Draft'}
+        </button>
+
+        {drafts.length > 0 && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowDraftDropdown((current) => !current)}
+              className="px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-semibold text-gray-700 flex items-center"
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Drafts ({drafts.length})
+              <ChevronDown className="w-4 h-4 ml-2" />
+            </button>
+
+            {showDraftDropdown && (
+              <div className="absolute left-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                <div className="max-h-72 overflow-y-auto">
+                  {drafts.map((draft) => (
+                    <div key={draft.id} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0">
+                      <button
+                        type="button"
+                        onClick={() => loadDraft(draft)}
+                        className="flex-1 min-w-0 text-left text-sm text-gray-700 truncate"
+                      >
+                        <span className="font-medium block truncate">{draft.label}</span>
+                        <span className="text-xs text-gray-400 block">
+                          {new Date(draft.savedAt).toLocaleString()}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteDraft(draft.id);
+                        }}
+                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                        title="Delete draft"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={deleteAllDrafts}
+                  className="w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 border-t border-gray-200 font-medium"
+                >
+                  Delete All Drafts
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Guest Information */}
       <div className="bg-white rounded-xl shadow-md p-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
@@ -630,7 +1153,7 @@ const OfflineBookingForm: React.FC = () => {
                 name="guestPhone"
                 value={form.guestPhone}
                 onChange={handleChange}
-                placeholder="9876543210"
+                placeholder="Phone number"
                 maxLength={10}
                 required
                 className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
@@ -659,7 +1182,7 @@ const OfflineBookingForm: React.FC = () => {
                 name="friendFamilyContactNumber"
                 value={form.friendFamilyContactNumber}
                 onChange={handleChange}
-                placeholder="Alternate contact number"
+                placeholder="Friend/Family contact number"
                 maxLength={10}
                 required
                 className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition"
@@ -1003,14 +1526,6 @@ const OfflineBookingForm: React.FC = () => {
         <div>
           <div className="flex items-center justify-between mb-4">
             <label className="text-sm font-medium text-gray-700">Attached Files / Photos</label>
-            <button
-              type="button"
-              onClick={() => openDocumentUploadModal('other')}
-              className="flex items-center text-sm bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition"
-            >
-              <Upload className="w-4 h-4 mr-1" />
-              Add Other
-            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
@@ -1021,6 +1536,14 @@ const OfflineBookingForm: React.FC = () => {
             >
               <FileText className="w-5 h-5 text-primary-600 mr-3" />
               <span>Upload DL</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => openDocumentUploadModal('aadhaar')}
+              className="w-full flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+            >
+              <FileText className="w-5 h-5 text-indigo-600 mr-3" />
+              <span>Upload Aadhaar</span>
             </button>
             <button
               type="button"
@@ -1037,6 +1560,17 @@ const OfflineBookingForm: React.FC = () => {
             >
               <Camera className="w-5 h-5 text-blue-600 mr-3" />
               <span>Vehicle After</span>
+            </button>
+          </div>
+
+          <div className="mb-4">
+            <button
+              type="button"
+              onClick={() => openDocumentUploadModal('other')}
+              className="flex items-center text-sm bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition"
+            >
+              <Upload className="w-4 h-4 mr-1" />
+              Add Other
             </button>
           </div>
 
@@ -1092,7 +1626,13 @@ const OfflineBookingForm: React.FC = () => {
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">
-                {selectedDocumentType === 'id_proof' ? 'Upload DL' : selectedDocumentType === 'other' ? 'Add Other' : 'Upload Document'}
+                {selectedDocumentType === 'id_proof'
+                  ? 'Upload DL'
+                  : selectedDocumentType === 'aadhaar'
+                    ? 'Upload Aadhaar'
+                    : selectedDocumentType === 'other'
+                      ? 'Add Other'
+                      : 'Upload Document'}
               </h3>
               <button
                 type="button"
@@ -1106,32 +1646,158 @@ const OfflineBookingForm: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {selectedDocumentType === 'other' ? 'Files ( images / video)' : 'File (Images only)'}
+                  {selectedDocumentType === 'other' ? 'Files ( images / video)' : isVehicleVideoDocumentType ? 'File (Video only)' : 'File (Images only)'}
                 </label>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDocumentInputMode('upload');
+                      setCameraError(null);
+                    }}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition ${documentInputMode === 'upload'
+                      ? 'border-primary-600 bg-primary-50 text-primary-700'
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                  >
+                    Upload File
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDocumentFile(null);
+                      setCameraError(null);
+                      if (canUseLiveCamera) {
+                        setDocumentInputMode('camera');
+                      } else {
+                        openNativeCamera();
+                      }
+                    }}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition ${documentInputMode === 'camera'
+                      ? 'border-primary-600 bg-primary-50 text-primary-700'
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                  >
+                    Live Capture
+                  </button>
+                </div>
                 <div
                   onDrop={handleDropFile}
                   onDragOver={handleDragOver}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`w-full border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition ${selectedDocumentType === 'id_proof' ? 'p-6 min-h-40 flex items-center justify-center' : 'p-4'
+                  onClick={() => {
+                    if (documentInputMode === 'camera') {
+                      return;
+                    }
+                    fileInputRef.current?.click();
+                  }}
+                  className={`w-full border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition ${(selectedDocumentType === 'id_proof' || selectedDocumentType === 'aadhaar') ? 'p-6 min-h-40 flex items-center justify-center' : 'p-4'
                     }`}
                 >
                   <input
                     ref={fileInputRef}
                     type="file"
                     multiple={selectedDocumentType === 'other'}
-                    accept={selectedDocumentType === 'other' ? 'image/*,video/*' : 'image/*'}
+                    accept={selectedDocumentType === 'other' ? 'image/*,video/*' : isVehicleVideoDocumentType ? 'video/*' : 'image/*'}
                     onChange={(e) => {
                       const files = Array.from(e.target.files || []);
                       if (selectedDocumentType === 'other') {
                         addOtherFiles(files);
                       } else {
-                        setSelectedImageFile(files[0] || null);
+                        setSelectedSingleDocumentFile(files[0] || null);
                       }
                     }}
                     className="hidden"
                   />
 
-                  {selectedDocumentType === 'other' ? (
+                  <input
+                    ref={nativeCameraInputRef}
+                    type="file"
+                    accept={isVehicleVideoDocumentType ? 'video/*' : selectedDocumentType === 'other' ? 'image/*,video/*' : 'image/*'}
+                    capture="environment"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (selectedDocumentType === 'other') {
+                        addOtherFiles(files);
+                      } else {
+                        setSelectedSingleDocumentFile(files[0] || null);
+                      }
+                      if (nativeCameraInputRef.current) {
+                        nativeCameraInputRef.current.value = '';
+                      }
+                    }}
+                    className="hidden"
+                  />
+
+                  {documentInputMode === 'camera' ? (
+                    <div className="w-full space-y-3 cursor-default" onClick={(e) => e.stopPropagation()}>
+                      <div className="relative overflow-hidden rounded-lg bg-gray-900 aspect-[4/3] flex items-center justify-center">
+                        <video
+                          ref={videoPreviewRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="h-full w-full object-cover"
+                        />
+                        {cameraError ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 px-4 text-center">
+                            <div className="space-y-2">
+                              <p className="text-sm text-white/85">{cameraError}</p>
+                              <button
+                                type="button"
+                                onClick={openNativeCamera}
+                                className="px-3 py-1.5 bg-white/15 text-white text-sm rounded-lg hover:bg-white/25 transition"
+                              >
+                                Use device camera
+                              </button>
+                            </div>
+                          </div>
+                        ) : isCameraStarting ? (
+                          <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-sm text-white/85">
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Starting camera...
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        {!isVehicleVideoDocumentType && (
+                          <button
+                            type="button"
+                            onClick={capturePhoto}
+                            disabled={Boolean(cameraError) || isCameraStarting || (selectedDocumentType === 'other' && otherImages.length >= MAX_OTHER_IMAGES)}
+                            className="flex-1 min-w-[140px] px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Capture Photo
+                          </button>
+                        )}
+                        {(isVehicleVideoDocumentType || selectedDocumentType === 'other') && (
+                          <button
+                            type="button"
+                            onClick={isRecordingVideo ? stopVideoRecording : startVideoRecording}
+                            disabled={Boolean(cameraError) || isCameraStarting || (selectedDocumentType === 'other' && !isRecordingVideo && Boolean(otherVideo))}
+                            className="flex-1 min-w-[140px] px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isRecordingVideo ? 'Stop Recording' : 'Record Video'}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDocumentInputMode('upload');
+                            setCameraError(null);
+                          }}
+                          className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                        >
+                          Use Upload
+                        </button>
+                      </div>
+                      {selectedDocumentType === 'other' && (
+                        <div className="space-y-2 text-xs text-gray-600">
+                          {otherImages.length > 0 && <p>Images captured: {otherImages.length}/{MAX_OTHER_IMAGES}</p>}
+                          {otherVideo && <p>Video captured: {otherVideo.name}</p>}
+                        </div>
+                      )}
+                    </div>
+                  ) : selectedDocumentType === 'other' ? (
                     <div className="space-y-3">
                       {(otherImages.length === 0 && !otherVideo) ? (
                         <div className="text-center text-sm text-gray-600">
@@ -1180,20 +1846,30 @@ const OfflineBookingForm: React.FC = () => {
                     </div>
                   ) : selectedDocumentPreviewUrl ? (
                     <div className="space-y-2">
-                      <img
-                        src={selectedDocumentPreviewUrl}
-                        alt="Selected upload preview"
-                        className="w-full max-h-56 object-contain rounded-md bg-white"
-                      />
+                      {selectedDocumentFile?.type.startsWith('video/') ? (
+                        <video
+                          src={selectedDocumentPreviewUrl}
+                          controls
+                          className="w-full max-h-56 rounded-md bg-black"
+                        />
+                      ) : (
+                        <img
+                          src={selectedDocumentPreviewUrl}
+                          alt="Selected upload preview"
+                          className="w-full max-h-56 object-contain rounded-md bg-white"
+                        />
+                      )}
                       <p className="text-xs text-gray-500">
                         Selected: {selectedDocumentFile?.name} ({selectedDocumentFile ? (selectedDocumentFile.size / 1024 / 1024).toFixed(2) : '0.00'} MB)
                       </p>
-                      <p className="text-xs text-gray-500">Click or drop a new image to replace.</p>
+                      <p className="text-xs text-gray-500">Click or drop a new {isVehicleVideoDocumentType ? 'video' : 'image'} to replace.</p>
                     </div>
                   ) : (
                     <div className="text-center text-sm text-gray-600">
-                      <p className="font-medium">Drag & drop an image here</p>
-                      <p className="text-xs text-gray-500 mt-1">or click to choose from device</p>
+                      <p className="font-medium">Drag & drop a {isVehicleVideoDocumentType ? 'video' : 'image'} here</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        or click to choose from device
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1216,7 +1892,7 @@ const OfflineBookingForm: React.FC = () => {
               )}
 
               {/* Label optional for vehicle before/after */}
-              {selectedDocumentType !== 'id_proof' && selectedDocumentType !== 'other' && (
+              {selectedDocumentType !== 'id_proof' && selectedDocumentType !== 'aadhaar' && selectedDocumentType !== 'other' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Label</label>
                   <input

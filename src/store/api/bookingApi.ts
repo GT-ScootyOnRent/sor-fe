@@ -14,8 +14,22 @@ export interface BookingDto {
   endTime: string;
   totalAmount: number;
   includeSecondHelmet?: boolean;
+  securityDepositMode?: 'online' | 'pickup'; // 'online' = paid with booking, 'pickup' = cash at pickup
   status: 0 | 1 | 2 | 3;
   friendFamilyContactNumber?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  // Vehicle details (enriched from backend)
+  vehicleName?: string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleRegistrationNumber?: string;
+  vehiclePrimaryImageUrl?: string;
+  // Location details
+  pickupLocationName?: string;
+  // Payment details
+  transactionId?: string;
+  paymentStatus?: 'pending' | 'paid' | 'failed' | null;
 }
 
 export interface CreateBookingRequest {
@@ -28,15 +42,48 @@ export interface CreateBookingRequest {
   endTime: string;
   totalAmount: number;
   includeSecondHelmet?: boolean;
+  securityDepositMode?: 'online' | 'pickup';
+  appliedAgentCode?: string | null; // agent referral code applied at checkout (commission recorded on payment success)
+  agentOrderAmount?: number | null; // pre-discount subtotal the agent earns commission on
+}
+
+export interface BookingRestoreRequestDto {
+  id: number;
+  bookingId: number;
+  requestedByStaffId?: number | null;
+  reason?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  restoredStatus?: number | null;
+  resolvedByAdminId?: number | null;
+  resolvedAt?: string | null;
+  createdAt: string;
+}
+
+export interface BookingUploadPermissionRequestDto {
+  id: number;
+  bookingId: number;
+  requestedByStaffId?: number | null;
+  reason?: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  resolvedByAdminId?: number | null;
+  resolvedAt?: string | null;
+  expiresAt?: string | null;
+  createdAt: string;
 }
 
 export const bookingApi = createApi({
   reducerPath: 'bookingApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Booking'],
+  tagTypes: ['Booking', 'RestoreRequest', 'UploadPermission'],
   endpoints: (builder) => ({
-    getBookings: builder.query<BookingDto[], { page?: number; size?: number }>({
-      query: ({ page = 1, size = 10 }) => `${API_ENDPOINTS.BOOKINGS}?page=${page}&size=${size}`,
+    getBookings: builder.query<BookingDto[], { page?: number; size?: number; cityId?: number }>({
+      query: ({ page = 1, size = 10, cityId }) => {
+        let url = `${API_ENDPOINTS.BOOKINGS}?page=${page}&size=${size}`;
+        if (cityId) {
+          url += `&cityId=${cityId}`;
+        }
+        return url;
+      },
       providesTags: ['Booking'],
     }),
     getBookingById: builder.query<BookingDto, number>({
@@ -70,6 +117,71 @@ export const bookingApi = createApi({
       }),
       invalidatesTags: ['Booking'],
     }),
+    cancelBooking: builder.mutation<{ message: string }, number>({
+      query: (id) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/${id}/cancel`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Booking'],
+    }),
+    superAdminCancelBooking: builder.mutation<{ message: string }, number>({
+      query: (id) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/${id}/admin-cancel`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Booking'],
+    }),
+    superAdminRestoreBooking: builder.mutation<{ message: string }, { id: number; status: 0 | 1 }>({
+      query: ({ id, status }) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/${id}/admin-restore`,
+        method: 'POST',
+        body: { status },
+      }),
+      invalidatesTags: ['Booking'],
+    }),
+    getRestoreRequests: builder.query<BookingRestoreRequestDto[], { status?: string } | void>({
+      query: (arg) => {
+        const status = arg && 'status' in arg ? arg.status : undefined;
+        return `${API_ENDPOINTS.BOOKINGS}/restore-requests${status ? `?status=${status}` : ''}`;
+      },
+      providesTags: ['RestoreRequest'],
+    }),
+    approveRestoreRequest: builder.mutation<{ message: string }, { requestId: number; status: 0 | 1 }>({
+      query: ({ requestId, status }) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/restore-requests/${requestId}/approve`,
+        method: 'POST',
+        body: { status },
+      }),
+      invalidatesTags: ['Booking', 'RestoreRequest'],
+    }),
+    rejectRestoreRequest: builder.mutation<{ message: string }, number>({
+      query: (requestId) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/restore-requests/${requestId}/reject`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['RestoreRequest'],
+    }),
+    getUploadPermissionRequests: builder.query<BookingUploadPermissionRequestDto[], { status?: string } | void>({
+      query: (arg) => {
+        const status = arg && 'status' in arg ? arg.status : undefined;
+        return `${API_ENDPOINTS.BOOKINGS}/upload-permission-requests${status ? `?status=${status}` : ''}`;
+      },
+      providesTags: ['UploadPermission'],
+    }),
+    approveUploadPermissionRequest: builder.mutation<{ message: string }, number>({
+      query: (requestId) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/upload-permission-requests/${requestId}/approve`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['UploadPermission'],
+    }),
+    rejectUploadPermissionRequest: builder.mutation<{ message: string }, number>({
+      query: (requestId) => ({
+        url: `${API_ENDPOINTS.BOOKINGS}/upload-permission-requests/${requestId}/reject`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['UploadPermission'],
+    }),
   }),
 });
 
@@ -80,4 +192,13 @@ export const {
   useCreateBookingMutation,
   useUpdateBookingMutation,
   useDeleteBookingMutation,
+  useCancelBookingMutation,
+  useSuperAdminCancelBookingMutation,
+  useSuperAdminRestoreBookingMutation,
+  useGetRestoreRequestsQuery,
+  useApproveRestoreRequestMutation,
+  useRejectRestoreRequestMutation,
+  useGetUploadPermissionRequestsQuery,
+  useApproveUploadPermissionRequestMutation,
+  useRejectUploadPermissionRequestMutation,
 } = bookingApi;

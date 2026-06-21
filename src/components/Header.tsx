@@ -75,8 +75,13 @@ export default function Header() {
             <a
               href="/"
               onClick={handleLogoClick}
-              className="cursor-pointer shrink-0 flex items-center"
+              className="cursor-pointer shrink-0 flex items-center gap-2"
             >
+              <img
+                src="/logo-3d.svg"
+                alt="ScootyOnRent"
+                className="h-11 w-11 sm:h-12 sm:w-12 md:h-14 md:w-14 rounded-lg shrink-0"
+              />
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-black whitespace-nowrap leading-tight">
                 Scooty<span className="text-primary-500">onrent</span>
               </h1>
@@ -135,7 +140,7 @@ export default function Header() {
                 <Button
                   onClick={() => navigate('/profile')}
                   variant="outline"
-                  className="h-10 px-4 min-w-[120px] border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white"
+                  className="h-10 px-4 min-w-[120px] border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white transition-all duration-200 hover:scale-[1.03] active:scale-[0.98]"
                 >
                   <User className="w-4 h-4 mr-2" />
                   Profile
@@ -144,7 +149,7 @@ export default function Header() {
             ) : (
               <Button
                 onClick={() => navigate('/login')}
-                className="h-10 px-4 min-w-[120px] bg-primary-500 hover:bg-primary-600 text-white"
+                className="h-10 px-4 min-w-[120px] bg-primary-500 hover:bg-primary-600 text-white transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-lg hover:shadow-primary-500/40 active:translate-y-0 active:scale-[0.98]"
               >
                 Login
               </Button>
@@ -211,7 +216,7 @@ export default function Header() {
                       navigate('/profile');
                       setMobileMenuOpen(false);
                     }}
-                    className="w-full"
+                    className="w-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
                     variant="outline"
                   >
                     <User className="w-4 h-4 mr-2" />
@@ -224,7 +229,7 @@ export default function Header() {
                     navigate('/login');
                     setMobileMenuOpen(false);
                   }}
-                  className="w-full bg-primary-500 hover:bg-primary-600 text-white"
+                  className="w-full bg-primary-500 hover:bg-primary-600 text-white transition-all duration-200 hover:scale-[1.02] hover:shadow-lg hover:shadow-primary-500/40 active:scale-[0.98]"
                 >
                   Login
                 </Button>

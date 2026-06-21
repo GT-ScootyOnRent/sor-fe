@@ -140,7 +140,7 @@ const ContactsPage: React.FC = () => {
     const next: Partial<Record<keyof FormState, string>> = {};
 
     if (!form.name.trim()) next.name = 'Name is required';
-    else if (form.name.trim().length > 10) next.name = 'Name must be 10 characters or fewer';
+    else if (form.name.trim().length > 25) next.name = 'Name must be 25 characters or fewer';
 
     if (!form.phoneNumber.trim() || form.phoneNumber.trim() === '+91') next.phoneNumber = 'Phone number is required';
     else if (!PHONE_RE.test(form.phoneNumber.replace(/\s/g, ''))) next.phoneNumber = 'Enter a valid 10-digit Indian phone number (e.g., +91 9876543210)';
@@ -368,21 +368,21 @@ const ContactsPage: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Name <span className="text-red-500">*</span>
                   <span className="text-xs text-gray-400 font-normal ml-2">
-                    ({form.name.length}/10)
+                    ({form.name.length}/25)
                   </span>
                 </label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={(e) => setField('name', e.target.value)}
-                  maxLength={10}
+                  maxLength={25}
                   placeholder="e.g., Support"
                   className={`w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
                 />
                 {errors.name ? (
                   <p className="text-xs text-red-600 mt-1">{errors.name}</p>
                 ) : (
-                  <p className="text-xs text-gray-500 mt-1">Max 10 characters for optimal display on UI</p>
+                  <p className="text-xs text-gray-500 mt-1">Max 25 characters</p>
                 )}
               </div>
 

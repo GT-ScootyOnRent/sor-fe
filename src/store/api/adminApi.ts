@@ -82,6 +82,8 @@ export interface AdminDto {
   hasChangedPassword: boolean;
   canManagePackages?: boolean;
   canManageAnnouncements?: boolean;
+  canManageGeofences?: boolean;
+  canManageAgents?: boolean;
 }
 
 export interface AdminProfileDto {
@@ -100,6 +102,51 @@ export interface AdminProfileDto {
   createdAt: string;
   canManagePackages?: boolean;
   canManageAnnouncements?: boolean;
+  canManageGeofences?: boolean;
+  canManageAgents?: boolean;
+}
+
+export interface LegalNotificationTemplateDto {
+  templateKey: string;
+  name: string;
+  subjectTemplate: string;
+  bodyTemplate: string;
+  context: Record<string, string>;
+  updatedAt: string;
+}
+
+export interface UpdateLegalNotificationTemplateRequest {
+  subjectTemplate: string;
+  bodyTemplate: string;
+  context: Record<string, string>;
+}
+
+export interface LegalNotificationPreviewRequest {
+  subjectTemplate?: string;
+  bodyTemplate?: string;
+  context?: Record<string, string>;
+  previewUserName?: string;
+  previewEmail?: string;
+}
+
+export interface LegalNotificationPreviewResponse {
+  subject: string;
+  htmlBody: string;
+  resolvedContext: Record<string, string>;
+}
+
+export interface SendLegalNotificationRequest {
+  subjectTemplate?: string;
+  bodyTemplate?: string;
+  context?: Record<string, string>;
+}
+
+export interface LegalNotificationSendResponse {
+  success: boolean;
+  message: string;
+  sentCount: number;
+  failedCount: number;
+  skippedCount: number;
 }
 
 // ── Staff DTOs ─────────────────────────────────────────────────────────────
@@ -141,7 +188,7 @@ export interface UpdateStaffDto {
 export const adminApi = createApi({
   reducerPath: 'adminAuthApi', // keep same reducerPath so store key doesn't change
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Admin', 'AdminProfile', 'Staff'],
+  tagTypes: ['Admin', 'AdminProfile', 'Staff', 'LegalNotificationTemplate'],
   endpoints: (builder) => ({
     // ── Login ──────────────────────────────────────────────────────────
     adminLogin: builder.mutation<AdminLoginResponse, AdminLoginRequest>({
@@ -297,6 +344,32 @@ export const adminApi = createApi({
       }),
       invalidatesTags: ['AdminProfile'],
     }),
+    getLegalNotificationTemplate: builder.query<LegalNotificationTemplateDto, void>({
+      query: () => '/admin/legal-notifications/template',
+      providesTags: ['LegalNotificationTemplate'],
+    }),
+    updateLegalNotificationTemplate: builder.mutation<LegalNotificationTemplateDto, UpdateLegalNotificationTemplateRequest>({
+      query: (body) => ({
+        url: '/admin/legal-notifications/template',
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: ['LegalNotificationTemplate'],
+    }),
+    previewLegalNotification: builder.mutation<LegalNotificationPreviewResponse, LegalNotificationPreviewRequest>({
+      query: (body) => ({
+        url: '/admin/legal-notifications/preview',
+        method: 'POST',
+        body,
+      }),
+    }),
+    sendLegalNotification: builder.mutation<LegalNotificationSendResponse, SendLegalNotificationRequest>({
+      query: (body) => ({
+        url: '/admin/legal-notifications/send',
+        method: 'POST',
+        body,
+      }),
+    }),
   }),
 });
 
@@ -323,6 +396,10 @@ export const {
   useUpdateAdminProfileMutation,
   useChangeMyPasswordMutation,
   useUploadProfilePicMutation,
+  useGetLegalNotificationTemplateQuery,
+  useUpdateLegalNotificationTemplateMutation,
+  usePreviewLegalNotificationMutation,
+  useSendLegalNotificationMutation,
 } = adminApi;
 
 // Backward-compat alias so existing imports of adminAuthApi still work

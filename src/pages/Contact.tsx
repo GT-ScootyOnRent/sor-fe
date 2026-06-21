@@ -172,8 +172,7 @@ export default function Contact() {
                             <h3 className="text-white font-semibold text-base sm:text-lg mb-1">
                               Phone
                             </h3>
-                            <p className="text-white/80 text-sm sm:text-base">+91 9983391137</p>
-                            <p className="text-white/80 text-sm sm:text-base">+91 98765 43211</p>
+                            <p className="text-white/80 text-sm sm:text-base">+91 9653785852</p>
                           </div>
                         </div>
 
@@ -199,7 +198,7 @@ export default function Contact() {
                               Office Address
                             </h3>
                             <p className="text-white/80 text-sm sm:text-base leading-relaxed">
-                              123, Main Road,<br />City Center,<br />India - 313001
+                              Udaipur, Rajasthan, India
                             </p>
                           </div>
                         </div>
@@ -213,7 +212,7 @@ export default function Contact() {
                               Business Hours
                             </h3>
                             <p className="text-white/80 text-sm sm:text-base">Monday - Sunday</p>
-                            <p className="text-white/80 text-sm sm:text-base">8:00 AM - 8:00 PM</p>
+                            <p className="text-white/80 text-sm sm:text-base">6:00 AM - 11:30 PM</p>
                           </div>
                         </div>
                       </div>

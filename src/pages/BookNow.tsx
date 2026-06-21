@@ -6,7 +6,7 @@ import Header from '../components/Header';
 import BackgroundSlideshow from '../components/BackgroundSlideshow';
 import PaymentModal from '../components/PaymentModal';
 import PriceCalculator from '../components/PriceCalculator';
-import PickupLocationCard from '../components/PickupLocationCard';
+import PickupLocationMap from '../components/PickupLocationMap';
 import PickupLocationModal from '../components/PickupLocationModal';
 import LoginModal from '../components/LoginModal';
 import { LoadingSpinner } from '../components/LoadingSpinner';
@@ -85,14 +85,17 @@ export default function BookNow() {
     return time;
   };
 
-  // Get today's date
-  const getTodayDate = () => new Date().toISOString().split('T')[0];
+  // Get today's date (local time)
+  const getTodayDate = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+  };
 
-  // Get tomorrow's date
+  // Get tomorrow's date (local time)
   const getTomorrowDate = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    return `${tomorrow.getFullYear()}-${(tomorrow.getMonth() + 1).toString().padStart(2, '0')}-${tomorrow.getDate().toString().padStart(2, '0')}`;
   };
 
   // Helper to get default pickup date and time
@@ -106,22 +109,31 @@ export default function BookNow() {
       return { date: today, time: MIN_BUSINESS_TIME };
     }
 
-    // Calculate time + 1 hour, then round up to next 30-min slot
+    // Calculate time + 1 hour
     const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
-    const oneHourLaterTime = `${oneHourLater.getHours().toString().padStart(2, '0')}:${oneHourLater.getMinutes().toString().padStart(2, '0')}`;
-    const roundedTime = roundToNext30Min(oneHourLaterTime);
-
-    // If rounded time is back to 6 AM (means it exceeded 23:30), use tomorrow
-    if (roundedTime === MIN_BUSINESS_TIME && oneHourLaterTime > MAX_BUSINESS_TIME) {
+    // Use local date (not UTC) for comparison
+    const oneHourLaterDate = `${oneHourLater.getFullYear()}-${(oneHourLater.getMonth() + 1).toString().padStart(2, '0')}-${oneHourLater.getDate().toString().padStart(2, '0')}`;
+    
+    // If adding 1 hour pushes to next day (local time), use tomorrow 6 AM
+    if (oneHourLaterDate !== today) {
       return { date: getTomorrowDate(), time: MIN_BUSINESS_TIME };
     }
 
-    // If current time + 1 hour rounded is after business hours, set to tomorrow 6 AM
-    if (roundedTime > MAX_BUSINESS_TIME) {
+    const oneHourLaterTime = `${oneHourLater.getHours().toString().padStart(2, '0')}:${oneHourLater.getMinutes().toString().padStart(2, '0')}`;
+    
+    // If current time + 1 hour is after business hours, use tomorrow 6 AM
+    if (oneHourLaterTime > MAX_BUSINESS_TIME) {
       return { date: getTomorrowDate(), time: MIN_BUSINESS_TIME };
     }
 
     // Within business hours - set to current time + 1 hour (rounded)
+    const roundedTime = roundToNext30Min(oneHourLaterTime);
+    
+    // If rounding pushed past business hours, use tomorrow
+    if (roundedTime > MAX_BUSINESS_TIME) {
+      return { date: getTomorrowDate(), time: MIN_BUSINESS_TIME };
+    }
+
     return { date: today, time: roundedTime };
   };
 
@@ -136,9 +148,15 @@ export default function BookNow() {
 
   const defaultStartDate = isStartDateValid ? startDateParam : defaultPickup.date;
   const defaultStartTime = startTimeParam && isStartDateValid ? roundToNext30Min(clampToBusinessHours(startTimeParam)) : defaultPickup.time;
-  // Default end date is same as start, end time is 11:30 PM
-  const defaultEndDate = isEndDateValid ? endDateParam : defaultStartDate;
-  const defaultEndTime = endTimeParam && isEndDateValid ? roundToNext30Min(clampToBusinessHours(endTimeParam)) : MAX_BUSINESS_TIME;
+  // Default end date is start date + 1 day (consistent with home page), end time is 11:30 PM
+  const getNextDay = (dateStr: string) => {
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+  };
+  const defaultEndDate = isEndDateValid ? endDateParam : getNextDay(defaultStartDate);
+  // Default to a 24-hour cycle: same time as pickup, next day
+  const defaultEndTime = endTimeParam && isEndDateValid ? roundToNext30Min(clampToBusinessHours(endTimeParam)) : defaultStartTime;
 
   const [bookingDates, setBookingDates] = useState({
     startDate: defaultStartDate,
@@ -150,8 +168,11 @@ export default function BookNow() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [createdBookingId, setCreatedBookingId] = useState<number | null>(null);
   const [finalBookingAmount, setFinalBookingAmount] = useState<number>(0);
+  // Agent referral code applied at checkout (recorded as used once payment succeeds)
+  const [appliedAgentCode, setAppliedAgentCode] = useState<{ code: string; orderAmount: number } | null>(null);
   const [selectedPickup, setSelectedPickup] = useState<string>(pickupLocationIdParam || '');
   const [includeSecondHelmet, setIncludeSecondHelmet] = useState(false);
+  const [paySecurityAtPickup, setPaySecurityAtPickup] = useState(false); // false = pay online (default)
   const [showPickupModal, setShowPickupModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingBookingAmount, setPendingBookingAmount] = useState<number | null>(null);
@@ -163,28 +184,104 @@ export default function BookNow() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Validate and correct dates on mount (handles stale state from browser cache/tabs)
+  useEffect(() => {
+    const today = getTodayDate();
+    const defaultPickup = getDefaultPickupDateTime();
+    
+    // If start date is in the past, reset to valid defaults (24-hour cycle)
+    if (bookingDates.startDate < today) {
+      setBookingDates({
+        startDate: defaultPickup.date,
+        startTime: defaultPickup.time,
+        endDate: getNextDay(defaultPickup.date),
+        endTime: defaultPickup.time,
+      });
+      toast.info('Booking dates have been updated to today');
+    }
+    // If start date is today, validate the time
+    else if (bookingDates.startDate === today && bookingDates.startTime) {
+      const minTime = getMinTimeForToday();
+      
+      // If today is no longer bookable (too late), push to tomorrow (24-hour cycle)
+      if (minTime === null) {
+        setBookingDates({
+          startDate: defaultPickup.date,
+          startTime: defaultPickup.time,
+          endDate: getNextDay(defaultPickup.date),
+          endTime: defaultPickup.time,
+        });
+        toast.info('Booking dates have been updated - too late to book for today');
+      }
+      // If time has passed, correct the time
+      else if (bookingDates.startTime < minTime) {
+        setBookingDates(prev => ({
+          ...prev,
+          startTime: minTime,
+        }));
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Helper to get minimum allowed time (current time + 1 hour buffer, rounded to next 30-min slot)
-  const getMinTimeForToday = () => {
+  // Returns null if today is no longer bookable (too late in the day)
+  const getMinTimeForToday = (): string | null => {
     const now = new Date();
-    now.setHours(now.getHours() + 1);
-    const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+    const today = getTodayDate();
+    // Use local date (not UTC) for comparison
+    const oneHourLaterDate = `${oneHourLater.getFullYear()}-${(oneHourLater.getMonth() + 1).toString().padStart(2, '0')}-${oneHourLater.getDate().toString().padStart(2, '0')}`;
+    
+    // If adding 1 hour pushes to next day, today is not bookable
+    if (oneHourLaterDate !== today) {
+      return null;
+    }
+    
+    const time = `${oneHourLater.getHours().toString().padStart(2, '0')}:${oneHourLater.getMinutes().toString().padStart(2, '0')}`;
+    
+    // If time is after business hours, today is not bookable
+    if (time > MAX_BUSINESS_TIME) {
+      return null;
+    }
+    
     return roundToNext30Min(clampToBusinessHours(time));
+  };
+
+  // Check if today is still bookable
+  const isTodayBookable = (): boolean => {
+    return getMinTimeForToday() !== null;
   };
 
   // Get available time slots for a given date (filters out past times if today)
   const getAvailableTimeSlots = (date: string, isStartTime: boolean = true, startTime?: string) => {
     const isToday = date === getTodayDate();
-    const minTime = isToday ? getMinTimeForToday() : MIN_BUSINESS_TIME;
     
-    return TIME_SLOTS.filter(slot => {
-      // For today, filter out times before minimum
-      if (isToday && slot < minTime) return false;
+    // If it's today but too late to book, return empty array
+    if (isToday) {
+      const minTime = getMinTimeForToday();
+      if (minTime === null) {
+        return []; // No slots available for today
+      }
       
+      return TIME_SLOTS.filter(slot => {
+        // Filter out times before minimum
+        if (slot < minTime) return false;
+        
+        // For return time on same day as start, filter out times <= start time
+        if (!isStartTime && startTime && date === bookingDates.startDate && slot <= startTime) {
+          return false;
+        }
+        
+        return true;
+      });
+    }
+    
+    // For future dates, all slots are available
+    return TIME_SLOTS.filter(slot => {
       // For return time on same day as start, filter out times <= start time
       if (!isStartTime && startTime && date === bookingDates.startDate && slot <= startTime) {
         return false;
       }
-      
       return true;
     });
   };
@@ -207,13 +304,23 @@ export default function BookNow() {
       newDates.startDate = today;
     }
 
+    // If today is selected but no longer bookable, push to tomorrow
+    if (newDates.startDate === today && minTimeToday === null) {
+      const defaultPickup = getDefaultPickupDateTime();
+      newDates.startDate = defaultPickup.date;
+      newDates.startTime = defaultPickup.time;
+      if (newDates.endDate < newDates.startDate) {
+        newDates.endDate = newDates.startDate;
+      }
+    }
+
     // Ensure end date is not before start date
     if (newDates.endDate && newDates.startDate && newDates.endDate < newDates.startDate) {
       newDates.endDate = newDates.startDate;
     }
 
     // Validate and auto-correct start time if it's today and time is in the past
-    if (newDates.startDate === today && newDates.startTime && newDates.startTime < minTimeToday) {
+    if (newDates.startDate === today && minTimeToday !== null && newDates.startTime && newDates.startTime < minTimeToday) {
       newDates.startTime = minTimeToday;
     }
 
@@ -238,7 +345,7 @@ export default function BookNow() {
     }
 
     // If end date is today, apply minTimeForToday constraint
-    if (newDates.endDate === today && newDates.endTime && newDates.endTime < minTimeToday) {
+    if (newDates.endDate === today && newDates.endTime && minTimeToday && newDates.endTime < minTimeToday) {
       newDates.endTime = minTimeToday;
     }
 
@@ -301,7 +408,7 @@ export default function BookNow() {
 
     // Use linkedPackage pricing if available
     const pricePerHour = vehicleData.linkedPackage?.pricePerHour || vehicleData.pricePerHour;
-    const freeHoursPerDay = vehicleData.linkedPackage?.freeHoursPerDay || 6;
+    const freeHoursPerDay = vehicleData.linkedPackage?.freeHoursPerDay ?? 6;
 
     return calculateDurationPrice(hours, pricePerHour, freeHoursPerDay);
   };
@@ -326,8 +433,8 @@ export default function BookNow() {
     }
 
     const duration = calculateTotalHours();
-    if (duration < vehicleData.minBookingHours) {
-      toast.error(`Minimum booking duration is ${vehicleData.minBookingHours} hours`);
+    if (duration <= 0) {
+      toast.error('Please select a valid booking duration');
       return;
     }
 
@@ -350,6 +457,10 @@ export default function BookNow() {
         endTime: bookingDates.endTime,
         totalAmount: amountToCharge,
         includeSecondHelmet,
+        securityDepositMode: (paySecurityAtPickup ? 'pickup' : 'online') as 'pickup' | 'online',
+        // Carry the applied agent code so commission is recorded server-side on payment success.
+        appliedAgentCode: appliedAgentCode?.code ?? null,
+        agentOrderAmount: appliedAgentCode?.orderAmount ?? null,
       };
 
       const result = await createBooking(bookingRequest).unwrap();
@@ -369,8 +480,13 @@ export default function BookNow() {
   const handlePaymentSuccess = () => {
     setShowPaymentModal(false);
     toast.success('Booking Confirmed!', { description: 'Your payment was successful' });
+
+    // Agent commission is recorded server-side during payment verification (the applied
+    // code travels on the booking), so no client-side recording is needed here.
+
     // Navigate to dynamic booking success page with all details
-    navigate(`/booking-success?bookingId=${createdBookingId}&amount=${finalBookingAmount}`);
+    const securityMode = paySecurityAtPickup ? 'pickup' : 'online';
+    navigate(`/booking-success?bookingId=${createdBookingId}&amount=${finalBookingAmount}&securityMode=${securityMode}`);
   };
 
   const handlePaymentFailure = (error: string) => {
@@ -414,37 +530,37 @@ export default function BookNow() {
 
           <h1 className="text-2xl sm:text-3xl lg:text-4xl text-black mb-6 sm:mb-8">Complete Your Booking</h1>
 
-          <div className="max-w-3xl mx-auto space-y-6">
+          {/* Two Column Layout */}
+          <div className="lg:grid lg:grid-cols-5 lg:gap-8 max-w-6xl mx-auto items-start">
+            {/* Left Column - Map + Vehicle + Rental Period */}
+            <div className="lg:col-span-3 space-y-6">
 
-            {/* Pickup Location Card */}
-            {pickupLocationData ? (
-              <div>
-                <h3 className="text-xl text-black mb-4">Pickup Location</h3>
-                <PickupLocationCard
+              {/* Pickup Location with Map (no title - starts from map) */}
+              {pickupLocationData ? (
+                <PickupLocationMap
                   location={pickupLocationData}
                   onChangeLocation={() => setShowPickupModal(true)}
                 />
-              </div>
-            ) : pickupLocationLoading ? (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <p className="text-gray-500">Loading pickup location...</p>
-              </div>
-            ) : (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-yellow-600" />
-                  <p className="text-yellow-800 font-medium">No pickup location selected</p>
+              ) : pickupLocationLoading ? (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <p className="text-gray-500">Loading pickup location...</p>
                 </div>
-                <p className="text-yellow-700 text-sm mt-1">Please go back and select a pickup location.</p>
-                <Button
-                  variant="outline"
-                  onClick={() => navigate(-1)}
-                  className="mt-3"
-                >
-                  Go Back
-                </Button>
-              </div>
-            )}
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-yellow-600" />
+                    <p className="text-yellow-800 font-medium">No pickup location selected</p>
+                  </div>
+                  <p className="text-yellow-700 text-sm mt-1">Please go back and select a pickup location.</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate(-1)}
+                    className="mt-3"
+                  >
+                    Go Back
+                  </Button>
+                </div>
+              )}
 
             {/* Vehicle Details Card */}
             <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -506,7 +622,7 @@ export default function BookNow() {
                         handleDateChange({ ...bookingDates, startDate: e.target.value })
                       }
                       onClick={() => startDateRef.current?.showPicker?.()}
-                      min={getTodayDate()}
+                      min={isTodayBookable() ? getTodayDate() : getTomorrowDate()}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none cursor-pointer"
                     />
                     <select
@@ -540,7 +656,7 @@ export default function BookNow() {
                         handleDateChange({ ...bookingDates, endDate: e.target.value })
                       }
                       onClick={() => returnDateRef.current?.showPicker?.()}
-                      min={bookingDates.startDate || getTodayDate()}
+                      min={bookingDates.startDate || (isTodayBookable() ? getTodayDate() : getTomorrowDate())}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none cursor-pointer"
                     />
                     <select
@@ -559,40 +675,31 @@ export default function BookNow() {
                   </div>
                 </div>
               </div>
-
-              {/* Duration Display */}
-              {totalHours > 0 && (
-                <div className="mt-4 p-3 bg-primary-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    Total Duration: <strong>{totalHours} hours</strong>
-                    {(vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours) &&
-                      totalHours < (vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours) && (
-                        <span className="text-red-600 ml-2">
-                          (Minimum {vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours}h required)
-                        </span>
-                      )}
-                  </p>
-                </div>
-              )}
+            </div>
             </div>
 
-            {/* Booking Summary - Price Calculator */}
-            <PriceCalculator
-              hours={totalHours}
-              vehicleName={vehicleData.name}
-              onProceedToPayment={handleBooking}
-              isLoading={bookingLoading}
-              isLoggedIn={!!user}
-              minBookingHours={vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours}
-              includeSecondHelmet={includeSecondHelmet}
-              onSecondHelmetChange={setIncludeSecondHelmet}
-              cityId={vehicleData.cityId}
-              userId={user?.id}
-              selectedDurations={vehicleData.linkedPackage?.selectedDurations || []}
-              priceOverrides={vehicleData.linkedPackage?.priceOverrides || {}}
-              pricePerHour={vehicleData.linkedPackage?.pricePerHour || vehicleData.pricePerHour}
-              freeHoursPerDay={vehicleData.linkedPackage?.freeHoursPerDay}
-            />
+            {/* Right Column - Booking Summary / Price Calculator (Sticky) */}
+            <div className="lg:col-span-2 mt-6 lg:mt-0 lg:sticky lg:top-24">
+                <PriceCalculator
+                hours={totalHours}
+                vehicleName={vehicleData.name}
+                onProceedToPayment={handleBooking}
+                isLoading={bookingLoading}
+                isLoggedIn={!!user}
+                minBookingHours={vehicleData.linkedPackage?.selectedDurations?.[0] || vehicleData.minBookingHours}
+                includeSecondHelmet={includeSecondHelmet}
+                onSecondHelmetChange={setIncludeSecondHelmet}
+                paySecurityAtPickup={paySecurityAtPickup}
+                onSecurityDepositModeChange={setPaySecurityAtPickup}
+                cityId={vehicleData.cityId}
+                userId={user?.id}
+                onAgentApplied={setAppliedAgentCode}
+                selectedDurations={vehicleData.linkedPackage?.selectedDurations || []}
+                priceOverrides={vehicleData.linkedPackage?.priceOverrides || {}}
+                pricePerHour={vehicleData.linkedPackage?.pricePerHour || vehicleData.pricePerHour}
+                freeHoursPerDay={vehicleData.linkedPackage?.freeHoursPerDay}
+              />
+            </div>
           </div>
         </div>
       </div>

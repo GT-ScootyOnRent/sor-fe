@@ -64,7 +64,6 @@ export const mapplsApi = createApi({
     credentials: 'include',
     prepareHeaders: (headers, { getState }) => {
       const token = (getState() as RootState).auth.token
-        ?? localStorage.getItem('adminToken')
         ?? localStorage.getItem('token')
       if (token) headers.set('Authorization', `Bearer ${token}`)
       headers.set('Content-Type', 'application/json')

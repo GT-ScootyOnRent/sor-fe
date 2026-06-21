@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Loader2, AlertCircle, User, Package, Megaphone } from 'lucide-react';
+import { X, Loader2, AlertCircle, User, Package, Megaphone, Shield, Handshake } from 'lucide-react';
 import { useUpdateAdminMutation, type AdminDto } from '../../store/api/adminApi';
 import { useGetCitiesQuery } from '../../store/api/cityApi';
 import { toast } from 'sonner';
@@ -22,6 +22,8 @@ const EditAdminModal: React.FC<Props> = ({ admin, onClose, onSuccess }) => {
     isActive: admin.isActive,
     canManagePackages: admin.canManagePackages ?? false,
     canManageAnnouncements: admin.canManageAnnouncements ?? false,
+    canManageGeofences: admin.canManageGeofences ?? false,
+    canManageAgents: admin.canManageAgents ?? false,
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -66,6 +68,8 @@ const EditAdminModal: React.FC<Props> = ({ admin, onClose, onSuccess }) => {
           isActive: form.isActive,
           canManagePackages: form.role === 1 ? form.canManagePackages : false,
           canManageAnnouncements: form.role === 1 ? form.canManageAnnouncements : false,
+          canManageGeofences: form.role === 1 ? form.canManageGeofences : false,
+          canManageAgents: form.role === 1 ? form.canManageAgents : false,
         },
       }).unwrap();
 
@@ -241,6 +245,48 @@ const EditAdminModal: React.FC<Props> = ({ admin, onClose, onSuccess }) => {
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Allow this admin to create, edit, and delete announcement banners
+                </p>
+              </div>
+            </label>
+          )}
+
+          {/* Geofence Permission (only for Admins, SuperAdmins have it by default) */}
+          {form.role === 1 && (
+            <label className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-100 rounded-xl cursor-pointer hover:bg-purple-100 transition">
+              <input
+                type="checkbox"
+                checked={form.canManageGeofences}
+                onChange={(e) => handleChange('canManageGeofences', e.target.checked)}
+                className="accent-purple-600 w-4 h-4"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-gray-700">Can Manage Geofences</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Allow this admin to create, edit geofences and attach them to vehicles
+                </p>
+              </div>
+            </label>
+          )}
+
+          {/* Agent Management Permission (only for Admins, SuperAdmins have it by default) */}
+          {form.role === 1 && (
+            <label className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-100 rounded-xl cursor-pointer hover:bg-purple-100 transition">
+              <input
+                type="checkbox"
+                checked={form.canManageAgents}
+                onChange={(e) => handleChange('canManageAgents', e.target.checked)}
+                className="accent-purple-600 w-4 h-4"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Handshake className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-gray-700">Can Manage Agents</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Allow this admin to create, edit, and delete referral agents and their coupons
                 </p>
               </div>
             </label>

@@ -1,18 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
-  Plus, Edit, Trash2, Search, CheckCircle, XCircle,
-  Image, MapPin, X, Save, Loader2, Star, Eye, Package, FileText,
+  Plus, Edit, Trash2, Search, CheckCircle, XCircle, Clock,
+  Image, MapPin, X, Save, Loader2, Star, Eye, Package, FileText, Shield, Ghost,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
-  useGetVehiclesQuery,
+  useGetVehiclesForAdminQuery,
   useCreateVehicleMutation,
   useUpdateVehicleMutation,
   useDeleteVehicleMutation,
   type VehicleDto,
 } from '../../store/api/vehicleApi';
 import { useGetCitiesQuery } from '../../store/api/cityApi';
+import { useDashboardCityFilter } from './DashboardCityFilter';
 import {
   useGetVehicleImagesByVehicleIdQuery,
   useCreateVehicleImageMutation,
@@ -26,20 +28,40 @@ import {
 import { uploadVehicleImage } from '../../lib/supabase';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { TrackingModal } from './Trackingmodal';
+import { VehicleGeofenceModal } from './VehicleGeofenceModal';
 import { FormField } from './FormField';
 
 // ── Vehicle Form Initial State ─────────────────────────────────────────────
 const EMPTY_VEHICLE: Omit<VehicleDto, 'id'> = {
   name: '', make: '', model: '', registrationNumber: '', cityId: 0,
-  isAvailable: true, featured: false,
+  isAvailable: true, featured: false, isComingSoon: false, isDummy: false,
+  dummyAvailableInDays: 3,
+  dummyAvailableInTime: '06:00',
   pricePerHour: 0, pricePerDay: 0, minBookingHours: 4,
   kmLimit: 100, excessKmCharge: 5, lateReturnCharge: 80,
   rating: 0, fuelType: 'Petrol', vehicleType: 'Scooter',
   kmTravelled: 0, gpsDeviceId: '',
+  initialOdometerReading: 0, currentOdometerReading: 0,
   packageId: undefined,
   packages: { fourHours: 0, oneDay: 0, threeDays: 0, sevenDays: 0, fifteenDays: 0, monthly: 0 },
   specs: { mileage: '', engineCapacity: '', topSpeed: '', weight: '' },
 };
+
+// Business-hours time slots in 30-minute steps from 06:00 AM to 11:30 PM.
+// Value is "HH:mm" (24h, what the backend stores); label is shown in 12h with AM/PM.
+const DUMMY_TIME_SLOTS: { value: string; label: string }[] = (() => {
+  const slots: { value: string; label: string }[] = [];
+  for (let minutes = 6 * 60; minutes <= 23 * 60 + 30; minutes += 30) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    const value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const label = `${h12}:${String(m).padStart(2, '0')} ${period}`;
+    slots.push({ value, label });
+  }
+  return slots;
+})();
 
 type VehicleModalTab = 'details' | 'images';
 
@@ -54,12 +76,17 @@ interface VehicleDraft {
 
 const VehiclesTab: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const highlightId = Number(searchParams.get('highlight')) || null;
+  const [flashId, setFlashId] = useState<number | null>(null);
+  const highlightRowRef = useRef<HTMLTableRowElement | null>(null);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<VehicleDto | null>(null);
   const [vehicleForm, setVehicleForm] = useState<Omit<VehicleDto, 'id'>>(EMPTY_VEHICLE);
   const [vehicleModalTab, setVehicleModalTab] = useState<VehicleModalTab>('details');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [trackingVehicle, setTrackingVehicle] = useState<VehicleDto | null>(null);
+  const [geofenceVehicle, setGeofenceVehicle] = useState<VehicleDto | null>(null);
   const [previewVehicle, setPreviewVehicle] = useState<VehicleDto | null>(null);
   const [drafts, setDrafts] = useState<VehicleDraft[]>([]);
   const [showDraftDropdown, setShowDraftDropdown] = useState(false);
@@ -107,6 +134,7 @@ const VehiclesTab: React.FC = () => {
   };
 
   const deleteDraft = (draftId: string) => {
+    if (!window.confirm('Are you sure you want to delete this draft?')) return;
     const updated = drafts.filter(d => d.id !== draftId);
     setDrafts(updated);
     localStorage.setItem(VEHICLE_DRAFTS_KEY, JSON.stringify(updated));
@@ -114,6 +142,7 @@ const VehiclesTab: React.FC = () => {
   };
 
   const deleteAllDrafts = () => {
+    if (!window.confirm('Are you sure you want to delete all drafts?')) return;
     setDrafts([]);
     localStorage.removeItem(VEHICLE_DRAFTS_KEY);
     setShowDraftDropdown(false);
@@ -136,7 +165,23 @@ const VehiclesTab: React.FC = () => {
   };
 
   // ── API Calls ──────────────────────────────────────────────────────────
-  const { data: vehicles = [], isLoading: vehiclesLoading, refetch: refetchVehicles } = useGetVehiclesQuery(undefined);
+  // Get city filter from Redux
+  const { cityIdParam } = useDashboardCityFilter();
+  
+  const { data: vehicles = [], isLoading: vehiclesLoading, refetch: refetchVehicles } = useGetVehiclesForAdminQuery(
+    { cityId: cityIdParam }
+  );
+
+  // Flash + scroll to the row referenced by the ?highlight query param
+  useEffect(() => {
+    if (!highlightId || vehiclesLoading) return;
+    setFlashId(highlightId);
+    const scrollTimer = setTimeout(() => {
+      highlightRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+    const clearTimer = setTimeout(() => setFlashId(null), 3000);
+    return () => { clearTimeout(scrollTimer); clearTimeout(clearTimer); };
+  }, [highlightId, vehiclesLoading]);
   const { data: cities = [] } = useGetCitiesQuery({ page: 1, size: 100 });
   const { data: vehiclePackages = [] } = useGetVehiclePackagesQuery();
 
@@ -185,9 +230,15 @@ const VehiclesTab: React.FC = () => {
       fuelType: vehicle.fuelType, vehicleType: vehicle.vehicleType,
       kmTravelled: vehicle.kmTravelled,
       gpsDeviceId: vehicle.gpsDeviceId ?? '',
+      initialOdometerReading: vehicle.initialOdometerReading ?? 0,
+      currentOdometerReading: vehicle.currentOdometerReading ?? 0,
       packageId: vehicle.packageId,
       packages: vehicle.packages ?? EMPTY_VEHICLE.packages,
       specs: vehicle.specs ?? EMPTY_VEHICLE.specs,
+      isComingSoon: vehicle.isComingSoon ?? false,
+      isDummy: vehicle.isDummy ?? false,
+      dummyAvailableInDays: vehicle.dummyAvailableInDays ?? 3,
+      dummyAvailableInTime: vehicle.dummyAvailableInTime ?? '06:00',
     });
     setVehicleModalTab('details');
     setShowVehicleModal(true);
@@ -368,7 +419,11 @@ const VehiclesTab: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filteredVehicles.map((vehicle) => (
-                  <tr key={vehicle.id} className="hover:bg-gray-50 transition">
+                  <tr
+                    key={vehicle.id}
+                    ref={vehicle.id === highlightId ? highlightRowRef : undefined}
+                    className={`transition-colors duration-700 ${flashId === vehicle.id ? 'bg-yellow-100 ring-2 ring-yellow-400' : 'hover:bg-gray-50'}`}
+                  >
                     <td className="px-4 lg:px-6 py-3 lg:py-4">
                       <p className="font-medium text-gray-900 text-sm lg:text-base">{vehicle.name}</p>
                       <p className="text-xs text-gray-500">{vehicle.model}</p>
@@ -382,9 +437,13 @@ const VehiclesTab: React.FC = () => {
                       {vehiclePackages.find(p => p.id === vehicle.packageId)?.name || <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 lg:px-6 py-3 lg:py-4">
-                      {vehicle.isAvailable
-                        ? <span className="flex items-center text-green-600 text-xs lg:text-sm"><CheckCircle className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />Available</span>
-                        : <span className="flex items-center text-red-500 text-xs lg:text-sm"><XCircle className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />Inactive</span>}
+                      {vehicle.isComingSoon
+                        ? <span className="flex items-center text-amber-600 text-xs lg:text-sm"><Clock className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />Coming Soon</span>
+                        : vehicle.isDummy
+                          ? <span className="flex items-center text-gray-500 text-xs lg:text-sm"><Ghost className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />Dummy</span>
+                          : vehicle.isAvailable
+                            ? <span className="flex items-center text-green-600 text-xs lg:text-sm"><CheckCircle className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />Available</span>
+                            : <span className="flex items-center text-red-500 text-xs lg:text-sm"><XCircle className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />Inactive</span>}
                     </td>
                     <td className="px-4 lg:px-6 py-3 lg:py-4 text-sm text-gray-600">{vehicle.kmTravelled.toLocaleString()} km</td>
                     <td className="px-4 lg:px-6 py-3 lg:py-4">
@@ -421,6 +480,13 @@ const VehiclesTab: React.FC = () => {
                             <MapPin className="w-4 h-4" />
                           </button>
                         )}
+                        <button
+                          onClick={() => setGeofenceVehicle(vehicle)}
+                          className={`p-1.5 lg:p-2 rounded-lg transition ${vehicle.geofenceCount ? 'text-indigo-600 hover:bg-indigo-50' : 'text-gray-300 hover:bg-gray-50'}`}
+                          title={vehicle.geofenceCount ? `${vehicle.geofenceCount} geofence(s) attached` : 'No geofences - click to add'}
+                        >
+                          <Shield className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => handleDeleteVehicle(vehicle.id)}
                           className="p-1.5 lg:p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
@@ -541,6 +607,27 @@ const VehiclesTab: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* Odometer Tracking */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Odometer Tracking</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField 
+                        label="Initial Odometer (KM)" 
+                        value={vehicleForm.initialOdometerReading} 
+                        onChange={(v) => setVehicleForm({ ...vehicleForm, initialOdometerReading: v })} 
+                        type="number" 
+                        placeholder="Odometer when added"
+                      />
+                      <FormField 
+                        label="Current Odometer (KM)" 
+                        value={vehicleForm.currentOdometerReading} 
+                        onChange={(v) => setVehicleForm({ ...vehicleForm, currentOdometerReading: v })} 
+                        type="number" 
+                        placeholder="Current reading"
+                      />
+                    </div>
+                  </div>
+
                   {/* Package Selection */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Package</h3>
@@ -637,7 +724,7 @@ const VehiclesTab: React.FC = () => {
                   {/* Toggles */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Settings</h3>
-                    <div className="flex gap-6">
+                    <div className="flex flex-wrap gap-6">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" checked={vehicleForm.isAvailable} onChange={(e) => setVehicleForm({ ...vehicleForm, isAvailable: e.target.checked })} className="w-4 h-4 text-primary-600 rounded" />
                         <span className="text-sm text-gray-700">Available for booking</span>
@@ -646,7 +733,42 @@ const VehiclesTab: React.FC = () => {
                         <input type="checkbox" checked={vehicleForm.featured} onChange={(e) => setVehicleForm({ ...vehicleForm, featured: e.target.checked })} className="w-4 h-4 text-primary-600 rounded" />
                         <span className="text-sm text-gray-700">Featured on homepage</span>
                       </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={vehicleForm.isComingSoon} onChange={(e) => setVehicleForm({ ...vehicleForm, isComingSoon: e.target.checked })} className="w-4 h-4 text-amber-500 rounded" />
+                        <span className="text-sm text-gray-700">Coming Soon</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={vehicleForm.isDummy} onChange={(e) => setVehicleForm({ ...vehicleForm, isDummy: e.target.checked })} className="w-4 h-4 text-gray-500 rounded" />
+                        <span className="text-sm text-gray-700">Dummy Vehicle</span>
+                      </label>
                     </div>
+                    {vehicleForm.isDummy && (
+                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Available after (days)</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={vehicleForm.dummyAvailableInDays}
+                            onChange={(e) => setVehicleForm({ ...vehicleForm, dummyAvailableInDays: Math.max(1, Number(e.target.value) || 1) })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Available at (time)</label>
+                          <select
+                            value={vehicleForm.dummyAvailableInTime}
+                            onChange={(e) => setVehicleForm({ ...vehicleForm, dummyAvailableInTime: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                          >
+                            {DUMMY_TIME_SLOTS.map((slot) => (
+                              <option key={slot.value} value={slot.value}>{slot.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <p className="sm:col-span-2 text-xs text-gray-400">Shows “Available from” as the search end date plus this many days, at the selected time.</p>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -771,6 +893,14 @@ const VehiclesTab: React.FC = () => {
         <TrackingModal
           vehicle={trackingVehicle}
           onClose={() => setTrackingVehicle(null)}
+        />
+      )}
+
+      {/* ════ GEOFENCE MODAL ════ */}
+      {geofenceVehicle && (
+        <VehicleGeofenceModal
+          vehicle={geofenceVehicle}
+          onClose={() => setGeofenceVehicle(null)}
         />
       )}
 

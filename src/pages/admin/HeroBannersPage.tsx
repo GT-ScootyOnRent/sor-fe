@@ -47,11 +47,13 @@ type FormState = {
   subtitle: string;
   isActive: boolean;
   objectPosition: ObjectPosition;
+  textPosition: ObjectPosition;
   cityIds: number[]; // specific cities selected
   useAllCitiesMode: boolean; // true = "All Cities" checked, false = individual cities
 };
 
 const DEFAULT_POSITION: ObjectPosition = { x: 50, y: 50 };
+const DEFAULT_TEXT_POSITION: ObjectPosition = { x: 50, y: 50 };
 
 const EMPTY_FORM: FormState = {
   file: null,
@@ -61,12 +63,42 @@ const EMPTY_FORM: FormState = {
   subtitle: '',
   isActive: true,
   objectPosition: DEFAULT_POSITION,
+  textPosition: DEFAULT_TEXT_POSITION,
   cityIds: [],
   useAllCitiesMode: true, // default to "All" mode
 };
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+// 3x3 grid of preset text positions (x/y percentages). Edges inset a little
+// so the text never clips the image border.
+const TEXT_POSITION_PRESETS: { label: string; x: number; y: number }[] = [
+  { label: 'Top left', x: 20, y: 18 },
+  { label: 'Top center', x: 50, y: 18 },
+  { label: 'Top right', x: 80, y: 18 },
+  { label: 'Middle left', x: 20, y: 50 },
+  { label: 'Center', x: 50, y: 50 },
+  { label: 'Middle right', x: 80, y: 50 },
+  { label: 'Bottom left', x: 20, y: 82 },
+  { label: 'Bottom center', x: 50, y: 82 },
+  { label: 'Bottom right', x: 80, y: 82 },
+];
+
+// Anchor the text block to its nearest edge so it never overflows/clips the
+// image when placed near the left/right/top/bottom. Center stays centered.
+function textAnchorStyle(pos: ObjectPosition): React.CSSProperties {
+  const tx = pos.x < 33 ? '0%' : pos.x > 67 ? '-100%' : '-50%';
+  const ty = pos.y < 33 ? '0%' : pos.y > 67 ? '-100%' : '-50%';
+  const textAlign: React.CSSProperties['textAlign'] =
+    pos.x < 33 ? 'left' : pos.x > 67 ? 'right' : 'center';
+  return {
+    left: `${pos.x}%`,
+    top: `${pos.y}%`,
+    transform: `translate(${tx}, ${ty})`,
+    textAlign,
+  };
+}
 
 // ── CropPositioner ────────────────────────────────────────────────────────────
 // The interactive 3:1 crop canvas. Drag the image to reposition it.
@@ -79,6 +111,8 @@ interface CropPositionerProps {
   onPositionChange: (pos: ObjectPosition) => void;
   onOpenLightbox: () => void;
   onFileSelect: (file: File) => void;
+  textPosition: ObjectPosition;
+  onTextPositionChange: (pos: ObjectPosition) => void;
 }
 
 const CropPositioner: React.FC<CropPositionerProps> = ({
@@ -89,6 +123,8 @@ const CropPositioner: React.FC<CropPositionerProps> = ({
   onPositionChange,
   onOpenLightbox,
   onFileSelect,
+  textPosition,
+  onTextPositionChange,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -99,6 +135,14 @@ const CropPositioner: React.FC<CropPositionerProps> = ({
     startY: number;
     startPos: ObjectPosition;
   }>({ active: false, startX: 0, startY: 0, startPos: DEFAULT_POSITION });
+
+  // Drag state for the title/subtitle text block (independent of the image drag)
+  const textDragState = useRef<{
+    active: boolean;
+    startX: number;
+    startY: number;
+    startPos: ObjectPosition;
+  }>({ active: false, startX: 0, startY: 0, startPos: DEFAULT_TEXT_POSITION });
 
   const hasText = !!(title || subtitle);
 
@@ -165,6 +209,48 @@ const CropPositioner: React.FC<CropPositionerProps> = ({
     dragState.current.active = false;
   }, []);
 
+  // ── Text block pointer drag (stops propagation so the image doesn't move) ──
+
+  const onTextPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (!imageUrl) return;
+      e.preventDefault();
+      e.stopPropagation();
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      textDragState.current = {
+        active: true,
+        startX: e.clientX,
+        startY: e.clientY,
+        startPos: { ...textPosition },
+      };
+    },
+    [imageUrl, textPosition],
+  );
+
+  const onTextPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!textDragState.current.active || !containerRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const dx = e.clientX - textDragState.current.startX;
+    const dy = e.clientY - textDragState.current.startY;
+
+    // Drag right = text moves right = position x increases
+    const pctX = (dx / rect.width) * 100;
+    const pctY = (dy / rect.height) * 100;
+
+    const newX = Math.min(100, Math.max(0, textDragState.current.startPos.x + pctX));
+    const newY = Math.min(100, Math.max(0, textDragState.current.startPos.y + pctY));
+
+    onTextPositionChange({ x: Math.round(newX * 10) / 10, y: Math.round(newY * 10) / 10 });
+  }, [onTextPositionChange]);
+
+  const onTextPointerUp = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+    textDragState.current.active = false;
+  }, []);
+
   const objectPositionCSS = `${position.x}% ${position.y}%`;
 
   return (
@@ -183,13 +269,13 @@ const CropPositioner: React.FC<CropPositionerProps> = ({
         }}
       />
 
-      {/* Outer drop zone — fills the entire column height all the way down */}
+      {/* Outer drop zone — wide hero aspect ratio that matches the user-side homepage hero */}
       <div
         onDragOver={onContainerDragOver}
         onDragLeave={onContainerDragLeave}
         onDrop={onContainerDrop}
         onClick={!imageUrl ? triggerFileBrowser : undefined}
-        className={`relative w-full flex-1 min-h-[480px] rounded-xl overflow-visible shadow-sm select-none transition-colors ${isDraggingFile
+        className={`relative w-full aspect-[5/2] min-h-[200px] rounded-xl overflow-visible shadow-sm select-none transition-colors ${isDraggingFile
             ? 'bg-primary-50 border-2 border-dashed border-primary-500'
             : imageUrl
               ? 'bg-white border-2 border-dashed'
@@ -216,21 +302,30 @@ const CropPositioner: React.FC<CropPositionerProps> = ({
                 onPointerLeave={onPointerUp}
               />
 
-              {/* Text overlay — covers the whole image */}
+              {/* Text overlay — draggable title/subtitle block at the saved position */}
               {hasText && (
                 <>
                   <div className="absolute inset-0 bg-black/35 pointer-events-none" />
-                  <div className="absolute inset-0 flex items-center justify-center px-4 text-center pointer-events-none">
-                    <div className="max-w-xl">
-                      {title && (
-                        <h2 className="text-xl md:text-3xl font-bold text-white mb-1.5 leading-tight drop-shadow-lg">
-                          {title}
-                        </h2>
-                      )}
-                      {subtitle && (
-                        <p className="text-xs md:text-base text-white/95 drop-shadow-md">{subtitle}</p>
-                      )}
-                    </div>
+                  <div
+                    className="absolute px-3 py-2 cursor-move rounded-lg ring-1 ring-white/40 hover:ring-white/80 hover:bg-white/5 transition-colors touch-none"
+                    style={{
+                      ...textAnchorStyle(textPosition),
+                      maxWidth: '85%',
+                    }}
+                    onPointerDown={onTextPointerDown}
+                    onPointerMove={onTextPointerMove}
+                    onPointerUp={onTextPointerUp}
+                    onPointerLeave={onTextPointerUp}
+                    title="Drag to move the text"
+                  >
+                    {title && (
+                      <h2 className="text-xl md:text-3xl font-bold text-white mb-1.5 leading-tight drop-shadow-lg pointer-events-none">
+                        {title}
+                      </h2>
+                    )}
+                    {subtitle && (
+                      <p className="text-xs md:text-base text-white/95 drop-shadow-md pointer-events-none">{subtitle}</p>
+                    )}
                   </div>
                 </>
               )}
@@ -327,6 +422,8 @@ interface SlidePreviewProps {
   position: ObjectPosition;
   onPositionChange: (pos: ObjectPosition) => void;
   onFileSelect: (file: File) => void;
+  textPosition: ObjectPosition;
+  onTextPositionChange: (pos: ObjectPosition) => void;
 }
 
 type LightboxMode = 'crop';
@@ -338,6 +435,8 @@ const SlidePreview: React.FC<SlidePreviewProps> = ({
   position,
   onPositionChange,
   onFileSelect,
+  textPosition,
+  onTextPositionChange,
 }) => {
   const [lightbox, setLightbox] = useState<LightboxMode | null>(null);
 
@@ -356,6 +455,8 @@ const SlidePreview: React.FC<SlidePreviewProps> = ({
           onPositionChange={onPositionChange}
           onOpenLightbox={() => imageUrl && setLightbox('crop')}
           onFileSelect={onFileSelect}
+          textPosition={textPosition}
+          onTextPositionChange={onTextPositionChange}
         />
       </div>
 
@@ -365,6 +466,7 @@ const SlidePreview: React.FC<SlidePreviewProps> = ({
           mode={lightbox}
           title={title}
           subtitle={subtitle}
+          textPosition={textPosition}
           onClose={() => setLightbox(null)}
         />
       )}
@@ -379,6 +481,7 @@ interface ImageLightboxProps {
   mode: LightboxMode;
   title: string;
   subtitle: string;
+  textPosition: ObjectPosition;
   onClose: () => void;
 }
 
@@ -388,6 +491,7 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
   imageUrl,
   title,
   subtitle,
+  textPosition,
   onClose,
 }) => {
   const [zoomIdx, setZoomIdx] = useState(0);
@@ -472,7 +576,13 @@ const ImageLightbox: React.FC<ImageLightboxProps> = ({
             {hasText && (
               <>
                 <div className="absolute inset-0 bg-black/35" />
-                <div className="absolute inset-0 flex items-center justify-center px-6 text-center">
+                <div
+                  className="absolute px-6"
+                  style={{
+                    ...textAnchorStyle(textPosition),
+                    maxWidth: '90%',
+                  }}
+                >
                   <div className="max-w-3xl">
                     {title && (
                       <h2 className="text-3xl md:text-5xl font-bold text-white mb-3 leading-tight drop-shadow-lg">
@@ -568,6 +678,8 @@ const HeroBannersPage: React.FC = () => {
       form.title !== (editing.title ?? '') ||
       form.subtitle !== (editing.subtitle ?? '') ||
       form.isActive !== editing.isActive ||
+      form.textPosition.x !== (editing.textPositionX ?? 50) ||
+      form.textPosition.y !== (editing.textPositionY ?? 50) ||
       cityChanged
     );
   }, [editing, form, isSuperAdmin, cities]);
@@ -615,6 +727,7 @@ const HeroBannersPage: React.FC = () => {
       subtitle: banner.subtitle ?? '',
       isActive: banner.isActive,
       objectPosition: DEFAULT_POSITION,
+      textPosition: { x: banner.textPositionX ?? 50, y: banner.textPositionY ?? 50 },
       cityIds: isAllMode ? [] : banner.cityIds,
       useAllCitiesMode: isAllMode,
     });
@@ -706,6 +819,8 @@ const HeroBannersPage: React.FC = () => {
     fd.append('title', form.title);
     fd.append('subtitle', form.subtitle);
     fd.append('isActive', String(form.isActive));
+    fd.append('textPositionX', String(Math.round(form.textPosition.x)));
+    fd.append('textPositionY', String(Math.round(form.textPosition.y)));
 
     // Determine cityIds to send:
     // - SuperAdmin with "All Cities": empty string (global)
@@ -935,6 +1050,8 @@ const HeroBannersPage: React.FC = () => {
                   position={form.objectPosition}
                   onPositionChange={(pos) => setForm((f) => ({ ...f, objectPosition: pos }))}
                   onFileSelect={(f) => handleFileChange(f)}
+                  textPosition={form.textPosition}
+                  onTextPositionChange={(pos) => setForm((f) => ({ ...f, textPosition: pos }))}
                 />
 
                 {/* File status + Remove — sits right under the preview where it's visible */}
@@ -1057,6 +1174,45 @@ const HeroBannersPage: React.FC = () => {
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
                     <span>{errors.subtitle}</span>
                     <span>{form.subtitle.length}/500</span>
+                  </div>
+                </div>
+
+                {/* Text position — presets + drag hint */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    Text position
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Drag the text on the preview, or pick a preset. (Hidden when no title/subtitle.)
+                  </p>
+                  <div className="flex items-start gap-4">
+                    <div className="grid grid-cols-3 gap-1 w-max">
+                      {TEXT_POSITION_PRESETS.map((preset) => {
+                        const active =
+                          Math.round(form.textPosition.x) === preset.x &&
+                          Math.round(form.textPosition.y) === preset.y;
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            title={preset.label}
+                            onClick={() => setForm((f) => ({ ...f, textPosition: { x: preset.x, y: preset.y } }))}
+                            className={`w-9 h-9 rounded-md border flex items-center justify-center transition-colors ${
+                              active
+                                ? 'bg-primary-600 border-primary-600'
+                                : 'bg-white border-gray-300 hover:border-primary-400 hover:bg-primary-50'
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${active ? 'bg-white' : 'bg-gray-400'}`} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="text-xs text-gray-500 leading-relaxed">
+                      <p className="font-medium text-gray-700">9 preset spots</p>
+                      <p>Top / middle / bottom &times; left / center / right.</p>
+                      <p className="mt-1">Current: {Math.round(form.textPosition.x)}% / {Math.round(form.textPosition.y)}%</p>
+                    </div>
                   </div>
                 </div>
 

@@ -5,6 +5,7 @@ import {
     Calendar,
     LogOut,
     User,
+    Users,
     FileText,
     Menu,
     X,
@@ -23,6 +24,7 @@ type NavItem = {
 const baseNavItems: NavItem[] = [
     { id: 'dashboard', path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'bookings', path: '/bookings', icon: Calendar, label: 'Bookings' },
+    { id: 'customers', path: '/customers', icon: Users, label: 'Customers' },
 ];
 
 /**
@@ -66,7 +68,10 @@ const StaffLayout: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 flex">
             {/* Mobile Header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+            <div
+                className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between"
+                style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
+            >
                 <h2 className="text-lg font-bold bg-gradient-to-r from-primary-600 to-indigo-600 bg-clip-text text-transparent">
                     scootyonrent
                 </h2>
@@ -162,7 +167,7 @@ const StaffLayout: React.FC = () => {
             </aside>
 
             {/* Main content area */}
-            <main className="flex-1 lg:ml-64 p-4 lg:p-8 pt-16 lg:pt-8">
+            <main className="flex-1 lg:ml-64 p-4 lg:p-8 main-content-safe lg:pt-8">
                 <Outlet />
             </main>
         </div>

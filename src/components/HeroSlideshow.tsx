@@ -67,6 +67,18 @@ export default function HeroSlideshow() {
   const currentBanner = banners[currentIndex];
   const overlayHasText = !!(currentBanner?.title || currentBanner?.subtitle);
 
+  // Anchor the text to its nearest edge so it never overflows/clips when
+  // positioned near left/right/top/bottom. Center stays centered.
+  const tx = currentBanner.textPositionX ?? 50;
+  const ty = currentBanner.textPositionY ?? 50;
+  const overlayStyle: React.CSSProperties = {
+    left: `${tx}%`,
+    top: `${ty}%`,
+    transform: `translate(${tx < 33 ? '0%' : tx > 67 ? '-100%' : '-50%'}, ${ty < 33 ? '0%' : ty > 67 ? '-100%' : '-50%'})`,
+    textAlign: tx < 33 ? 'left' : tx > 67 ? 'right' : 'center',
+    maxWidth: '90%',
+  };
+
   return (
     <section className="relative min-h-[500px] md:min-h-[600px] overflow-hidden bg-black">
       {/* Image layers — crossfade only the images */}
@@ -93,15 +105,17 @@ export default function HeroSlideshow() {
       })}
 
       {/* Single text overlay — keyed to currentIndex so the old text is removed
-          (no overlap during crossfade) and the new text fades up on mount */}
+          (no overlap during crossfade) and the new text fades up on mount.
+          Positioned per-banner via textPositionX/Y (0-100 percentages, 50/50 = centred). */}
       {overlayHasText && (
         <>
           <div className="absolute inset-0 bg-black/35 z-10 pointer-events-none" />
           <div
             key={currentIndex}
-            className="absolute inset-0 z-20 flex items-center justify-center px-4 pointer-events-none animate-hero-text"
+            className="absolute z-20 px-4 pointer-events-none animate-hero-text"
+            style={overlayStyle}
           >
-            <div className="text-center max-w-4xl">
+            <div className="max-w-4xl">
               {currentBanner.title && (
                 <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 leading-tight drop-shadow-lg">
                   {currentBanner.title}

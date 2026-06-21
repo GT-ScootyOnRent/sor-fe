@@ -126,6 +126,7 @@ const VehiclePackagesPage: React.FC = () => {
   };
 
   const deleteDraft = (draftId: string) => {
+    if (!window.confirm('Are you sure you want to delete this draft?')) return;
     const updated = drafts.filter(d => d.id !== draftId);
     setDrafts(updated);
     localStorage.setItem(PACKAGE_DRAFTS_KEY, JSON.stringify(updated));
@@ -133,6 +134,7 @@ const VehiclePackagesPage: React.FC = () => {
   };
 
   const deleteAllDrafts = () => {
+    if (!window.confirm('Are you sure you want to delete all drafts?')) return;
     setDrafts([]);
     localStorage.removeItem(PACKAGE_DRAFTS_KEY);
     setShowDraftDropdown(false);
@@ -186,7 +188,7 @@ const VehiclePackagesPage: React.FC = () => {
     setForm({
       name: pkg.name,
       pricePerHour: pkg.pricePerHour,
-      freeHoursPerDay: pkg.freeHoursPerDay || 6,
+      freeHoursPerDay: pkg.freeHoursPerDay ?? 6,
       selectedDurations: [...pkg.selectedDurations],
       priceOverrides: { ...pkg.priceOverrides },
     });

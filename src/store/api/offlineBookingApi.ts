@@ -1,12 +1,12 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
+import type { BaseQueryApi, BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import { API_CONFIG } from '../../config/api.config';
-import { staffLogout } from '../slices/staffAuthSlice';
+import { setStaffCredentials, staffLogout, type StaffUser } from '../slices/staffAuthSlice';
+import { staffRefreshMutex } from './staffApi';
 
 const getOfflineBookingToken = () => (
   localStorage.getItem('staff_token')
   || localStorage.getItem('token')
-  || localStorage.getItem('adminToken')
 );
 
 export interface OfflineBookingDocumentDto {
@@ -74,24 +74,57 @@ const baseQueryWithStaff401Logout: BaseQueryFn<string | FetchArgs, unknown, Fetc
   api,
   extraOptions
 ) => {
-  const result = await rawBaseQuery(args, api, extraOptions);
+  // Wait for any in-flight refresh (shared with staffApi) before firing the request.
+  await staffRefreshMutex.waitForUnlock();
+  let result = await rawBaseQuery(args, api, extraOptions);
 
-  // If this call is being made under a staff session and backend returns 401,
-  // force staff logout to match staff portal behavior.
+  // Only attempt recovery for staff sessions.
   if (result.error && result.error.status === 401 && localStorage.getItem('staff_token')) {
-    api.dispatch(staffLogout());
-    localStorage.removeItem('staff_token');
-    localStorage.removeItem('staff_refresh_token');
-    localStorage.removeItem('staff');
-    localStorage.removeItem('staffId');
+    if (!staffRefreshMutex.isLocked()) {
+      // We win the lock: perform a single refresh, then retry the original request.
+      const release = await staffRefreshMutex.acquire();
+      try {
+        const refreshResult = await rawBaseQuery(
+          { url: '/staff/auth/refresh', method: 'POST' },
+          api,
+          extraOptions
+        );
 
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login';
+        const data = refreshResult.data as
+          | { success?: boolean; token?: string; userData?: StaffUser }
+          | undefined;
+
+        if (data?.success && data.token && data.userData) {
+          localStorage.setItem('staff_token', data.token);
+          api.dispatch(setStaffCredentials({ staff: data.userData }));
+          result = await rawBaseQuery(args, api, extraOptions);
+        } else {
+          forceStaffLogout(api);
+        }
+      } finally {
+        release();
+      }
+    } else {
+      // A refresh is already in progress elsewhere: wait for it, then retry once.
+      await staffRefreshMutex.waitForUnlock();
+      result = await rawBaseQuery(args, api, extraOptions);
     }
   }
 
   return result;
 };
+
+function forceStaffLogout(api: BaseQueryApi) {
+  api.dispatch(staffLogout());
+  localStorage.removeItem('staff_token');
+  localStorage.removeItem('staff_refresh_token');
+  localStorage.removeItem('staff');
+  localStorage.removeItem('staffId');
+
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
 
 export const offlineBookingApi = createApi({
   reducerPath: 'offlineBookingApi',

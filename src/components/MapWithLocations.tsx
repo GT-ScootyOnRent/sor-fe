@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { MapPin, Navigation, Loader2, AlertCircle } from 'lucide-react';
-import { GoogleMap, Marker, LoadScript } from '@react-google-maps/api';
+import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { useGetActivePickupLocationsByCityQuery } from '../store/api/pickupLocationApi';
 import { toast } from 'sonner';
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY as string;
 
 interface Location {
   id: number;
@@ -39,6 +39,12 @@ export default function MapWithLocations({
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [mapCenter, setMapCenter] = useState(defaultCenter);
   const [mapZoom, setMapZoom] = useState(12);
+
+  // Load Google Maps API
+  const { isLoaded: mapsLoaded } = useJsApiLoader({
+    id: 'google-maps-script',
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+  });
 
   // Fetch locations from API
   const { data: locations, isLoading, error } = useGetActivePickupLocationsByCityQuery(cityId);
@@ -142,48 +148,46 @@ export default function MapWithLocations({
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* Google Map */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        {GOOGLE_MAPS_API_KEY ? (
-          <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY}>
-            <GoogleMap
-              mapContainerStyle={containerStyle}
-              center={mapCenter}
-              zoom={mapZoom}
-            >
-              {/* User location marker */}
-              {userLocation && (
-                <Marker
-                  position={userLocation}
-                  icon={{
-                    url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
-                  }}
-                  title="Your Location"
-                />
-              )}
+        {GOOGLE_MAPS_API_KEY && mapsLoaded ? (
+          <GoogleMap
+            mapContainerStyle={containerStyle}
+            center={mapCenter}
+            zoom={mapZoom}
+          >
+            {/* User location marker */}
+            {userLocation && (
+              <Marker
+                position={userLocation}
+                icon={{
+                  url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+                }}
+                title="Your Location"
+              />
+            )}
 
-              {/* Location markers */}
-              {locationsWithCoords.map((location) => (
-                <Marker
-                  key={location.id}
-                  position={{
-                    lat: Number(location.latitude),
-                    lng: Number(location.longitude)
-                  }}
-                  onClick={() => handleLocationClick(location)}
-                  icon={
-                    selectedLocation?.id === location.id
-                      ? 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
-                      : 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
-                  }
-                  title={location.name}
-                />
-              ))}
-            </GoogleMap>
-          </LoadScript>
+            {/* Location markers */}
+            {locationsWithCoords.map((location) => (
+              <Marker
+                key={location.id}
+                position={{
+                  lat: Number(location.latitude),
+                  lng: Number(location.longitude)
+                }}
+                onClick={() => handleLocationClick(location)}
+                icon={
+                  selectedLocation?.id === location.id
+                    ? 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
+                    : 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                }
+                title={location.name}
+              />
+            ))}
+          </GoogleMap>
         ) : (
           <div className="h-[400px] flex items-center justify-center bg-gray-100">
             <div className="text-center text-gray-500">
-              <MapPin className="w-12 h-12 mx-auto mb-2" />
-              <p className="text-sm">Google Maps API key not configured</p>
+              <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
+              <p className="text-sm">Loading map...</p>
             </div>
           </div>
         )}

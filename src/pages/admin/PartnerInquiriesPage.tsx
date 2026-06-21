@@ -13,6 +13,8 @@ import {
   MapPin,
   IndianRupee,
   Calendar,
+  Plus,
+  MessageSquare,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -20,6 +22,8 @@ import {
   useGetPartnerInquiryByIdQuery,
   useUpdatePartnerInquiryStatusMutation,
   useDeletePartnerInquiryMutation,
+  useGetPartnerInquiryNotesQuery,
+  useAddPartnerInquiryNoteMutation,
   type PartnerInquiry,
   type PartnerInquiryStatus,
   type ListInquiriesArgs,
@@ -329,38 +333,49 @@ interface InquiryDetailModalProps {
 
 const InquiryDetailModal: React.FC<InquiryDetailModalProps> = ({ id, onClose }) => {
   const { data: inquiry, isLoading, isError } = useGetPartnerInquiryByIdQuery(id);
+  const { data: notes = [], isLoading: isLoadingNotes } = useGetPartnerInquiryNotesQuery(id);
   const [updateStatus, { isLoading: isSaving }] = useUpdatePartnerInquiryStatusMutation();
+  const [addNote, { isLoading: isAddingNote }] = useAddPartnerInquiryNoteMutation();
 
   const [status, setStatus] = useState<PartnerInquiryStatus | ''>('');
-  const [notes, setNotes] = useState('');
+  const [newNote, setNewNote] = useState('');
   const [hydrated, setHydrated] = useState(false);
 
   // Hydrate the form once the inquiry loads
   if (inquiry && !hydrated) {
     setStatus(inquiry.status);
-    setNotes(inquiry.notes ?? '');
     setHydrated(true);
   }
 
-  const dirty =
-    inquiry != null && (status !== inquiry.status || notes !== (inquiry.notes ?? ''));
+  const statusDirty = inquiry != null && status !== inquiry.status;
 
   const handleSave = async () => {
     if (!status || !inquiry) return;
     try {
-      // Spec: null = keep existing, "" = clear, string = set.
-      // The textarea pre-fills with the existing notes, and dirty check below
-      // blocks saves when nothing changed — so we always send the user's
-      // current intent verbatim ("" meaning "clear" if they emptied it).
       await updateStatus({
         id: inquiry.id,
         status,
-        notes,
+        notes: null, // Keep notes field unchanged - we use the versioned notes now
       }).unwrap();
-      toast.success('Inquiry updated');
+      toast.success('Status updated');
       onClose();
     } catch (err: any) {
       const msg = err?.data?.error || err?.data?.message || 'Failed to update inquiry';
+      toast.error(msg);
+    }
+  };
+
+  const handleAddNote = async () => {
+    if (!newNote.trim() || !inquiry) return;
+    try {
+      await addNote({
+        partnerInquiryId: inquiry.id,
+        noteText: newNote.trim(),
+      }).unwrap();
+      setNewNote('');
+      toast.success('Note added');
+    } catch (err: any) {
+      const msg = err?.data?.error || err?.data?.message || 'Failed to add note';
       toast.error(msg);
     }
   };
@@ -475,19 +490,76 @@ const InquiryDetailModal: React.FC<InquiryDetailModalProps> = ({ id, onClose }) 
                 </div>
 
                 <div>
-                  <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
-                    Notes
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Notes History
                   </label>
-                  <textarea
-                    id="notes"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={4}
-                    maxLength={2000}
-                    placeholder="Internal notes (optional)…"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">{notes.length}/2000</p>
+                  
+                  {/* Notes list */}
+                  <div className="border border-gray-200 rounded-lg mb-3 max-h-40 overflow-y-auto">
+                    {isLoadingNotes ? (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                      </div>
+                    ) : notes.length === 0 ? (
+                      <div className="py-6 text-center text-sm text-gray-400">
+                        No notes yet
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-100">
+                        {notes.map((note) => (
+                          <div key={note.id} className="px-3 py-2.5">
+                            <div className="flex items-start gap-2">
+                              <MessageSquare className="w-4 h-4 text-primary-500 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
+                                  {note.noteText}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {new Date(note.createdAt).toLocaleDateString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Add note input */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder="Add a note..."
+                      maxLength={2000}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleAddNote();
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                    <button
+                      onClick={handleAddNote}
+                      disabled={!newNote.trim() || isAddingNote}
+                      className="px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5 text-sm font-medium"
+                    >
+                      {isAddingNote ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Plus className="w-4 h-4" />
+                      )}
+                      Add
+                    </button>
+                  </div>
                 </div>
               </div>
             </>
@@ -503,7 +575,7 @@ const InquiryDetailModal: React.FC<InquiryDetailModalProps> = ({ id, onClose }) 
           </button>
           <button
             onClick={handleSave}
-            disabled={!inquiry || !dirty || isSaving}
+            disabled={!inquiry || !statusDirty || isSaving}
             className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
           >
             {isSaving ? (
