@@ -75,8 +75,13 @@ export default function Header() {
             <a
               href="/"
               onClick={handleLogoClick}
-              className="cursor-pointer shrink-0 flex items-center"
+              className="cursor-pointer shrink-0 flex items-center gap-2"
             >
+              <img
+                src="/logo-3d.svg"
+                alt="ScootyOnRent"
+                className="h-11 w-11 sm:h-12 sm:w-12 md:h-14 md:w-14 rounded-lg shrink-0"
+              />
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-black whitespace-nowrap leading-tight">
                 Scooty<span className="text-primary-500">onrent</span>
               </h1>

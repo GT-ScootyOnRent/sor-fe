@@ -23,15 +23,9 @@ const App: React.FC = () => {
       return;
     }
 
-    // Show splash on every page load/refresh
+    // Show splash on every page load/refresh. The splash itself decides when
+    // to complete (after the user picks a city, or auto-zoom for returning users).
     setShowSplash(true);
-
-    // Auto-complete after animation finishes (4 seconds)
-    const timer = setTimeout(() => {
-      handleSplashComplete();
-    }, 4000);
-
-    return () => clearTimeout(timer);
   }, []);
 
   return (
@@ -46,7 +40,7 @@ const App: React.FC = () => {
 
       <AnimatePresence mode="wait">
         {showSplash ? (
-          <SplashScreen key="splash" onSkip={handleSplashComplete} />
+          <SplashScreen key="splash" onComplete={handleSplashComplete} />
         ) : (
           <AppRoutes key="app" />
         )}
