@@ -366,10 +366,11 @@ export default function DateTimePicker() {
 
   const valueClass = 'text-base font-bold text-primary-600 truncate';
 
-  // sr-only style for the hidden native date input — keeps it accessible &
-  // showPicker()-callable while removing it from the visual flow.
-  const visuallyHiddenInputClass =
-    'absolute h-px w-px overflow-hidden whitespace-nowrap p-0 -m-px border-0';
+  // Transparent native date input overlaid across the whole cell. Tapping the
+  // cell taps the real input directly, so iOS Safari opens its native date
+  // picker reliably (showPicker() alone is a no-op on a hidden input in iOS).
+  const dateInputOverlayClass =
+    'absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none m-0 p-0 border-0 bg-transparent';
 
   return (
     <div>
@@ -402,7 +403,7 @@ export default function DateTimePicker() {
           </button>
 
           {/* Pickup Date */}
-          <div className={cellClass} onClick={() => openPicker(pickupDateRef)}>
+          <div className={`${cellClass} relative`} onClick={() => openPicker(pickupDateRef)}>
             <span className={`${valueClass} flex-1`}>{formatDateDDMMYYYY(pickupDate)}</span>
             <Calendar className={iconClass} />
             <input
@@ -411,9 +412,10 @@ export default function DateTimePicker() {
               type="date"
               value={pickupDate}
               onChange={(e) => handlePickupDateChange(e.target.value)}
+              onClick={() => openPicker(pickupDateRef)}
               min={minBookableDate}
               aria-label="Pickup date"
-              className={visuallyHiddenInputClass}
+              className={dateInputOverlayClass}
             />
           </div>
 
@@ -430,7 +432,7 @@ export default function DateTimePicker() {
           </div>
 
           {/* Return Date */}
-          <div className={cellClass} onClick={() => openPicker(returnDateRef)}>
+          <div className={`${cellClass} relative`} onClick={() => openPicker(returnDateRef)}>
             <span className={`${valueClass} flex-1`}>{formatDateDDMMYYYY(returnDate)}</span>
             <Calendar className={iconClass} />
             <input
@@ -439,9 +441,10 @@ export default function DateTimePicker() {
               type="date"
               value={returnDate}
               onChange={(e) => setReturnDate(e.target.value)}
+              onClick={() => openPicker(returnDateRef)}
               min={pickupDate || minBookableDate}
               aria-label="Return date"
-              className={visuallyHiddenInputClass}
+              className={dateInputOverlayClass}
             />
           </div>
 
