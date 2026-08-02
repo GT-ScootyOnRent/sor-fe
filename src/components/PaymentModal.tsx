@@ -123,8 +123,16 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
       if (!data.success) throw new Error(data.message);
 
+      // The server returns the publishable key the order was actually created under,
+      // so the checkout can never be opened with a key from a different Razorpay
+      // account. VITE_RAZORPAY_KEY_ID stays only as a fallback for older backends.
+      const razorpayKey = data.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID;
+      if (!razorpayKey) {
+        throw new Error("Razorpay key missing — set Razorpay:KeyId on the server");
+      }
+
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        key: razorpayKey,
         amount: data.amount, // in paise
         currency: "INR",
         name: "ScootyOnRent",

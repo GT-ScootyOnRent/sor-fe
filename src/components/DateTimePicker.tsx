@@ -126,14 +126,45 @@ const getSmartPickupTime = (selectedDate: string): string => {
   return MIN_TIME;
 };
 
-// ── TimeSelect — custom dropdown with icon trigger ──────────────────────────
+// ── Shared cell styles ──────────────────────────────────────────────────────
+
+// Shared cell layout — a field label stacked above the [value] [icon] row.
+// py-4 (not py-6) keeps the bar close to its original height now that the
+// label adds a line.
+const cellClass =
+  'flex-1 flex flex-col justify-center gap-1 px-6 py-4 cursor-pointer transition-colors duration-200 hover:bg-gray-50';
+
+// Inner row holding the value and its trailing icon.
+const cellRowClass = 'flex items-center gap-3';
+
+// Matches the date-field label styling used on VehicleListingPage.
+const labelClass = 'text-xs font-medium text-gray-500 text-left';
+
+const iconClass = 'w-5 h-5 text-primary-600 shrink-0';
+
+const valueClass = 'text-base font-bold text-primary-600 truncate';
+
+// Transparent control stretched across an entire cell. Every field uses this so
+// a click anywhere in the cell — padding and label included — activates it, not
+// just the value text. For the date fields it also means the tap lands on the
+// real input, so iOS Safari opens its native picker reliably (showPicker()
+// alone is a no-op on a hidden input in iOS).
+const cellOverlayClass =
+  'absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none m-0 p-0 border-0 bg-transparent';
+
+// ── TimeSelect — a full cell: label, value, and a full-cell dropdown trigger ─
 
 interface TimeSelectProps {
   value: string;
   onChange: (time: string) => void;
   minTime?: string;
   maxTime?: string;
-  ariaLabel?: string;
+  // Visible field label. Rendered here rather than by the caller so the trigger
+  // overlay can cover it — the whole cell has to be one click target.
+  label: string;
+  // The trigger is named by the label *and* the current value ("Start Time,
+  // 06:00 AM"); a bare aria-label cannot do that — it would suppress the value.
+  labelId: string;
   icon?: React.ReactNode;
 }
 
@@ -142,7 +173,8 @@ const TimeSelect: React.FC<TimeSelectProps> = ({
   onChange,
   minTime,
   maxTime,
-  ariaLabel,
+  label,
+  labelId,
   icon,
 }) => {
   const [open, setOpen] = useState(false);
@@ -173,8 +205,23 @@ const TimeSelect: React.FC<TimeSelectProps> = ({
     }
   }, [open]);
 
+  const valueId = `${labelId}-value`;
+
   return (
-    <div ref={wrapperRef} className="relative w-full">
+    <div ref={wrapperRef} className={`${cellClass} relative`}>
+      <span id={labelId} className={labelClass}>
+        {label}
+      </span>
+      <span className={cellRowClass}>
+        <span id={valueId} className={`${valueClass} flex-1`}>
+          {value ? formatTime12(value) : '--:--'}
+        </span>
+        {icon}
+      </span>
+
+      {/* Trigger stretched over the whole cell, so clicking the label, the
+          padding, or the value all open the dropdown — matching the date
+          fields, whose transparent input covers their cell the same way. */}
       <button
         type="button"
         onClick={(e) => {
@@ -183,12 +230,9 @@ const TimeSelect: React.FC<TimeSelectProps> = ({
         }}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={ariaLabel}
-        className="w-full flex items-center gap-3 text-left text-base font-bold text-primary-600 cursor-pointer outline-none"
-      >
-        <span className="flex-1 truncate">{value ? formatTime12(value) : '--:--'}</span>
-        {icon}
-      </button>
+        aria-labelledby={`${labelId} ${valueId}`}
+        className={cellOverlayClass}
+      />
 
       {open && (
         <div
@@ -356,22 +400,6 @@ export default function DateTimePicker() {
     navigate(`/vehicles?${params.toString()}`);
   };
 
-  // ── Style helpers ──────────────────────────────────────────────────────
-
-  // Shared cell layout — single row of [icon] [value], no upper labels
-  const cellClass =
-    'flex-1 flex items-center gap-3 px-6 py-6 cursor-pointer transition-colors duration-200 hover:bg-gray-50';
-
-  const iconClass = 'w-5 h-5 text-primary-600 shrink-0';
-
-  const valueClass = 'text-base font-bold text-primary-600 truncate';
-
-  // Transparent native date input overlaid across the whole cell. Tapping the
-  // cell taps the real input directly, so iOS Safari opens its native date
-  // picker reliably (showPicker() alone is a no-op on a hidden input in iOS).
-  const dateInputOverlayClass =
-    'absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none m-0 p-0 border-0 bg-transparent';
-
   return (
     <div>
       <div
@@ -396,16 +424,24 @@ export default function DateTimePicker() {
             onClick={() => dispatch(openCityModal())}
             className={`${cellClass} md:rounded-l-2xl text-left`}
           >
-            <span className={`${valueClass} flex-1`}>
-              {selectedCity?.name || 'Select city'}
+            <span className={labelClass}>City</span>
+            <span className={cellRowClass}>
+              <span className={`${valueClass} flex-1`}>
+                {selectedCity?.name || 'Select city'}
+              </span>
+              <MapPin className={iconClass} />
             </span>
-            <MapPin className={iconClass} />
           </button>
 
-          {/* Pickup Date */}
+          {/* Start Date */}
           <div className={`${cellClass} relative`} onClick={() => openPicker(pickupDateRef)}>
-            <span className={`${valueClass} flex-1`}>{formatDateDDMMYYYY(pickupDate)}</span>
-            <Calendar className={iconClass} />
+            <label htmlFor="pickup-date" className={labelClass}>
+              Start Date
+            </label>
+            <span className={cellRowClass}>
+              <span className={`${valueClass} flex-1`}>{formatDateDDMMYYYY(pickupDate)}</span>
+              <Calendar className={iconClass} />
+            </span>
             <input
               ref={pickupDateRef}
               id="pickup-date"
@@ -414,27 +450,30 @@ export default function DateTimePicker() {
               onChange={(e) => handlePickupDateChange(e.target.value)}
               onClick={() => openPicker(pickupDateRef)}
               min={minBookableDate}
-              aria-label="Pickup date"
-              className={dateInputOverlayClass}
+              className={cellOverlayClass}
             />
           </div>
 
-          {/* Pickup Time */}
-          <div className={cellClass} onClick={(e) => e.stopPropagation()}>
-            <TimeSelect
-              icon={<Clock className={iconClass} />}
-              value={pickupTime}
-              onChange={setPickupTime}
-              minTime={pickupMinTime}
-              maxTime={MAX_TIME}
-              ariaLabel="Pickup time"
-            />
-          </div>
+          {/* Start Time */}
+          <TimeSelect
+            label="Start Time"
+            labelId="start-time-label"
+            icon={<Clock className={iconClass} />}
+            value={pickupTime}
+            onChange={setPickupTime}
+            minTime={pickupMinTime}
+            maxTime={MAX_TIME}
+          />
 
-          {/* Return Date */}
+          {/* End Date */}
           <div className={`${cellClass} relative`} onClick={() => openPicker(returnDateRef)}>
-            <span className={`${valueClass} flex-1`}>{formatDateDDMMYYYY(returnDate)}</span>
-            <Calendar className={iconClass} />
+            <label htmlFor="return-date" className={labelClass}>
+              End Date
+            </label>
+            <span className={cellRowClass}>
+              <span className={`${valueClass} flex-1`}>{formatDateDDMMYYYY(returnDate)}</span>
+              <Calendar className={iconClass} />
+            </span>
             <input
               ref={returnDateRef}
               id="return-date"
@@ -443,22 +482,20 @@ export default function DateTimePicker() {
               onChange={(e) => setReturnDate(e.target.value)}
               onClick={() => openPicker(returnDateRef)}
               min={pickupDate || minBookableDate}
-              aria-label="Return date"
-              className={dateInputOverlayClass}
+              className={cellOverlayClass}
             />
           </div>
 
-          {/* Return Time */}
-          <div className={cellClass} onClick={(e) => e.stopPropagation()}>
-            <TimeSelect
-              icon={<Clock className={iconClass} />}
-              value={returnTime}
-              onChange={setReturnTime}
-              minTime={returnMinTime}
-              maxTime={MAX_TIME}
-              ariaLabel="Return time"
-            />
-          </div>
+          {/* End Time */}
+          <TimeSelect
+            label="End Time"
+            labelId="end-time-label"
+            icon={<Clock className={iconClass} />}
+            value={returnTime}
+            onChange={setReturnTime}
+            minTime={returnMinTime}
+            maxTime={MAX_TIME}
+          />
         </div>
 
         {/* CTA — sibling of field group, no divide-x applies */}
