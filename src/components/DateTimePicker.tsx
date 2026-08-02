@@ -368,7 +368,13 @@ export default function DateTimePicker() {
       setPickupDate(value);
       setPickupTime(smartTime);
     }
-    setTimeout(() => openPicker(returnDateRef), 100);
+
+    // Deliberately does NOT open the return-date picker.
+    // Chrome rewrites this input's value (firing change) on every month step inside the
+    // native calendar — stepping Dec → Jan keeps the day and moves the month. Since only
+    // one native picker can be open at a time, calling showPicker() on the return input
+    // here dismissed the start calendar and threw the user into the end date halfway
+    // through navigating. The user opens the return picker themselves by clicking it.
   };
 
   const isFormComplete = !!(

@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Fuel, Check } from 'lucide-react';
 import { Button } from './ui/button';
@@ -12,6 +12,13 @@ import { calculateDurationPrice, DURATION_OPTIONS } from '../store/api/vehiclePa
 
 interface VehicleCardProps {
   vehicle: VehicleWithImagesDto;
+  /**
+   * False when the card is not the carousel's active slide. The card keeps its own
+   * flip state, and the carousel reuses instances as they change position, so without
+   * this the package panel stayed open on cards that scrolled into the background.
+   * Defaults to true so standalone usages (listing/detail pages) are unaffected.
+   */
+  isActive?: boolean;
 }
 
 interface PackageOption {
@@ -41,7 +48,7 @@ function formatNextAvailableFrom(value: string): string {
   return `${date} (${time})`;
 }
 
-export default function VehicleCard({ vehicle }: VehicleCardProps) {
+export default function VehicleCard({ vehicle, isActive = true }: VehicleCardProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAppSelector((state) => state.auth);
@@ -52,6 +59,15 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
   const [showPickupModal, setShowPickupModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingLocation, setPendingLocation] = useState<PickupLocationDto | null>(null);
+
+  // Reset to the front face once this card is no longer the active slide, so package
+  // details never linger on the cards behind the current one.
+  useEffect(() => {
+    if (!isActive) {
+      setIsFlipped(false);
+      setSelectedPackage(null);
+    }
+  }, [isActive]);
 
   // Build package options from linkedPackage (new system)
   const packageOptions: PackageOption[] = vehicle.linkedPackage
@@ -240,7 +256,7 @@ export default function VehicleCard({ vehicle }: VehicleCardProps) {
               setIsFlipped(!isFlipped);
               if (isFlipped) setSelectedPackage(null);
             }}
-            className="absolute -bottom-[18px] left-0 right-0 z-10 flex items-center justify-center group"
+            className="absolute -bottom-[18px] left-0 right-0 z-10 flex items-center justify-center group cursor-pointer"
           >
             <div className="h-px flex-1 bg-gray-400 mr-[-1px]" />
             <div className="relative w-[120px] h-[36px] hover:drop-shadow-[0_0_8px_rgba(1,124,238,0.6)] transition-all duration-300">
