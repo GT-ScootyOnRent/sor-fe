@@ -63,6 +63,34 @@ const formatDateDDMMYYYY = (value: string): string => {
   return `${d}/${m}/${y}`;
 };
 
+/**
+ * True when a date change looks like month navigation inside the native calendar rather
+ * than the user clicking a day.
+ *
+ * Chrome's date picker rewrites the input's value (firing `change`) every time you step
+ * a month, so a month step and a real selection are indistinguishable from the event
+ * alone. The day-of-month is what separates them: stepping carries it over unchanged,
+ * clamping only when the target month is shorter (31 Jan → 28 Feb). Picking a day
+ * changes it, and picking within the same month is never a step.
+ */
+const isMonthStep = (from: string, to: string): boolean => {
+  if (!from || !to) return false;
+
+  const [fromYear, fromMonth, fromDay] = from.split('-').map(Number);
+  const [toYear, toMonth, toDay] = to.split('-').map(Number);
+  if ([fromYear, fromMonth, fromDay, toYear, toMonth, toDay].some(Number.isNaN)) return false;
+
+  // Same month → the user clicked a day, never a step.
+  if (fromYear === toYear && fromMonth === toMonth) return false;
+
+  // Day carried over → stepped.
+  if (fromDay === toDay) return true;
+
+  // Day clamped to a shorter month → still a step, not a pick.
+  const lastDayOfTargetMonth = new Date(toYear, toMonth, 0).getDate();
+  return toDay === lastDayOfTargetMonth && fromDay > lastDayOfTargetMonth;
+};
+
 const computeDefaults = () => {
   const now = new Date();
   const candidate = roundUpTo30Min(new Date(now.getTime() + 60 * 60 * 1000));
@@ -352,10 +380,15 @@ export default function DateTimePicker() {
 
   const handlePickupDateChange = (value: string) => {
     if (!value) return;
-    
+
+    // Distinguish "user stepped to another month" from "user picked a day" — both fire
+    // this identical change event, because Chrome rewrites the input's value as you
+    // navigate the native calendar.
+    const steppedMonth = isMonthStep(pickupDate, value);
+
     // Check if selected date is bookable
     const smartTime = getSmartPickupTime(value);
-    
+
     if (!smartTime) {
       // Today is not bookable (too late), push to tomorrow
       const tomorrow = new Date();
@@ -369,12 +402,13 @@ export default function DateTimePicker() {
       setPickupTime(smartTime);
     }
 
-    // Deliberately does NOT open the return-date picker.
-    // Chrome rewrites this input's value (firing change) on every month step inside the
-    // native calendar — stepping Dec → Jan keeps the day and moves the month. Since only
-    // one native picker can be open at a time, calling showPicker() on the return input
-    // here dismissed the start calendar and threw the user into the end date halfway
-    // through navigating. The user opens the return picker themselves by clicking it.
+    // Hand off to the return-date picker only once a real day has been chosen.
+    // Stepping months inside the native calendar fires this same change event, and
+    // opening another picker would dismiss the one the user is still navigating —
+    // only one native picker can be open at a time.
+    if (!steppedMonth) {
+      setTimeout(() => openPicker(returnDateRef), 100);
+    }
   };
 
   const isFormComplete = !!(
