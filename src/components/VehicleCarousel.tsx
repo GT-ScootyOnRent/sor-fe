@@ -192,8 +192,8 @@ export default function VehicleCarousel({ vehicles }: Props) {
                 className={`absolute transition-all duration-700 ease-in-out cursor-pointer ${slide.position === 'center'
                   ? 'z-10 scale-100 opacity-100'
                   : slide.position === 'left' || slide.position === 'right'
-                    ? 'z-5 scale-85 opacity-70 hidden sm:block'
-                    : 'z-0 scale-70 opacity-40 hidden lg:block'
+                    ? 'z-5 scale-85 opacity-70 hidden lg:block'
+                    : 'z-0 scale-70 opacity-40 hidden xl:block'
                   }`}
                 style={{
                   transform:
@@ -218,22 +218,26 @@ export default function VehicleCarousel({ vehicles }: Props) {
         </div>
 
         {/* Dots */}
-        <div className="flex justify-center gap-2 sm:gap-3 mt-8 sm:mt-12 flex-wrap px-4">
-          {vehicles.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => goToSlide(index)}
-              className={`transition-all cursor-pointer min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center ${index === currentIndex
-                ? 'bg-primary-500'
-                : 'bg-gray-300 hover:bg-gray-400'
-                }`}
-              style={{
-                width: index === currentIndex ? '40px' : '12px',
-                height: '12px',
-                borderRadius: '9999px',
-              }}
-            />
-          ))}
+        <div className="flex justify-center gap-1 mt-8 sm:mt-12 flex-wrap px-4">
+          {vehicles.map((_, index) => {
+            const isActive = index === currentIndex;
+            return (
+              <button
+                key={index}
+                onClick={() => goToSlide(index)}
+                className="transition-all cursor-pointer w-8 h-8 flex items-center justify-center rounded-full focus:outline-none"
+                aria-label={`Go to slide ${index + 1}`}
+              >
+                <span
+                  className={`transition-all duration-300 rounded-full ${
+                    isActive
+                      ? 'w-7 h-2.5 bg-primary-500'
+                      : 'w-2.5 h-2.5 bg-gray-300 hover:bg-gray-400'
+                  }`}
+                />
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
