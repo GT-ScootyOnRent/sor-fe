@@ -80,9 +80,9 @@ export default function Header() {
               <img
                 src="/logo-3d.svg"
                 alt="ScootyOnRent"
-                className="h-11 w-11 sm:h-12 sm:w-12 md:h-14 md:w-14 rounded-lg shrink-0"
+                className="h-10 w-10 sm:h-11 sm:w-11 lg:h-14 lg:w-14 rounded-lg shrink-0"
               />
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-black whitespace-nowrap leading-tight">
+              <h1 className="text-lg sm:text-2xl lg:text-3xl xl:text-4xl font-bold tracking-tight text-black whitespace-nowrap leading-tight">
                 Scooty<span className="text-primary-500">onrent</span>
               </h1>
             </a>
@@ -91,10 +91,10 @@ export default function Header() {
             {selectedCity && (
               <button
                 onClick={() => dispatch(openCityModal())}
-                className="flex items-center gap-2 px-3 py-2 md:px-4 rounded-xl border border-primary-200 bg-primary-50 hover:bg-primary-100 transition-all shadow-sm min-h-[42px] max-w-[150px] sm:max-w-none"
+                className="flex items-center gap-2 px-3 py-2 lg:px-4 rounded-xl border border-primary-200 bg-primary-50 hover:bg-primary-100 transition-all shadow-sm min-h-[42px] max-w-[150px] sm:max-w-none"
               >
-                <MapPin className="w-4 h-4 md:w-5 md:h-5 text-primary-500 shrink-0" />
-                <span className="truncate text-xs sm:text-sm md:text-base font-semibold text-gray-800">
+                <MapPin className="w-4 h-4 lg:w-5 lg:h-5 text-primary-500 shrink-0" />
+                <span className="truncate text-xs sm:text-sm lg:text-base font-semibold text-gray-800">
                   {selectedCity.name}
                 </span>
                 <ChevronDown className="w-4 h-4 text-primary-500 shrink-0" />
@@ -103,7 +103,7 @@ export default function Header() {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-6 lg:gap-8">
+          <nav className="hidden lg:flex items-center gap-6 xl:gap-8">
             <Link
               to="/"
               onClick={handleHomeClick}
@@ -133,7 +133,7 @@ export default function Header() {
           {/* All right-side buttons share h-10 + min-w-[120px] so they line up
               regardless of label length. ContactButton already follows the
               same shape internally. */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-3">
             <ContactButton />
             {isAuthenticated ? (
               <>
@@ -159,7 +159,7 @@ export default function Header() {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg border border-gray-200"
+            className="lg:hidden p-2 rounded-lg border border-gray-200"
           >
             {mobileMenuOpen ? (
               <X className="w-5 h-5" />
@@ -171,7 +171,7 @@ export default function Header() {
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden mt-4 border-t border-gray-200 pt-4 space-y-3">
+          <div className="lg:hidden mt-4 border-t border-gray-200 pt-4 space-y-3">
             <Link
               to="/"
               onClick={handleHomeClick}
@@ -180,14 +180,13 @@ export default function Header() {
               Home
             </Link>
 
-            <button
-              type="button"
+            <Link
+              to="/vehicles"
               onClick={handleVehiclesClick}
-              className={`btn-snake w-full justify-start ${isActive('/vehicles') ? 'btn-snake-active' : ''}`}
+              className={mobileNavLinkClass('/vehicles')}
             >
-              <span className="btn-snake-sides" aria-hidden />
-              <span className="btn-snake-label pl-0.5">Booking/Vehicles</span>
-            </button>
+              Booking/Vehicles
+            </Link>
 
             <Link
               to="/contact"
@@ -205,24 +204,20 @@ export default function Header() {
               Work With Us
             </Link>
 
-            <ContactButton className="!w-fit" />
-
-
-            <div className="pt-2">
+            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-200">
+              <ContactButton className="w-full min-w-0 max-w-none" />
               {isAuthenticated ? (
-                <div className="space-y-2">
-                  <Button
-                    onClick={() => {
-                      navigate('/profile');
-                      setMobileMenuOpen(false);
-                    }}
-                    className="w-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-                    variant="outline"
-                  >
-                    <User className="w-4 h-4 mr-2" />
-                    Profile
-                  </Button>
-                </div>
+                <Button
+                  onClick={() => {
+                    navigate('/profile');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                  variant="outline"
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  Profile
+                </Button>
               ) : (
                 <Button
                   onClick={() => {

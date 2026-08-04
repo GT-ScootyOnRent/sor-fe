@@ -160,7 +160,7 @@ const getSmartPickupTime = (selectedDate: string): string => {
 // py-4 (not py-6) keeps the bar close to its original height now that the
 // label adds a line.
 const cellClass =
-  'flex-1 flex flex-col justify-center gap-1 px-6 py-4 cursor-pointer transition-colors duration-200 hover:bg-gray-50';
+  'flex-1 flex flex-col justify-center gap-1 px-4 lg:px-6 py-4 cursor-pointer transition-colors duration-200 hover:bg-gray-50';
 
 // Inner row holding the value and its trailing icon.
 const cellRowClass = 'flex items-center gap-3';
@@ -448,21 +448,21 @@ export default function DateTimePicker() {
           shadow-[0_20px_60px_rgba(0,0,0,0.12)]
           rounded-2xl
           overflow-visible
-          flex flex-col md:flex-row md:items-stretch
+          flex flex-col lg:flex-row lg:items-stretch
         "
       >
         {/* Field group — divide-x lives here only, so no divider hits the button */}
         <div
           className="
-            flex flex-col md:flex-row md:items-stretch md:flex-1
-            divide-y md:divide-y-0 md:divide-x divide-gray-200
+            flex flex-col lg:flex-row lg:items-stretch lg:flex-1
+            divide-y lg:divide-y-0 lg:divide-x divide-gray-200
           "
         >
           {/* Location */}
           <button
             type="button"
             onClick={() => dispatch(openCityModal())}
-            className={`${cellClass} md:rounded-l-2xl text-left`}
+            className={`${cellClass} lg:rounded-l-2xl text-left`}
           >
             <span className={labelClass}>City</span>
             <span className={cellRowClass}>
@@ -544,10 +544,10 @@ export default function DateTimePicker() {
           disabled={!isFormComplete}
           className="
             group relative overflow-hidden
-            w-full md:w-auto md:self-stretch
-            px-8 py-5 md:px-12 md:py-0 md:h-auto
+            w-full lg:w-auto lg:self-stretch
+            px-8 py-5 lg:px-12 lg:py-0 lg:h-auto
             text-base
-            rounded-2xl md:rounded-l-none md:rounded-r-2xl
+            rounded-2xl lg:rounded-l-none lg:rounded-r-2xl
             bg-gradient-to-r from-primary-500 to-primary-600
             text-white font-bold tracking-wide
             shadow-[0_10px_30px_rgba(1,124,238,0.35)]
